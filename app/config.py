@@ -24,6 +24,15 @@ class BaseConfig:
     LLM_API_KEY = os.getenv("LLM_API_KEY", "")
     EMBEDDING_API_KEY = os.getenv("EMBEDDING_API_KEY", "")
     LOG_LEVEL = os.getenv("LOG_LEVEL", "INFO")
+    GEMINI_API_KEY = os.getenv("GEMINI_API_KEY", "")
+    GEMINI_LLM_MODEL = os.getenv("GEMINI_LLM_MODEL", "gemini-3.8-flash")
+    GEMINI_EMBEDDING_MODEL = os.getenv("GEMINI_EMBEDDING_MODEL", "gemini-embedding-2")
+    EMBEDDING_DIMENSIONS = int(os.getenv("EMBEDDING_DIMENSIONS", "768"))
+    RAG_DEFAULT_TOP_K = int(os.getenv("RAG_DEFAULT_TOP_K", "5"))
+    RAG_MAX_TOP_K = int(os.getenv("RAG_MAX_TOP_K", "20"))
+    RAG_CHUNK_SIZE = int(os.getenv("RAG_CHUNK_SIZE", "1000"))
+    RAG_CHUNK_OVERLAP = int(os.getenv("RAG_CHUNK_OVERLAP", "150"))
+    RAG_EMBEDDING_BATCH_SIZE = int(os.getenv("RAG_EMBEDDING_BATCH_SIZE", "10"))
 
 
 class DevelopmentConfig(BaseConfig):

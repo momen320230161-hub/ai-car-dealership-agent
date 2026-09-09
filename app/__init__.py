@@ -13,6 +13,14 @@ def create_app(config_name=None):
 
     if not app.config["TESTING"] and not app.config.get("SQLALCHEMY_DATABASE_URI"):
         raise RuntimeError("DATABASE_URL must be set before starting the application")
+    if app.config["EMBEDDING_DIMENSIONS"] != 768:
+        raise RuntimeError(
+            "EMBEDDING_DIMENSIONS must be 768; changing it requires a schema migration and re-embedding"
+        )
+    if not 0 <= app.config["RAG_CHUNK_OVERLAP"] < app.config["RAG_CHUNK_SIZE"]:
+        raise RuntimeError("RAG_CHUNK_OVERLAP must be non-negative and smaller than RAG_CHUNK_SIZE")
+    if not 1 <= app.config["RAG_DEFAULT_TOP_K"] <= app.config["RAG_MAX_TOP_K"]:
+        raise RuntimeError("RAG_DEFAULT_TOP_K must be between 1 and RAG_MAX_TOP_K")
 
     if config_class is ProductionConfig and app.config.get("SECRET_KEY") in (
         None,

@@ -8,6 +8,7 @@ dist/
 build/
 .pytest_cache/
 .pytest-phase2-tmp/
+.pytest-phase3-tmp/
 .coverage
 htmlcov/
 .mypy_cache/
