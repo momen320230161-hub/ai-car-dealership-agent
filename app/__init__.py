@@ -11,6 +11,9 @@ def create_app(config_name=None):
     config_class = get_config_class(config_name)
     app.config.from_object(config_class)
 
+    if not app.config["TESTING"] and not app.config.get("SQLALCHEMY_DATABASE_URI"):
+        raise RuntimeError("DATABASE_URL must be set before starting the application")
+
     if config_class is ProductionConfig and app.config.get("SECRET_KEY") in (
         None,
         "",
@@ -19,6 +22,10 @@ def create_app(config_name=None):
         raise RuntimeError("SECRET_KEY must be set to a strong value in production")
 
     init_extensions(app)
+    from app import models  # noqa: F401 -- registers SQLAlchemy metadata
+    from app.cli import register_commands
+
+    register_commands(app)
     configure_logging(app)
     _register_error_handlers(app)
     _register_health_route(app)
