@@ -8,6 +8,21 @@ from app.services.vehicle_importer import import_vehicles
 
 
 def register_commands(app):
+    @app.cli.group("agent")
+    def agent_group():
+        """Run the Phase 4 dealership agent."""
+
+    @agent_group.command("ask")
+    @click.argument("message")
+    @click.option("--conversation-id")
+    def agent_ask(message, conversation_id):
+        """Send one message and print the response and conversation ID."""
+        from app.agent import DealershipAgent
+
+        result = DealershipAgent().ask(message, conversation_id=conversation_id)
+        click.echo(result.response)
+        click.echo(f"Conversation ID: {result.conversation_id}")
+
     @app.cli.command("import-vehicles")
     @click.argument("csv_path", type=click.Path(exists=True, dir_okay=False, path_type=Path))
     def import_vehicles_command(csv_path: Path):

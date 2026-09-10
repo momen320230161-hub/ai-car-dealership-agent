@@ -33,6 +33,15 @@ class BaseConfig:
     RAG_CHUNK_SIZE = int(os.getenv("RAG_CHUNK_SIZE", "1000"))
     RAG_CHUNK_OVERLAP = int(os.getenv("RAG_CHUNK_OVERLAP", "150"))
     RAG_EMBEDDING_BATCH_SIZE = int(os.getenv("RAG_EMBEDDING_BATCH_SIZE", "10"))
+    AGENT_HISTORY_MAX_MESSAGES = int(os.getenv("AGENT_HISTORY_MAX_MESSAGES", "12"))
+    AGENT_VEHICLE_RESULT_LIMIT = int(os.getenv("AGENT_VEHICLE_RESULT_LIMIT", "5"))
+    AGENT_MAX_VEHICLE_RESULTS = int(os.getenv("AGENT_MAX_VEHICLE_RESULTS", "10"))
+    AGENT_RAG_TOP_K = int(os.getenv("AGENT_RAG_TOP_K", "5"))
+    AGENT_RAG_MIN_SIMILARITY = (
+        float(os.getenv("AGENT_RAG_MIN_SIMILARITY"))
+        if os.getenv("AGENT_RAG_MIN_SIMILARITY", "").strip()
+        else None
+    )
 
 
 class DevelopmentConfig(BaseConfig):

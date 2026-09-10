@@ -21,6 +21,18 @@ def create_app(config_name=None):
         raise RuntimeError("RAG_CHUNK_OVERLAP must be non-negative and smaller than RAG_CHUNK_SIZE")
     if not 1 <= app.config["RAG_DEFAULT_TOP_K"] <= app.config["RAG_MAX_TOP_K"]:
         raise RuntimeError("RAG_DEFAULT_TOP_K must be between 1 and RAG_MAX_TOP_K")
+    if not 1 <= app.config["AGENT_HISTORY_MAX_MESSAGES"] <= 100:
+        raise RuntimeError("AGENT_HISTORY_MAX_MESSAGES must be between 1 and 100")
+    if not 1 <= app.config["AGENT_VEHICLE_RESULT_LIMIT"] <= app.config["AGENT_MAX_VEHICLE_RESULTS"]:
+        raise RuntimeError(
+            "AGENT_VEHICLE_RESULT_LIMIT must be between 1 and AGENT_MAX_VEHICLE_RESULTS"
+        )
+    if not 1 <= app.config["AGENT_RAG_TOP_K"] <= app.config["RAG_MAX_TOP_K"]:
+        raise RuntimeError("AGENT_RAG_TOP_K must be between 1 and RAG_MAX_TOP_K")
+    if app.config["AGENT_RAG_MIN_SIMILARITY"] is not None and not (
+        -1.0 <= app.config["AGENT_RAG_MIN_SIMILARITY"] <= 1.0
+    ):
+        raise RuntimeError("AGENT_RAG_MIN_SIMILARITY must be between -1 and 1")
 
     if config_class is ProductionConfig and app.config.get("SECRET_KEY") in (
         None,

@@ -9,6 +9,8 @@ build/
 .pytest_cache/
 .pytest-phase2-tmp/
 .pytest-phase3-tmp/
+.pytest-phase4-pre/
+.pytest-phase4-tmp/
 .coverage
 htmlcov/
 .mypy_cache/
