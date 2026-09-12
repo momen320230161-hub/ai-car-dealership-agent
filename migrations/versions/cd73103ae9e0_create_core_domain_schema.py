@@ -188,6 +188,18 @@ def upgrade():
         ["status"],
         unique=False,
     )
+    op.create_index(
+        "ix_conversation_sessions_selected_car_id",
+        "conversation_sessions",
+        ["selected_car_id"],
+        unique=False,
+    )
+    op.create_index(
+        "ix_conversation_sessions_active_recommendation_snapshot_id",
+        "conversation_sessions",
+        ["active_recommendation_snapshot_id"],
+        unique=False,
+    )
 
     op.create_table(
         "chat_messages",
