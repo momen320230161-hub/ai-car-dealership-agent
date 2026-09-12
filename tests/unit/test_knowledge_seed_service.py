@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import uuid
 
 import pytest
 from sqlalchemy import select
@@ -14,13 +15,26 @@ from app.services.knowledge_service import KnowledgeService
 
 
 def _write_seed(path, documents, *, status="approved_for_seed", version="1.0"):
+    normalized_documents = []
+    for index, document in enumerate(documents):
+        normalized = dict(document)
+        normalized.setdefault(
+            "id",
+            str(
+                uuid.uuid5(
+                    uuid.NAMESPACE_URL,
+                    f"autodrive-seed-test:{index}:{normalized.get('title', '')}",
+                )
+            ),
+        )
+        normalized_documents.append(normalized)
     path.write_text(
         json.dumps(
             {
                 "version": version,
                 "status": status,
                 "language": "ar-EG",
-                "documents": documents,
+                "documents": normalized_documents,
             },
             ensure_ascii=False,
         ),
@@ -79,7 +93,9 @@ def test_seed_file_creates_then_becomes_idempotent(db_session, tmp_path):
 
 def test_seed_content_change_updates_and_reindexes_current_version(db_session, tmp_path):
     path = tmp_path / "knowledge_seed.json"
+    document_id = uuid.uuid4()
     base = {
+        "id": str(document_id),
         "title": "معلومات التمويل",
         "category": "financing",
         "content": "الإصدار الأول من محتوى التمويل التجريبي.",
@@ -96,11 +112,37 @@ def test_seed_content_change_updates_and_reindexes_current_version(db_session, t
     assert second.version == "1.1"
     assert second.updated == 1
     assert second.failed == 0
-    document = db_session.scalar(select(KnowledgeDocument))
+    document = db_session.get(KnowledgeDocument, document_id)
     assert document.content_version == 2
     assert document.indexed_version == 2
     assert document.index_status == "indexed"
     assert document.content == base["content"]
+
+
+def test_seed_stable_id_allows_title_change_without_duplicate(db_session, tmp_path):
+    path = tmp_path / "knowledge_seed.json"
+    document_id = uuid.uuid4()
+    payload = {
+        "id": str(document_id),
+        "title": "عنوان أول",
+        "category": "faq",
+        "content": "محتوى ثابت للاختبار.",
+        "active": True,
+    }
+    _write_seed(path, [payload])
+    assert _seed_service(db_session).seed_file(path).created == 1
+
+    payload["title"] = "عنوان محدث"
+    _write_seed(path, [payload])
+    report = _seed_service(db_session).seed_file(path)
+
+    assert report.updated == 1
+    assert report.created == 0
+    documents = list(db_session.scalars(select(KnowledgeDocument)))
+    assert len(documents) == 1
+    assert documents[0].id == document_id
+    assert documents[0].title == "عنوان محدث"
+    assert documents[0].content_version == 1
 
 
 def test_seed_repairs_matching_failed_document_by_reindexing(db_session, tmp_path):
@@ -155,4 +197,26 @@ def test_seed_rejects_unapproved_or_duplicate_documents(db_session, tmp_path):
         ],
     )
     with pytest.raises(KnowledgeSeedError, match="duplicate title/category"):
+        _seed_service(db_session).seed_file(path)
+
+
+def test_seed_rejects_missing_or_invalid_document_id(db_session, tmp_path):
+    path = tmp_path / "knowledge_seed.json"
+    path.write_text(
+        json.dumps(
+            {
+                "version": "1.0",
+                "status": "approved_for_seed",
+                "documents": [
+                    {
+                        "title": "FAQ",
+                        "category": "faq",
+                        "content": "Synthetic fixture",
+                    }
+                ],
+            }
+        ),
+        encoding="utf-8",
+    )
+    with pytest.raises(KnowledgeSeedError, match="UUID string"):
         _seed_service(db_session).seed_file(path)
