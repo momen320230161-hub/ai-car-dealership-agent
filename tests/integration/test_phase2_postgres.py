@@ -12,7 +12,7 @@ from sqlalchemy import func, select, text
 from app.extensions import db
 from app.models.car import Car
 from app.models.conversation import ConversationSession
-from app.models.recommendation import RecommendationSnapshot
+from app.models.recommendation import RecommendationSnapshot, RecommendationSnapshotItem
 from app.services.catalog_import_service import CatalogImportService
 from app.services.recommendation_service import (
     RecommendationService,
@@ -142,4 +142,63 @@ def test_postgres_snapshot_sequence_and_atomic_failure(pg_app):
         db.session.refresh(conversation)
         assert conversation.active_recommendation_snapshot_id == second.id
         assert db.session.scalar(select(func.count()).select_from(RecommendationSnapshot)) == 2
+        _truncate_phase2_tables()
+
+
+def test_postgres_snapshot_mid_write_failure_rolls_back_partial_state(pg_app, monkeypatch):
+    """A failure after the snapshot row flush must leave the prior visible state intact."""
+    with pg_app.app_context():
+        upgrade()
+        _truncate_phase2_tables()
+        session = db.session()
+        cars = [
+            Car(
+                brand="Toyota",
+                model="Corolla",
+                year=2025,
+                condition="new",
+                price_egp=Decimal("1300000"),
+                mileage_km=0,
+                source="phase2-pg-mid-write",
+                source_id="first",
+            ),
+            Car(
+                brand="Kia",
+                model="Sportage",
+                year=2025,
+                condition="new",
+                price_egp=Decimal("1700000"),
+                mileage_km=0,
+                source="phase2-pg-mid-write",
+                source_id="second",
+            ),
+        ]
+        conversation = ConversationSession()
+        session.add_all([*cars, conversation])
+        session.commit()
+        service = RecommendationService(session)
+        baseline = service.create_visible_snapshot(conversation.id, [cars[0].id])
+
+        original_flush = session.flush
+        flush_calls = 0
+
+        def fail_on_item_flush(*args, **kwargs):
+            nonlocal flush_calls
+            flush_calls += 1
+            if flush_calls == 2:
+                raise RuntimeError("simulated snapshot item flush failure")
+            return original_flush(*args, **kwargs)
+
+        monkeypatch.setattr(session, "flush", fail_on_item_flush)
+
+        with pytest.raises(RuntimeError, match="simulated snapshot item flush failure"):
+            service.create_visible_snapshot(conversation.id, [cars[0].id, cars[1].id])
+
+        session.expire_all()
+        persisted_conversation = session.get(ConversationSession, conversation.id)
+        persisted_baseline = session.get(RecommendationSnapshot, baseline.id)
+        assert persisted_conversation.active_recommendation_snapshot_id == baseline.id
+        assert persisted_baseline.status == "active"
+        assert session.scalar(select(func.count()).select_from(RecommendationSnapshot)) == 1
+        assert session.scalar(select(func.count()).select_from(RecommendationSnapshotItem)) == 1
         _truncate_phase2_tables()
