@@ -93,6 +93,11 @@ class ConversationSession(Base, TimestampMixin):
             name="conversation_session_status_check",
         ),
         Index("ix_conversation_sessions_status", "status"),
+        Index("ix_conversation_sessions_selected_car_id", "selected_car_id"),
+        Index(
+            "ix_conversation_sessions_active_recommendation_snapshot_id",
+            "active_recommendation_snapshot_id",
+        ),
     )
 
     def __repr__(self) -> str:
