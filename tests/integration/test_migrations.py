@@ -42,21 +42,27 @@ def test_postgres_migration_lifecycle(pg_app):
         rls_rows = db.session.execute(
             text(
                 """
-                SELECT c.relname, c.relrowsecurity
+                SELECT c.relname::text, c.relrowsecurity
                 FROM pg_class AS c
                 JOIN pg_namespace AS n ON n.oid = c.relnamespace
                 WHERE n.nspname = 'public'
-                  AND c.relname = ANY(:tables)
+                  AND c.relname::text = ANY(CAST(:tables AS text[]))
                 """
             ),
             {"tables": list(EXPECTED_TABLES)},
         ).fetchall()
         assert {name for name, enabled in rls_rows if enabled} == EXPECTED_TABLES
 
+        # Release the SQLAlchemy read transaction before Alembic requests
+        # AccessExclusive locks for DROP TABLE during downgrade.
+        db.session.rollback()
         downgrade(revision="base")
+
         remaining = _public_tables()
         assert "cars" not in remaining
         assert "conversation_sessions" not in remaining
 
+        db.session.rollback()
         upgrade()
         assert EXPECTED_TABLES.issubset(_public_tables())
+        db.session.rollback()
