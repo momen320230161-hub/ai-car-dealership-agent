@@ -50,7 +50,7 @@ class Config:
         float(os.environ["RAG_MIN_SCORE"]) if os.getenv("RAG_MIN_SCORE") else None
     )
     AGENT_LLM_PROVIDER = os.getenv("AGENT_LLM_PROVIDER", "gemini")
-    AGENT_LLM_MODEL = os.getenv("AGENT_LLM_MODEL", "gemini-2.5-flash")
+    AGENT_LLM_MODEL = os.getenv("AGENT_LLM_MODEL", "gemini-3.6-flash")
     AGENT_LLM_TEMPERATURE = float(os.getenv("AGENT_LLM_TEMPERATURE", "0.1"))
     AGENT_MAX_MESSAGE_LENGTH = int(os.getenv("AGENT_MAX_MESSAGE_LENGTH", "4000"))
     AGENT_RECENT_MESSAGE_LIMIT = int(os.getenv("AGENT_RECENT_MESSAGE_LIMIT", "12"))

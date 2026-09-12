@@ -31,6 +31,23 @@ class AgentLLM(Protocol):
     ) -> str: ...
 
 
+def gemini_understanding_schema() -> dict[str, Any]:
+    """Keep strict Pydantic validation while omitting Gemini-unsupported keywords."""
+
+    def clean(value: Any) -> Any:
+        if isinstance(value, dict):
+            return {
+                key: clean(item)
+                for key, item in value.items()
+                if key != "additionalProperties"
+            }
+        if isinstance(value, list):
+            return [clean(item) for item in value]
+        return value
+
+    return clean(RequestUnderstanding.model_json_schema())
+
+
 class GeminiAgentLLM:
     """Official Google Gen AI adapter; credentials are checked only on an actual call."""
 
@@ -61,14 +78,15 @@ class GeminiAgentLLM:
                 "current_structured_preferences": dict(preferences),
                 "recent_messages_for_language_context": list(recent_messages)[-6:],
             }
-            response = self._client().models.generate_content(
+            client = self._client()
+            response = client.models.generate_content(
                 model=self.model_name,
                 contents=json.dumps(payload, ensure_ascii=False, default=str),
                 config=types.GenerateContentConfig(
                     system_instruction=UNDERSTANDING_SYSTEM_PROMPT,
                     temperature=self.temperature,
                     response_mime_type="application/json",
-                    response_schema=RequestUnderstanding,
+                    response_json_schema=gemini_understanding_schema(),
                 ),
             )
             if isinstance(response.parsed, RequestUnderstanding):
@@ -93,7 +111,8 @@ class GeminiAgentLLM:
                 "customer_message": message,
                 "verified_context": dict(verified_context),
             }
-            response = self._client().models.generate_content(
+            client = self._client()
+            response = client.models.generate_content(
                 model=self.model_name,
                 contents=json.dumps(payload, ensure_ascii=False, default=str),
                 config=types.GenerateContentConfig(
@@ -212,7 +231,7 @@ class DeterministicAgentLLM:
 
 def build_agent_llm(config: Mapping[str, Any]) -> AgentLLM:
     provider = str(config.get("AGENT_LLM_PROVIDER", "gemini")).strip().lower()
-    model = str(config.get("AGENT_LLM_MODEL", "gemini-2.5-flash")).strip()
+    model = str(config.get("AGENT_LLM_MODEL", "gemini-3.6-flash")).strip()
     temperature = float(config.get("AGENT_LLM_TEMPERATURE", 0.1))
     if provider == "gemini":
         return GeminiAgentLLM(

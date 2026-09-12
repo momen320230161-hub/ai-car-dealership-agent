@@ -5,6 +5,7 @@ from __future__ import annotations
 import uuid
 from collections import deque
 from decimal import Decimal
+from types import SimpleNamespace
 
 import pytest
 from sqlalchemy import func, select
@@ -15,6 +16,7 @@ from app.agent.llm import (
     DeterministicAgentLLM,
     GeminiAgentLLM,
     build_agent_llm,
+    gemini_understanding_schema,
 )
 from app.agent.schemas import RequestUnderstanding, sanitize_understanding
 from app.models.car import Car
@@ -139,6 +141,31 @@ def test_gemini_provider_is_network_lazy_without_credentials():
     assert provider.model_name == "configured-test-model"
     with pytest.raises(AgentLLMError, match="credentials"):
         provider.understand("مرحبا", recent_messages=[], preferences={})
+
+
+def test_gemini_provider_keeps_client_alive_during_understanding(monkeypatch):
+    provider = GeminiAgentLLM(
+        api_key="synthetic-key", model_name="configured-test-model"
+    )
+    expected = RequestUnderstanding(intent="catalog_search")
+    client = SimpleNamespace(
+        models=SimpleNamespace(
+            generate_content=lambda **kwargs: SimpleNamespace(parsed=expected, text=None)
+        )
+    )
+    monkeypatch.setattr(provider, "_client", lambda: client)
+
+    result = provider.understand("عايز عربية", recent_messages=[], preferences={})
+
+    assert result == expected
+
+
+def test_gemini_schema_omits_unsupported_additional_properties():
+    schema = gemini_understanding_schema()
+
+    assert "additionalProperties" not in str(schema)
+    assert schema["type"] == "object"
+    assert "preference_updates" in schema["properties"]
 
 
 def test_python_validation_removes_invented_ids_and_ordinals():
