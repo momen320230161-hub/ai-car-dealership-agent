@@ -125,6 +125,38 @@ def _register_cli(app: Flask) -> None:
         except (EmbeddingError, KnowledgeServiceError) as exc:
             raise click.ClickException(str(exc)) from exc
 
+    @app.cli.command("seed-knowledge")
+    @click.option(
+        "--path",
+        default="data/knowledge_seed.json",
+        type=click.Path(path_type=str, dir_okay=False),
+        show_default=True,
+    )
+    def seed_knowledge(path: str) -> None:
+        """Synchronize the approved production knowledge seed through managed RAG."""
+        from app.rag.embeddings import EmbeddingError, build_embedding_provider
+        from app.services.knowledge_service import KnowledgeService, KnowledgeServiceError
+        from app.services.knowledge_seed_service import KnowledgeSeedError, KnowledgeSeedService
+
+        try:
+            knowledge = KnowledgeService(db.session, build_embedding_provider(app.config))
+            report = KnowledgeSeedService(knowledge).seed_file(path)
+            click.echo(f"seed version: {report.version}")
+            click.echo(f"documents: {report.total}")
+            click.echo(f"created: {report.created}")
+            click.echo(f"updated: {report.updated}")
+            click.echo(f"reindexed: {report.reindexed}")
+            click.echo(f"unchanged: {report.unchanged}")
+            click.echo(f"failed: {report.failed}")
+            for error in report.errors:
+                click.echo(f"error: {error}", err=True)
+            if report.failed:
+                raise KnowledgeSeedError(
+                    f"{report.failed} knowledge document(s) failed to synchronize"
+                )
+        except (EmbeddingError, KnowledgeServiceError, KnowledgeSeedError) as exc:
+            raise click.ClickException(str(exc)) from exc
+
     @app.cli.command("rag-search")
     @click.argument("query")
     @click.option("--category", default=None)
