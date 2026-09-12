@@ -61,13 +61,22 @@ class KnowledgeService:
         self.repository = KnowledgeRepository(session)
 
     def create_document(
-        self, *, title: str, category: str, content: str, active: bool = True
+        self,
+        *,
+        title: str,
+        category: str,
+        content: str,
+        active: bool = True,
+        document_id: uuid.UUID | None = None,
     ) -> KnowledgeDocument:
         title = self._required_text(title, "title")
         category = self._normalize_category(category)
         content = self._required_text(content, "content")
         active = self._required_bool(active, "active")
+        if document_id is not None and not isinstance(document_id, uuid.UUID):
+            raise ValueError("document_id must be a UUID")
         document = KnowledgeDocument(
+            id=document_id or uuid.uuid4(),
             title=title,
             category=category,
             content=content,
@@ -78,11 +87,11 @@ class KnowledgeService:
         try:
             self.session.add(document)
             self.session.commit()
-            document_id = document.id
+            persisted_document_id = document.id
         except SQLAlchemyError as exc:
             self.session.rollback()
             raise KnowledgePersistenceError("Knowledge document could not be created") from exc
-        return self._index_document(document_id, version=1, content=content)
+        return self._index_document(persisted_document_id, version=1, content=content)
 
     def update_document(
         self,
