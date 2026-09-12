@@ -69,6 +69,40 @@ _ORDINAL_REFERENCES = (
     (r"\b(?:التانية|الثاني|الثانية|تاني|second)\b", 2),
     (r"\b(?:التالتة|التالت|الثالثة|الثالث|third)\b", 3),
 )
+_MILLION_WORD_VALUES = {
+    "واحد": 1.0,
+    "واحدة": 1.0,
+    "اتنين": 2.0,
+    "اتنين": 2.0,
+    "اثنين": 2.0,
+    "اثنان": 2.0,
+    "تلاتة": 3.0,
+    "ثلاثة": 3.0,
+    "اربعة": 4.0,
+    "أربعة": 4.0,
+    "خمسة": 5.0,
+    "ستة": 6.0,
+    "سبعة": 7.0,
+    "تمانية": 8.0,
+    "ثمانية": 8.0,
+    "تسعة": 9.0,
+    "عشرة": 10.0,
+}
+_BUDGET_MARKERS = (
+    "معايا",
+    "معي",
+    "ميزاني",
+    "الميزانية",
+    "تحت",
+    "أقل من",
+    "اقل من",
+    "لحد",
+    "حد أقصى",
+    "حد اقصى",
+    "budget",
+    "under",
+    "up to",
+)
 
 
 def explicit_visible_references(message: str) -> list[int]:
@@ -102,6 +136,55 @@ def explicit_visible_references(message: str) -> list[int]:
         references.append((single.start(1), int(single.group(1))))
     ordered = [position for _, position in sorted(set(references))]
     return list(dict.fromkeys(ordered))
+
+
+def explicit_money_amounts(message: str) -> list[float]:
+    """Parse customer-written EGP amounts without asking the LLM to prove arithmetic."""
+    normalized = (
+        message.translate(_ARABIC_DIGITS)
+        .replace("٫", ".")
+        .replace("٬", ",")
+        .casefold()
+    )
+    amounts: list[float] = []
+
+    for match in re.finditer(r"(?<!\w)([0-9]+(?:\.[0-9]+)?)\s*مليون", normalized):
+        amounts.append(float(match.group(1)) * 1_000_000)
+
+    if re.search(r"\bمليونين\s*ونص\b", normalized):
+        amounts.append(2_500_000.0)
+    if re.search(r"\bمليونين\b", normalized):
+        amounts.append(2_000_000.0)
+    if re.search(r"\bمليون\s*ونص\b", normalized):
+        amounts.append(1_500_000.0)
+    if re.search(r"(?<!\w)مليون(?!\w)", normalized):
+        amounts.append(1_000_000.0)
+
+    words = "|".join(
+        sorted((re.escape(word) for word in _MILLION_WORD_VALUES), key=len, reverse=True)
+    )
+    for match in re.finditer(rf"\b({words})\s*(ونص)?\s*مليون\b", normalized):
+        value = _MILLION_WORD_VALUES[match.group(1)]
+        if match.group(2):
+            value += 0.5
+        amounts.append(value * 1_000_000)
+    for match in re.finditer(rf"\b({words})\s*مليون\s*ونص\b", normalized):
+        amounts.append((_MILLION_WORD_VALUES[match.group(1)] + 0.5) * 1_000_000)
+
+    compact = normalized.replace(",", "")
+    for match in re.finditer(r"(?<![0-9])([1-9][0-9]{5,})(?![0-9])", compact):
+        amounts.append(float(match.group(1)))
+
+    return list(dict.fromkeys(amounts))
+
+
+def explicit_budget_ceiling(message: str) -> float | None:
+    """Return a deterministic budget ceiling only when the message explicitly signals budget."""
+    normalized = message.translate(_ARABIC_DIGITS).casefold()
+    if not any(marker in normalized for marker in _BUDGET_MARKERS):
+        return None
+    amounts = explicit_money_amounts(message)
+    return amounts[0] if amounts else None
 
 
 def sanitize_understanding(
@@ -152,12 +235,22 @@ def sanitize_understanding(
         value = str(updates["fuel_type"]).casefold()
         if value not in message_folded:
             updates.pop("fuel_type")
+
+    money_amounts = explicit_money_amounts(message)
     for name in ("min_year", "max_year", "min_price", "max_price", "max_mileage"):
         if name in updates:
-            compact = str(int(updates[name]))
+            compact_value = str(int(updates[name]))
             digits = re.sub(r"[^0-9]", "", normalized)
-            million_explicit = updates[name] == 1_000_000 and "مليون" in normalized
-            if compact not in digits and not million_explicit:
+            explicit_money = name in {"min_price", "max_price"} and any(
+                abs(float(updates[name]) - amount) < 1 for amount in money_amounts
+            )
+            if compact_value not in digits and not explicit_money:
                 updates.pop(name)
+
+    if understanding.intent == "catalog_search" and "max_price" not in updates:
+        explicit_budget = explicit_budget_ceiling(message)
+        if explicit_budget is not None:
+            updates["max_price"] = explicit_budget
+
     data["preference_updates"] = updates
     return RequestUnderstanding.model_validate(data)
