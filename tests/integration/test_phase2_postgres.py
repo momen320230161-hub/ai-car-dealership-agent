@@ -1,0 +1,145 @@
+"""PostgreSQL integration evidence for Phase 2 import and snapshot transactions."""
+
+from __future__ import annotations
+
+from decimal import Decimal
+from pathlib import Path
+
+import pytest
+from flask_migrate import upgrade
+from sqlalchemy import func, select, text
+
+from app.extensions import db
+from app.models.car import Car
+from app.models.conversation import ConversationSession
+from app.models.recommendation import RecommendationSnapshot
+from app.services.catalog_import_service import CatalogImportService
+from app.services.recommendation_service import (
+    RecommendationService,
+    VisibleRecommendationError,
+)
+
+DATASET = Path(__file__).parents[2] / "data" / "egypt_cars_final_import_ready.csv"
+
+
+def _truncate_phase2_tables() -> None:
+    db.session.execute(
+        text(
+            """
+            TRUNCATE TABLE
+                recommendation_snapshot_items,
+                sales_leads,
+                test_drive_requests,
+                chat_messages,
+                recommendation_snapshots,
+                conversation_sessions,
+                knowledge_documents,
+                cars
+            RESTART IDENTITY CASCADE
+            """
+        )
+    )
+    db.session.commit()
+
+
+def test_official_catalog_import_counts_normalization_and_idempotency(pg_app):
+    with pg_app.app_context():
+        upgrade()
+        _truncate_phase2_tables()
+        service = CatalogImportService(db.session)
+
+        first = service.import_file(DATASET)
+        preserved_id = db.session.scalar(
+            select(Car.id).where(
+                Car.source_id
+                == "shamsfathalla-egypt-automotive:3584adbdeb0ad76b152370e2"
+            )
+        )
+
+        assert first.file_rows == 7771
+        assert first.inserted == 7771
+        assert first.updated == first.unchanged == first.rejected == 0
+        assert db.session.scalar(select(func.count()).select_from(Car)) == 7771
+        assert db.session.scalar(select(func.count()).where(Car.condition == "new")) == 1930
+        assert db.session.scalar(select(func.count()).where(Car.condition == "used")) == 5841
+        assert (
+            db.session.scalar(
+                select(func.count()).where(
+                    Car.condition == "new", Car.mileage_km.is_(None)
+                )
+            )
+            == 0
+        )
+        assert (
+            db.session.scalar(
+                select(func.count()).where(Car.condition == "new", Car.mileage_km == 0)
+            )
+            == 1930
+        )
+        duplicate_groups = db.session.execute(
+            select(Car.source, Car.source_id)
+            .group_by(Car.source, Car.source_id)
+            .having(func.count() > 1)
+        ).all()
+        assert duplicate_groups == []
+
+        second = service.import_file(DATASET)
+        assert second.inserted == second.updated == second.rejected == 0
+        assert second.unchanged == 7771
+        assert (
+            db.session.scalar(
+                select(Car.id).where(
+                    Car.source_id
+                    == "shamsfathalla-egypt-automotive:3584adbdeb0ad76b152370e2"
+                )
+            )
+            == preserved_id
+        )
+        _truncate_phase2_tables()
+
+
+def test_postgres_snapshot_sequence_and_atomic_failure(pg_app):
+    with pg_app.app_context():
+        upgrade()
+        _truncate_phase2_tables()
+        cars = [
+            Car(
+                brand="Toyota",
+                model="Corolla",
+                year=2025,
+                condition="new",
+                price_egp=Decimal("1300000"),
+                mileage_km=0,
+                source="phase2-pg",
+                source_id="active",
+            ),
+            Car(
+                brand="Kia",
+                model="Sportage",
+                year=2024,
+                condition="used",
+                price_egp=Decimal("1700000"),
+                mileage_km=20000,
+                source="phase2-pg",
+                source_id="inactive",
+                active=False,
+            ),
+        ]
+        conversation = ConversationSession()
+        db.session.add_all([*cars, conversation])
+        db.session.commit()
+        service = RecommendationService(db.session)
+
+        first = service.create_visible_snapshot(conversation.id, [cars[0].id])
+        second = service.create_visible_snapshot(conversation.id, [cars[0].id])
+        db.session.refresh(first)
+        assert first.status == "superseded"
+        assert second.sequence_no == 2
+
+        with pytest.raises(VisibleRecommendationError):
+            service.create_visible_snapshot(conversation.id, [cars[0].id, cars[1].id])
+
+        db.session.refresh(conversation)
+        assert conversation.active_recommendation_snapshot_id == second.id
+        assert db.session.scalar(select(func.count()).select_from(RecommendationSnapshot)) == 2
+        _truncate_phase2_tables()

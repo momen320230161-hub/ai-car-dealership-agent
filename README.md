@@ -6,7 +6,8 @@ AI Sales & Customer Service technical-assessment project for AutoDrive Egypt.
 
 - **Phase 0 — Foundation: COMPLETE**
 - **Phase 1 — Database & ORM: COMPLETE**
-- **Next: Phase 2 — Catalog import, structured search, recommendation state, visible-list selection/comparison**
+- **Phase 2 — Catalog import, structured search, recommendation state, visible-list selection/comparison: COMPLETE**
+- **Phase 3 — RAG foundation: NOT STARTED**
 
 This is the clean final-project rebuild on the `Final-Project` branch. Legacy application code is not reused.
 
@@ -42,7 +43,37 @@ Application tables:
 
 `RecommendationSnapshotItem` enforces unique visible positions and prevents the same car from occupying multiple positions in one snapshot. PostgreSQL also enforces that a session's `active_recommendation_snapshot_id` belongs to that same session.
 
-Business workflows, ordinal resolution, RAG retrieval, LangGraph, chat UI, and admin UI are intentionally not implemented yet.
+## Phase 2 Catalog Import
+
+The authoritative dataset is `data/egypt_cars_final_import_ready.csv`:
+
+- 7,771 total catalog records
+- 1,930 NEW records
+- 5,841 USED records
+
+Import or synchronize it after applying migrations:
+
+```bash
+uv run flask --app run:app import-catalog
+```
+
+The importer validates headers and row types, converts blank optional values to `NULL`, and uses `(source, source_id)` as its stable identity. Existing rows are updated in place, preserving their database IDs; unchanged rows are counted without being rewritten. Running the command repeatedly does not create duplicates.
+
+If a NEW row has no source mileage, the importer defensively stores `mileage_km = 0` and records both `mileage_source_was_missing` and `mileage_normalization` in `data_quality_metadata`. USED mileage is never defaulted. The official dataset currently has zero mileage for every NEW record.
+
+## Phase 2 Catalog and Recommendation Architecture
+
+- `CatalogRepository` owns deterministic ORM queries. It defaults to active records, supports condition, brand, model, year range, price range, body type, transmission, fuel type, and maximum mileage filters, and caps each query at 100 rows.
+- Sorting is explicitly allowlisted as `price_asc`, `price_desc`, `year_desc`, or `mileage_asc`; stable ID tie-breakers make repeated results deterministic. `limit` and `offset` provide bounded pagination.
+- `CatalogService` provides structured search, recorded car details, fact-only comparison, and transparent recommendation ranking (newest year, then lowest recorded price, then database ID).
+- `RecommendationService` creates one transaction-safe snapshot only for the exact list intended to be visible. It persists contiguous `position -> car_id` items in displayed order, supersedes the prior active snapshot, and updates the session pointer only after all items are written.
+- Controlled English, Arabic, and numeric ordinals resolve only against the session's active snapshot. The database query is never rerun to infer a visible position, hidden variants consume no positions, and historical snapshots are not a fallback.
+- Visible comparison resolves positions once against the same active snapshot and compares those exact recorded cars. Missing specifications remain `None`; no facts are inferred.
+- `ConversationStateService` treats `ConversationSession.preferences` as current structured state. Compatible changes preserve the selected car and visible snapshot. A condition, body type, budget, year, or USED-mileage constraint that excludes persisted state invalidates the active snapshot and clears the selected car only when that selected car is incompatible.
+
+The catalog represents recorded data, not guaranteed live showroom availability or real-time market pricing.
+
+RAG retrieval, embeddings, LangGraph, test-drive and lead workflows, customer chat, authentication, and the admin dashboard are intentionally not implemented in Phase 2.
 
 ## Database Access and Security
 
@@ -107,16 +138,22 @@ uv run pytest -q
 The test suite includes:
 
 - isolated SQLite model/constraint tests
+- importer validation, NEW-mileage provenance, update-in-place, rollback, and idempotency tests
+- complete structured-filter, sorting, pagination, details, recommendation, and comparison tests
+- exact visible-order, controlled ordinal, stale-state invalidation, selected-car, and session-isolation tests
 - PostgreSQL 17 migration lifecycle tests
 - PostgreSQL production-type persistence tests
-- same-session active recommendation snapshot enforcement
+- PostgreSQL empty-database import proving 7,771 / 1,930 / 5,841 and a 7,771-row unchanged second run
+- PostgreSQL transaction-safe snapshot lifecycle and same-session active snapshot enforcement
 - Phase 0 health-check regressions
 
 GitHub Actions uses an ephemeral PostgreSQL 17 service. It does not use the live Supabase database and does not build application Docker images.
 
+Live Supabase was verified on 2026-09-12 with 7,771 total active records, 1,930 NEW, 5,841 USED, zero duplicate `(source, source_id)` groups, zero NEW `NULL` mileages, and 1,930 NEW zero mileages. Representative condition, brand, body type, mileage, price-range, and ascending/descending price searches were also verified. The corrected Peugeot 2008 model-year 2026 record is present.
+
 ## Roadmap
 
-- **Phase 2:** Catalog import, deterministic recommendation state, visible-list selection/comparison
+- **Phase 2:** COMPLETE — catalog import, deterministic recommendation state, visible-list selection/comparison
 - **Phase 3:** RAG + pgvector + knowledge CRUD/reindex
 - **Phase 4:** LangGraph Sales Orchestrator
 - **Phase 5:** Test-drive/cancellation and sales-lead business actions
