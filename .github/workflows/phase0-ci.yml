@@ -5,6 +5,7 @@ on:
     branches: ["Final-Project"]
   pull_request:
     branches: ["Final-Project"]
+  workflow_dispatch:
 
 permissions:
   contents: read
