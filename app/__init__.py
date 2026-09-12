@@ -135,8 +135,8 @@ def _register_cli(app: Flask) -> None:
     def seed_knowledge(path: str) -> None:
         """Synchronize the approved production knowledge seed through managed RAG."""
         from app.rag.embeddings import EmbeddingError, build_embedding_provider
-        from app.services.knowledge_service import KnowledgeService, KnowledgeServiceError
         from app.services.knowledge_seed_service import KnowledgeSeedError, KnowledgeSeedService
+        from app.services.knowledge_service import KnowledgeService, KnowledgeServiceError
 
         try:
             knowledge = KnowledgeService(db.session, build_embedding_provider(app.config))
