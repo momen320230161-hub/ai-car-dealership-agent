@@ -171,9 +171,11 @@ class KnowledgeSeedService:
                 active=active,
             )
             if document.identity in identities:
-                raise KnowledgeSeedError(
-                    f"Knowledge seed contains duplicate title/category identity: {title} [{category}]"
+                message = (
+                    "Knowledge seed contains duplicate title/category identity: "
+                    f"{title} [{category}]"
                 )
+                raise KnowledgeSeedError(message)
             identities.add(document.identity)
             documents.append(document)
         return version, documents
