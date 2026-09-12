@@ -1,0 +1,40 @@
+[project]
+name = "autodrive-egypt"
+version = "0.1.0"
+description = "AI Sales & Customer Service platform for AutoDrive Egypt."
+readme = "README.md"
+requires-python = ">=3.12,<3.13"
+dependencies = [
+    "Flask>=3.1,<4.0",
+    "Flask-Migrate>=4.1,<5.0",
+    "Flask-SQLAlchemy>=3.1,<4.0",
+    "gunicorn>=23.0,<24.0",
+    "psycopg[binary]>=3.2,<4.0",
+    "python-dotenv>=1.1,<2.0",
+]
+
+[dependency-groups]
+dev = [
+    "pytest>=8.4,<10.0",
+    "pytest-cov>=6.2,<8.0",
+    "ruff>=0.12,<1.0",
+]
+
+[tool.uv]
+package = false
+
+[tool.pytest.ini_options]
+addopts = "-q"
+testpaths = ["tests"]
+
+[tool.ruff]
+target-version = "py312"
+line-length = 100
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "B", "UP"]
+
+[tool.ruff.format]
+quote-style = "double"
+indent-style = "space"
+line-ending = "auto"
