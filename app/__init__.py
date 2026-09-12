@@ -20,6 +20,9 @@ def create_app(config_overrides: dict[str, Any] | None = None) -> Flask:
 
     _validate_required_config(app)
 
+    # Import models so that SQLAlchemy and Flask-Migrate discover metadata
+    from app import models  # noqa: F401
+
     db.init_app(app)
     migrate.init_app(app, db, compare_type=True)
 
