@@ -86,14 +86,43 @@ class CatalogService:
         *,
         limit: int = 3,
     ) -> list[Car]:
-        """Rank matching records transparently: newest, then lowest price, then ID."""
-        return self.repository.search(
-            preferences,
-            sort_by="year_desc",
-            limit=limit,
+        """Return a deterministic, budget-aware, customer-diverse visible shortlist."""
+        filters = (
+            preferences
+            if isinstance(preferences, CatalogFilters)
+            else CatalogFilters.from_mapping(preferences)
+        )
+        sort_by = "price_desc" if filters.max_price is not None else "year_desc"
+        candidate_limit = min(
+            CatalogRepository.MAX_PAGE_SIZE,
+            max(limit, limit * 10),
+        )
+        candidates = self.repository.search(
+            filters,
+            sort_by=sort_by,
+            limit=candidate_limit,
             offset=0,
             active_only=True,
         )
+
+        visible: list[Car] = []
+        variants: list[Car] = []
+        seen_models: set[tuple[str, str]] = set()
+        for car in candidates:
+            key = (car.brand.casefold(), car.model.casefold())
+            if key in seen_models:
+                variants.append(car)
+                continue
+            seen_models.add(key)
+            visible.append(car)
+            if len(visible) == limit:
+                return visible
+
+        for car in variants:
+            visible.append(car)
+            if len(visible) == limit:
+                break
+        return visible
 
     def compare_cars(self, car_ids: Sequence[int]) -> dict[str, Any]:
         if len(car_ids) < 2:
