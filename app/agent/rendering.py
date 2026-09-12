@@ -13,10 +13,18 @@ def render_catalog(result: dict[str, Any] | None) -> str:
         lines = ["حسب البيانات المتاحة عندي في الكتالوج المسجل:"]
         for item in result.get("cars", []):
             car = item["car"]
-            lines.append(
-                f"{item['position']}. {_name(car)} — {car.get('year')} — "
-                f"{_money(car.get('price_egp'))} جنيه"
-            )
+            facts = [
+                f"{item['position']}. {_name(car)}",
+                str(car.get("year")) if car.get("year") is not None else "سنة غير معروفة",
+            ]
+            condition = _condition_label(car.get("condition"))
+            if condition is not None:
+                facts.append(condition)
+            mileage = _mileage(car.get("mileage_km"))
+            if mileage is not None:
+                facts.append(mileage)
+            facts.append(f"{_money(car.get('price_egp'))} جنيه")
+            lines.append(" — ".join(facts))
         return "\n".join(lines)
     if kind in {"car_details", "selection"}:
         car = result["car"]
@@ -92,6 +100,27 @@ def render_error(code: str | None) -> str:
 
 def _name(car: dict[str, Any]) -> str:
     return " ".join(str(value) for value in (car.get("brand"), car.get("model")) if value)
+
+
+def _condition_label(value: Any) -> str | None:
+    if value is None:
+        return None
+    normalized = str(value).strip().casefold()
+    if normalized == "used":
+        return "مستعملة"
+    if normalized == "new":
+        return "جديدة"
+    return str(value).strip() or None
+
+
+def _mileage(value: Any) -> str | None:
+    if value is None:
+        return None
+    try:
+        return f"{float(value):,.0f} كم"
+    except (TypeError, ValueError):
+        text = str(value).strip()
+        return f"{text} كم" if text else None
 
 
 def _money(value: Any) -> str:
