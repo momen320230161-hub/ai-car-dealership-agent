@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import math
+from types import SimpleNamespace
 
 import pytest
 
@@ -78,3 +79,69 @@ def test_gemini_credentials_are_checked_only_when_provider_is_used():
     )
     with pytest.raises(EmbeddingError, match="credentials are not configured"):
         provider.embed_text("query")
+
+
+def test_gemini_multi_input_uses_separate_content_objects(monkeypatch):
+    from google import genai
+    from google.genai import types
+
+    captured = {}
+
+    class FakeModels:
+        def embed_content(self, *, model, contents, config):
+            captured["model"] = model
+            captured["contents"] = contents
+            captured["config"] = config
+            return SimpleNamespace(
+                embeddings=[
+                    SimpleNamespace(values=[0.1] * 768),
+                    SimpleNamespace(values=[0.2] * 768),
+                ]
+            )
+
+    class FakeClient:
+        def __init__(self, *, api_key):
+            captured["api_key"] = api_key
+            self.models = FakeModels()
+
+    monkeypatch.setattr(genai, "Client", FakeClient)
+
+    provider = GeminiEmbeddingProvider(
+        api_key="test-key", model_name="gemini-embedding-2", dimension=768
+    )
+    vectors = provider.embed_texts(["first chunk", "second chunk"])
+
+    assert captured["api_key"] == "test-key"
+    assert captured["model"] == "gemini-embedding-2"
+    assert captured["config"].output_dimensionality == 768
+    assert all(isinstance(content, types.Content) for content in captured["contents"])
+    assert [content.parts[0].text for content in captured["contents"]] == [
+        "first chunk",
+        "second chunk",
+    ]
+    assert len(vectors) == 2
+    assert all(len(vector) == 768 for vector in vectors)
+
+
+def test_gemini_rejects_incomplete_multi_input_response(monkeypatch):
+    from google import genai
+
+    class FakeModels:
+        def embed_content(self, *, model, contents, config):
+            del model, contents, config
+            return SimpleNamespace(
+                embeddings=[SimpleNamespace(values=[0.1] * 768)]
+            )
+
+    class FakeClient:
+        def __init__(self, *, api_key):
+            del api_key
+            self.models = FakeModels()
+
+    monkeypatch.setattr(genai, "Client", FakeClient)
+
+    provider = GeminiEmbeddingProvider(
+        api_key="test-key", model_name="gemini-embedding-2", dimension=768
+    )
+    with pytest.raises(EmbeddingError, match="response count"):
+        provider.embed_texts(["first chunk", "second chunk"])
