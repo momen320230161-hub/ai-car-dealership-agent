@@ -1,57 +1,62 @@
-"""Integration tests for Alembic schema migration lifecycle on PostgreSQL."""
+"""PostgreSQL integration tests for the Alembic migration lifecycle."""
 
-import os
-
-import pytest
 from flask_migrate import downgrade, upgrade
 from sqlalchemy import text
 
 from app.extensions import db
 
+EXPECTED_TABLES = {
+    "alembic_version",
+    "cars",
+    "chat_messages",
+    "conversation_sessions",
+    "knowledge_documents",
+    "recommendation_snapshot_items",
+    "recommendation_snapshots",
+    "sales_leads",
+    "test_drive_requests",
+}
 
-@pytest.mark.skipif(
-    os.getenv("TEST_DATABASE_URL") is None and not os.path.exists(".dockerenv"),
-    reason="PostgreSQL integration tests require a running PostgreSQL test database",
-)
+
+def _public_tables() -> set[str]:
+    rows = db.session.execute(
+        text(
+            "SELECT table_name FROM information_schema.tables "
+            "WHERE table_schema = 'public'"
+        )
+    ).fetchall()
+    return {row[0] for row in rows}
+
+
 def test_postgres_migration_lifecycle(pg_app):
-    """Test full Alembic upgrade, downgrade, and re-upgrade cycle on PostgreSQL."""
+    """Upgrade, downgrade to base, then re-upgrade on real PostgreSQL."""
     with pg_app.app_context():
-        try:
-            # Upgrade to head
-            upgrade()
+        upgrade()
+        assert EXPECTED_TABLES.issubset(_public_tables())
 
-            # Verify tables exist
-            query = text(
-                "SELECT table_name FROM information_schema.tables WHERE table_schema = 'public';"
-            )
-            tables = [r[0] for r in db.session.execute(query).fetchall()]
-            expected_tables = {
-                "alembic_version",
-                "cars",
-                "chat_messages",
-                "conversation_sessions",
-                "knowledge_documents",
-                "recommendation_snapshot_items",
-                "recommendation_snapshots",
-                "sales_leads",
-                "test_drive_requests",
-            }
-            assert expected_tables.issubset(set(tables))
+        revision = db.session.execute(
+            text("SELECT version_num FROM alembic_version")
+        ).scalar_one()
+        assert revision == "cd73103ae9e0"
 
-            # Test rollback (downgrade to base)
-            downgrade(revision="base")
+        rls_rows = db.session.execute(
+            text(
+                """
+                SELECT c.relname, c.relrowsecurity
+                FROM pg_class AS c
+                JOIN pg_namespace AS n ON n.oid = c.relnamespace
+                WHERE n.nspname = 'public'
+                  AND c.relname = ANY(:tables)
+                """
+            ),
+            {"tables": list(EXPECTED_TABLES)},
+        ).fetchall()
+        assert {name for name, enabled in rls_rows if enabled} == EXPECTED_TABLES
 
-            # Verify tables are dropped
-            remaining_tables = [r[0] for r in db.session.execute(query).fetchall()]
-            assert "cars" not in remaining_tables
-            assert "conversation_sessions" not in remaining_tables
+        downgrade(revision="base")
+        remaining = _public_tables()
+        assert "cars" not in remaining
+        assert "conversation_sessions" not in remaining
 
-            # Re-upgrade to head
-            upgrade()
-
-            # Verify schema restored
-            recreated_tables = [r[0] for r in db.session.execute(query).fetchall()]
-            assert expected_tables.issubset(set(recreated_tables))
-        except Exception as exc:
-            pytest.skip(f"PostgreSQL connection not reachable: {exc}")
-
+        upgrade()
+        assert EXPECTED_TABLES.issubset(_public_tables())

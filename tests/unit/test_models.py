@@ -16,57 +16,51 @@ from app.models.recommendation import RecommendationSnapshot, RecommendationSnap
 from app.models.test_drive import TestDriveRequest
 
 
+def _car(**overrides) -> Car:
+    data = {
+        "brand": "Toyota",
+        "model": "Corolla",
+        "year": 2024,
+        "condition": "new",
+        "price_egp": Decimal("1250000.00"),
+        "source": "unit-test",
+        "source_id": str(uuid.uuid4()),
+    }
+    data.update(overrides)
+    return Car(**data)
+
+
 def test_car_persistence_and_constraints(db_session):
-    """Test valid Car model persists and DB check constraints are enforced."""
-    car = Car(
-        brand="Toyota",
-        model="Corolla",
-        year=2024,
-        condition="new",
-        price_egp=Decimal("1250000.00"),
+    car = _car(
         body_type="Sedan",
         transmission="Automatic",
         fuel_type="Gasoline",
         mileage_km=0,
-        active=True,
+        engine_capacity_cc=1600,
+        horsepower=Decimal("120.00"),
     )
     db_session.add(car)
     db_session.commit()
 
     assert car.id is not None
-    assert car.brand == "Toyota"
     assert car.created_at is not None
     assert car.updated_at is not None
+    assert car.engine_capacity_cc == 1600
 
-    # Test negative price rejection
-    with pytest.raises(IntegrityError):
-        invalid_car = Car(
-            brand="Honda",
-            model="Civic",
-            year=2023,
-            condition="used",
-            price_egp=Decimal("-100.00"),
-        )
-        db_session.add(invalid_car)
-        db_session.commit()
-    db_session.rollback()
-
-    # Test invalid condition rejection
-    with pytest.raises(IntegrityError):
-        invalid_cond_car = Car(
-            brand="Honda",
-            model="Civic",
-            year=2023,
-            condition="salvage",
-            price_egp=Decimal("800000.00"),
-        )
-        db_session.add(invalid_cond_car)
-        db_session.commit()
-    db_session.rollback()
+    invalid_cases = (
+        {"price_egp": Decimal("-1.00")},
+        {"condition": "salvage"},
+        {"mileage_km": -1},
+        {"brand": "   "},
+    )
+    for overrides in invalid_cases:
+        with pytest.raises(IntegrityError):
+            db_session.add(_car(**overrides))
+            db_session.commit()
+        db_session.rollback()
 
 
 def test_conversation_session_and_messages(db_session):
-    """Test ConversationSession and ChatMessage relationships and constraints."""
     session = ConversationSession(
         preferences={"budget_max": 1000000, "transmission": "automatic"},
         status="active",
@@ -74,35 +68,32 @@ def test_conversation_session_and_messages(db_session):
     db_session.add(session)
     db_session.commit()
 
-    assert session.id is not None
+    assert isinstance(session.id, uuid.UUID)
     assert session.preferences["budget_max"] == 1000000
 
-    msg1 = ChatMessage(session_id=session.id, role="user", content="Hello, looking for an SUV")
-    msg2 = ChatMessage(session_id=session.id, role="assistant", content="I can help you with that!")
-    db_session.add_all([msg1, msg2])
+    db_session.add_all(
+        [
+            ChatMessage(session_id=session.id, role="user", content="Hello"),
+            ChatMessage(session_id=session.id, role="assistant", content="Hi"),
+        ]
+    )
     db_session.commit()
+    assert [message.role for message in session.messages] == ["user", "assistant"]
 
-    assert len(session.messages) == 2
-    assert session.messages[0].role == "user"
-
-    # Test invalid message role constraint
     with pytest.raises(IntegrityError):
-        invalid_msg = ChatMessage(session_id=session.id, role="admin", content="Invalid")
-        db_session.add(invalid_msg)
+        db_session.add(ChatMessage(session_id=session.id, role="admin", content="Invalid"))
         db_session.commit()
     db_session.rollback()
 
 
-def test_recommendation_snapshot_and_items(db_session):
-    """Test RecommendationSnapshot and items ordering and unique constraints."""
-    car1 = Car(
-        brand="Kia", model="Sportage", year=2023, condition="used", price_egp=Decimal("1500000.00")
-    )
-    car2 = Car(
-        brand="Hyundai", model="Tucson", year=2024, condition="new", price_egp=Decimal("1700000.00")
-    )
+def test_recommendation_snapshot_visible_positions_and_uniqueness(db_session):
+    cars = [
+        _car(brand="Kia", model="Sportage", source_id="rec-1"),
+        _car(brand="Hyundai", model="Tucson", source_id="rec-2"),
+        _car(brand="Nissan", model="Qashqai", source_id="rec-3"),
+    ]
     session = ConversationSession()
-    db_session.add_all([car1, car2, session])
+    db_session.add_all([*cars, session])
     db_session.commit()
 
     snapshot = RecommendationSnapshot(
@@ -113,45 +104,55 @@ def test_recommendation_snapshot_and_items(db_session):
     db_session.add(snapshot)
     db_session.commit()
 
-    item1 = RecommendationSnapshotItem(snapshot_id=snapshot.id, position=1, car_id=car1.id)
-    item2 = RecommendationSnapshotItem(snapshot_id=snapshot.id, position=2, car_id=car2.id)
-    db_session.add_all([item1, item2])
+    db_session.add_all(
+        [
+            RecommendationSnapshotItem(snapshot_id=snapshot.id, position=1, car_id=cars[0].id),
+            RecommendationSnapshotItem(snapshot_id=snapshot.id, position=2, car_id=cars[1].id),
+        ]
+    )
     db_session.commit()
 
-    assert len(snapshot.items) == 2
-    assert snapshot.items[0].position == 1
-    assert snapshot.items[0].car_id == car1.id
-    assert snapshot.items[1].position == 2
-    assert snapshot.items[1].car_id == car2.id
+    assert [(item.position, item.car_id) for item in snapshot.items] == [
+        (1, cars[0].id),
+        (2, cars[1].id),
+    ]
 
-    # Active recommendation snapshot reference on session
     session.active_recommendation_snapshot_id = snapshot.id
-    session.selected_car_id = car1.id
+    session.selected_car_id = cars[0].id
     db_session.commit()
-
     assert session.active_recommendation_snapshot.id == snapshot.id
-    assert session.selected_car.model == "Sportage"
+    assert session.selected_car.id == cars[0].id
 
-    # Duplicate position constraint rejection
     with pytest.raises(IntegrityError):
-        duplicate_pos_item = RecommendationSnapshotItem(
-            snapshot_id=snapshot.id, position=1, car_id=car2.id
+        db_session.add(
+            RecommendationSnapshotItem(
+                snapshot_id=snapshot.id,
+                position=1,
+                car_id=cars[2].id,
+            )
         )
-        db_session.add(duplicate_pos_item)
+        db_session.commit()
+    db_session.rollback()
+
+    with pytest.raises(IntegrityError):
+        db_session.add(
+            RecommendationSnapshotItem(
+                snapshot_id=snapshot.id,
+                position=3,
+                car_id=cars[0].id,
+            )
+        )
         db_session.commit()
     db_session.rollback()
 
 
-def test_test_drive_request_and_idempotency(db_session):
-    """Test TestDriveRequest model constraints and idempotency key uniqueness."""
-    car = Car(
-        brand="Nissan", model="Sunny", year=2022, condition="used", price_egp=Decimal("600000.00")
-    )
+def test_test_drive_request_constraints_and_idempotency(db_session):
+    car = _car(source_id="td-car")
     session = ConversationSession()
     db_session.add_all([car, session])
     db_session.commit()
 
-    td1 = TestDriveRequest(
+    request = TestDriveRequest(
         session_id=session.id,
         car_id=car.id,
         customer_name="Ahmed Hassan",
@@ -159,48 +160,46 @@ def test_test_drive_request_and_idempotency(db_session):
         preferred_date=date(2026, 9, 20),
         preferred_time=time(14, 30),
         status="NEW",
-        idempotency_key="idemp-td-001",
+        idempotency_key="td-unit-001",
     )
-    db_session.add(td1)
+    db_session.add(request)
     db_session.commit()
+    assert request.id is not None
 
-    assert td1.id is not None
-    assert td1.status == "NEW"
-
-    # Duplicate idempotency key rejection
     with pytest.raises(IntegrityError):
-        td2 = TestDriveRequest(
-            session_id=session.id,
-            car_id=car.id,
-            customer_name="Ahmed Hassan",
-            phone="+201012345678",
-            preferred_date=date(2026, 9, 20),
-            preferred_time=time(14, 30),
-            status="NEW",
-            idempotency_key="idemp-td-001",
+        db_session.add(
+            TestDriveRequest(
+                session_id=session.id,
+                car_id=car.id,
+                customer_name="Ahmed Hassan",
+                phone="+201012345678",
+                preferred_date=date(2026, 9, 20),
+                preferred_time=time(14, 30),
+                status="NEW",
+                idempotency_key="td-unit-001",
+            )
         )
-        db_session.add(td2)
         db_session.commit()
     db_session.rollback()
 
-    # Invalid status rejection
     with pytest.raises(IntegrityError):
-        td_invalid = TestDriveRequest(
-            session_id=session.id,
-            car_id=car.id,
-            customer_name="Ahmed Hassan",
-            phone="+201012345678",
-            preferred_date=date(2026, 9, 20),
-            preferred_time=time(14, 30),
-            status="UNKNOWN_STATUS",
+        db_session.add(
+            TestDriveRequest(
+                session_id=session.id,
+                car_id=car.id,
+                customer_name="Ahmed Hassan",
+                phone="+201012345678",
+                preferred_date=date(2026, 9, 20),
+                preferred_time=time(14, 30),
+                status="INVALID",
+                idempotency_key="td-unit-invalid",
+            )
         )
-        db_session.add(td_invalid)
         db_session.commit()
     db_session.rollback()
 
 
-def test_sales_lead_model(db_session):
-    """Test SalesLead model with nullable car and idempotency protection."""
+def test_sales_lead_nullable_car_and_idempotency(db_session):
     session = ConversationSession()
     db_session.add(session)
     db_session.commit()
@@ -212,28 +211,83 @@ def test_sales_lead_model(db_session):
         phone="+201098765432",
         email="sara@example.com",
         status="NEW",
-        notes="Customer requested financing details",
-        idempotency_key="idemp-lead-001",
+        idempotency_key="lead-unit-001",
     )
     db_session.add(lead)
     db_session.commit()
 
     assert lead.id is not None
     assert lead.car_id is None
-    assert lead.email == "sara@example.com"
+
+    with pytest.raises(IntegrityError):
+        db_session.add(
+            SalesLead(
+                session_id=session.id,
+                customer_name="Sara Mohamed",
+                phone="+201098765432",
+                status="NEW",
+                idempotency_key="lead-unit-001",
+            )
+        )
+        db_session.commit()
+    db_session.rollback()
 
 
-def test_knowledge_document_model(db_session):
-    """Test KnowledgeDocument persistence and active status."""
-    doc = KnowledgeDocument(
-        title="Dealership Warranty Policy",
+def test_knowledge_document_persistence_and_category_active_query(db_session):
+    active = KnowledgeDocument(
+        title="Warranty Policy",
         category="warranty",
-        content="All approved vehicles include a comprehensive 1-year dealership warranty.",
+        content="Approved warranty policy text.",
         active=True,
     )
-    db_session.add(doc)
+    inactive = KnowledgeDocument(
+        title="Old Warranty Policy",
+        category="warranty",
+        content="Retired policy text.",
+        active=False,
+    )
+    db_session.add_all([active, inactive])
     db_session.commit()
 
-    assert isinstance(doc.id, uuid.UUID)
-    assert doc.category == "warranty"
-    assert doc.active is True
+    matches = (
+        db_session.query(KnowledgeDocument)
+        .filter_by(category="warranty", active=True)
+        .all()
+    )
+    assert [document.id for document in matches] == [active.id]
+
+
+def test_business_records_restrict_session_deletion(db_session):
+    car = _car(source_id="retention-car")
+    session = ConversationSession()
+    db_session.add_all([car, session])
+    db_session.commit()
+
+    db_session.add_all(
+        [
+            TestDriveRequest(
+                session_id=session.id,
+                car_id=car.id,
+                customer_name="Customer",
+                phone="+201000000000",
+                preferred_date=date(2026, 9, 20),
+                preferred_time=time(12, 0),
+                idempotency_key="retention-td",
+            ),
+            SalesLead(
+                session_id=session.id,
+                car_id=car.id,
+                customer_name="Customer",
+                phone="+201000000000",
+                idempotency_key="retention-lead",
+            ),
+        ]
+    )
+    db_session.commit()
+
+    with pytest.raises(IntegrityError):
+        db_session.delete(session)
+        db_session.commit()
+    db_session.rollback()
+
+    assert db_session.get(ConversationSession, session.id) is not None

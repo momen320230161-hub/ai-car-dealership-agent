@@ -1,170 +1,126 @@
 # AutoDrive Egypt — AI Car Dealership Agent
 
-AI Sales & Customer Service platform for AutoDrive Egypt.
+AI Sales & Customer Service technical-assessment project for AutoDrive Egypt.
 
 ## Current Status
 
-**Phase 0 — Foundation: COMPLETE**
+- **Phase 0 — Foundation: COMPLETE**
+- **Phase 1 — Database & ORM: COMPLETE**
+- **Next: Phase 2 — Catalog import, structured search, recommendation state, visible-list selection/comparison**
 
-This branch is the clean final-project rebuild. Phase 0 establishes the runtime, dependency management, Flask application factory, SQLAlchemy/Migration wiring, health checks, tests, Docker runtime, and CI validation. No legacy application code is reused.
+This is the clean final-project rebuild on the `Final-Project` branch. Legacy application code is not reused.
 
-### Technology Stack
+## Current Stack
 
-- **Language & Runtime:** Python 3.12 (pinned via `.python-version`)
-- **Package & Dependency Management:** `uv` (`pyproject.toml` + committed `uv.lock`)
-- **Web Framework:** Flask (Application Factory pattern)
-- **ORM & Database Toolkit:** SQLAlchemy 2.x & Flask-SQLAlchemy
-- **Schema & Migrations:** Flask-Migrate / Alembic
-- **Database Driver:** Psycopg 3 (`psycopg[binary]`)
-- **Relational Database:** External Supabase PostgreSQL
-- **WSGI Production Server:** Gunicorn
-- **Containerization:** Docker & Docker Compose
-- **Quality Assurance:** pytest, Ruff, GitHub Actions
+- Python 3.12
+- `uv` with `pyproject.toml` + committed `uv.lock`
+- Flask Application Factory
+- Flask-SQLAlchemy / SQLAlchemy 2.x
+- Flask-Migrate / Alembic
+- Psycopg 3
+- Supabase PostgreSQL
+- pytest
+- Ruff
+- GitHub Actions
 
-RAG, pgvector domain schema, LangGraph, business actions, customer UI, and admin dashboard are intentionally deferred to later phases.
+Docker foundation files exist from Phase 0, but **application Dockerization is frozen until Phase 9**. Phases 2–8 must not create per-phase application images. GitHub Actions may use an ephemeral PostgreSQL service only as test infrastructure.
 
----
+## Phase 1 Relational Schema
 
-## Local Development Setup
+Alembic revision `cd73103ae9e0` is the application schema source of truth.
 
-### 1. Prerequisites
+Application tables:
 
-Install Python 3.12 and [`uv`](https://github.com/astral-sh/uv).
+- `cars` — structured catalog records and source/data-quality metadata
+- `conversation_sessions` — structured session preferences, selected car, active visible snapshot, pending action
+- `chat_messages` — persisted session messages
+- `recommendation_snapshots` — versioned customer-visible recommendation lists
+- `recommendation_snapshot_items` — deterministic `position -> car_id` mapping
+- `test_drive_requests` — persisted booking records with session ownership and idempotency
+- `sales_leads` — persisted sales leads with idempotency
+- `knowledge_documents` — dealership-owned knowledge metadata/content; chunks/vectors come in Phase 3
 
-### 2. Dependency Installation
+`RecommendationSnapshotItem` enforces unique visible positions and prevents the same car from occupying multiple positions in one snapshot. PostgreSQL also enforces that a session's `active_recommendation_snapshot_id` belongs to that same session.
+
+Business workflows, ordinal resolution, RAG retrieval, LangGraph, chat UI, and admin UI are intentionally not implemented yet.
+
+## Database Access and Security
+
+The application access path is:
+
+```text
+Flask -> SQLAlchemy -> Psycopg -> Supabase PostgreSQL
+```
+
+The browser does not access Supabase tables directly.
+
+Phase 1 enables RLS on application tables in `public` and revokes direct `anon` / `authenticated` table privileges when those roles exist. No broad Data API policies are created because the Flask backend is the database access layer.
+
+The previous prototype schema was moved out of `public` into `legacy_archive` during the final Phase 1 live reset. This preserves legacy catalog data as a backup/reference while keeping the final application's `public` schema clean.
+
+## Local Setup
 
 ```bash
 uv sync --locked
 ```
 
-### 3. Environment Configuration
+Create `.env` from `.env.example` and provide:
 
-Copy the example environment template:
+- `SECRET_KEY`
+- `DATABASE_URL`
+- optional Flask development settings
 
-```bash
-# Linux / macOS
-cp .env.example .env
-
-# Windows PowerShell
-Copy-Item .env.example .env
-```
-
-Configure `.env` with appropriate values:
-
-- `FLASK_ENV`: `development` or `production`
-- `FLASK_DEBUG`: `1` for local debugging
-- `SECRET_KEY`: a secure random string
-- `DATABASE_URL`: Supabase PostgreSQL connection string
-
-For IPv4-only local environments, the Supabase Session Pooler on port `5432` is suitable. A long-running deployment with IPv6 support may use the direct PostgreSQL connection. Keep all secrets out of Git.
-
-### 4. Running the Application Locally
+Run locally:
 
 ```bash
-uv run flask --app run:app run --debug --port 5000
+uv run flask --app run:app run --debug
 ```
 
-Or with Gunicorn:
+## Health Checks
+
+```text
+GET /health
+GET /health/db
+```
+
+`/health` checks the Flask process only. `/health/db` executes a lightweight `SELECT 1` through SQLAlchemy and returns a controlled `503` if the database is unavailable.
+
+## Migrations
+
+Alembic / Flask-Migrate is the only application schema migration source of truth.
 
 ```bash
-uv run gunicorn --bind 0.0.0.0:5000 run:app
+uv run flask --app run:app db upgrade
+uv run flask --app run:app db downgrade
+uv run flask --app run:app db upgrade
 ```
 
----
+Do not use `db.create_all()` as an application migration strategy. It is used only inside isolated SQLite unit-test fixtures.
 
-## Health Check Endpoints
-
-### `GET /health`
-
-Process-level health only. It does not depend on the database.
-
-Success:
-
-```json
-{"service": "autodrive-egypt", "status": "ok"}
-```
-
-### `GET /health/db`
-
-Executes a lightweight `SELECT 1` through SQLAlchemy.
-
-Success:
-
-```json
-{"database": "reachable", "status": "ok"}
-```
-
-Database failure returns HTTP `503` with a controlled response:
-
-```json
-{"database": "unreachable", "status": "error"}
-```
-
-Raw database exceptions, connection strings, and credentials are not returned to the client.
-
----
-
-## Testing & Code Quality
+## Tests and Quality
 
 ```bash
 uv run ruff check .
 uv run pytest -q
 ```
 
-Tests use an isolated SQLite database by default and do not modify the live Supabase project.
+The test suite includes:
 
----
+- isolated SQLite model/constraint tests
+- PostgreSQL 17 migration lifecycle tests
+- PostgreSQL production-type persistence tests
+- same-session active recommendation snapshot enforcement
+- Phase 0 health-check regressions
 
-## Docker & Containerization
+GitHub Actions uses an ephemeral PostgreSQL 17 service. It does not use the live Supabase database and does not build application Docker images.
 
-Build the image:
+## Roadmap
 
-```bash
-docker build --tag autodrive-egypt:phase0 .
-```
-
-Run with environment variables from `.env`:
-
-```bash
-docker run -d --name autodrive-web -p 5000:5000 --env-file .env autodrive-egypt:phase0
-```
-
-Or use Compose:
-
-```bash
-docker compose up --build
-```
-
-Supabase remains external; Phase 0 does not run a local PostgreSQL or vector-database container.
-
----
-
-## Continuous Integration
-
-`.github/workflows/phase0-ci.yml` runs on pushes and pull requests targeting `Final-Project` and verifies:
-
-- Python 3.12 setup
-- pinned `uv` installation
-- `uv sync --locked --dev`
-- Ruff
-- pytest
-- Docker image build
-- Docker container startup
-- `/health` container smoke test
-- `/health/db` container smoke test against an isolated SQLite configuration
-
-Third-party GitHub Actions are pinned to immutable commit SHAs.
-
----
-
-## Project Roadmap (Future Phases)
-
-- **Phase 1:** Relational database domain models & initial Alembic migrations
-- **Phase 2:** Catalog, deterministic recommendation state, visible-list selection/comparison
-- **Phase 3:** pgvector RAG & knowledge management CRUD
+- **Phase 2:** Catalog import, deterministic recommendation state, visible-list selection/comparison
+- **Phase 3:** RAG + pgvector + knowledge CRUD/reindex
 - **Phase 4:** LangGraph Sales Orchestrator
-- **Phase 5:** Business actions: test drives, cancellation, sales leads
+- **Phase 5:** Test-drive/cancellation and sales-lead business actions
 - **Phase 6:** Customer Flask chat UI
 - **Phase 7:** Admin dashboard
-- **Phase 8:** hardening, integration tests, and live E2E
-- **Phase 9:** final README/demo/submission polish
+- **Phase 8:** Hardening, integration tests, live LLM/graph E2E
+- **Phase 9:** Final Dockerization, README/demo polish, submission

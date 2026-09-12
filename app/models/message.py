@@ -1,4 +1,4 @@
-"""Relational ChatMessage model for session dialogue logs."""
+"""Relational ChatMessage model for session dialogue history."""
 
 from __future__ import annotations
 
@@ -16,7 +16,7 @@ if TYPE_CHECKING:
 
 
 class ChatMessage(Base):
-    """Represents a single utterance in a customer conversation."""
+    """One persisted message within a conversation session."""
 
     __tablename__ = "chat_messages"
 
@@ -39,15 +39,19 @@ class ChatMessage(Base):
         nullable=False,
     )
 
-    # Relationships
     session: Mapped[ConversationSession] = relationship(
-        "ConversationSession", back_populates="messages"
+        "ConversationSession",
+        back_populates="messages",
     )
 
     __table_args__ = (
         CheckConstraint(
             "role IN ('user', 'assistant', 'system', 'tool')",
             name="chat_message_role_check",
+        ),
+        CheckConstraint(
+            "length(trim(content)) > 0",
+            name="chat_message_content_not_blank_check",
         ),
         Index("ix_chat_messages_session_id", "session_id"),
         Index("ix_chat_messages_session_created", "session_id", "created_at"),

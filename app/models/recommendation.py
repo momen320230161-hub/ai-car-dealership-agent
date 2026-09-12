@@ -1,4 +1,4 @@
-"""Relational models for visible vehicle recommendation history."""
+"""Relational models for customer-visible recommendation history."""
 
 from __future__ import annotations
 
@@ -27,7 +27,7 @@ if TYPE_CHECKING:
 
 
 class RecommendationSnapshot(Base):
-    """Represents an ordered list of recommendations presented to the user."""
+    """Ordered recommendation list exactly as it was shown to the customer."""
 
     __tablename__ = "recommendation_snapshots"
 
@@ -43,10 +43,16 @@ class RecommendationSnapshot(Base):
     )
     sequence_no: Mapped[int] = mapped_column(Integer, nullable=False)
     criteria: Mapped[dict[str, Any]] = mapped_column(
-        PortableJSON, default=dict, server_default=text("'{}'"), nullable=False
+        PortableJSON,
+        default=dict,
+        server_default=text("'{}'"),
+        nullable=False,
     )
     status: Mapped[str] = mapped_column(
-        String(50), default="active", server_default="active", nullable=False
+        String(50),
+        default="active",
+        server_default="active",
+        nullable=False,
     )
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True),
@@ -55,7 +61,6 @@ class RecommendationSnapshot(Base):
         nullable=False,
     )
 
-    # Relationships
     session: Mapped[ConversationSession] = relationship(
         "ConversationSession",
         back_populates="recommendation_snapshots",
@@ -70,9 +75,18 @@ class RecommendationSnapshot(Base):
 
     __table_args__ = (
         CheckConstraint("sequence_no > 0", name="rec_snapshot_sequence_no_check"),
-        UniqueConstraint("session_id", "sequence_no", name="uq_rec_snapshots_session_sequence"),
+        CheckConstraint(
+            "status IN ('active', 'superseded', 'invalidated')",
+            name="rec_snapshot_status_check",
+        ),
+        UniqueConstraint(
+            "session_id",
+            "sequence_no",
+            name="uq_rec_snapshots_session_sequence",
+        ),
         Index("ix_rec_snapshots_session_id", "session_id"),
         Index("ix_rec_snapshots_session_sequence", "session_id", "sequence_no"),
+        Index("ix_rec_snapshots_session_status", "session_id", "status"),
     )
 
     def __repr__(self) -> str:
@@ -83,7 +97,7 @@ class RecommendationSnapshot(Base):
 
 
 class RecommendationSnapshotItem(Base):
-    """Represents a single visible vehicle position within a recommendation snapshot."""
+    """One visible position within a recommendation snapshot."""
 
     __tablename__ = "recommendation_snapshot_items"
 
@@ -100,20 +114,32 @@ class RecommendationSnapshotItem(Base):
     position: Mapped[int] = mapped_column(Integer, nullable=False)
     car_id: Mapped[int] = mapped_column(
         Integer,
-        ForeignKey("cars.id", ondelete="RESTRICT", name="fk_rec_snapshot_items_car_id_cars"),
+        ForeignKey(
+            "cars.id",
+            ondelete="RESTRICT",
+            name="fk_rec_snapshot_items_car_id_cars",
+        ),
         nullable=False,
     )
 
-    # Relationships
     snapshot: Mapped[RecommendationSnapshot] = relationship(
-        "RecommendationSnapshot", back_populates="items"
+        "RecommendationSnapshot",
+        back_populates="items",
     )
     car: Mapped[Car] = relationship("Car")
 
     __table_args__ = (
         CheckConstraint("position > 0", name="rec_snapshot_item_position_check"),
-        UniqueConstraint("snapshot_id", "position", name="uq_rec_snapshot_items_snapshot_position"),
-        UniqueConstraint("snapshot_id", "car_id", name="uq_rec_snapshot_items_snapshot_car"),
+        UniqueConstraint(
+            "snapshot_id",
+            "position",
+            name="uq_rec_snapshot_items_snapshot_position",
+        ),
+        UniqueConstraint(
+            "snapshot_id",
+            "car_id",
+            name="uq_rec_snapshot_items_snapshot_car",
+        ),
         Index("ix_rec_snapshot_items_snapshot_id", "snapshot_id"),
         Index("ix_rec_snapshot_items_car_id", "car_id"),
     )

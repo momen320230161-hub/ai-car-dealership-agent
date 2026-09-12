@@ -15,7 +15,7 @@ from app.extensions import db
 
 @event.listens_for(Engine, "connect")
 def set_sqlite_pragma(dbapi_connection, connection_record):
-    """Enable foreign key constraints for SQLite connections."""
+    """Enable foreign-key constraints for SQLite test connections."""
     if type(dbapi_connection).__module__.startswith("sqlite3"):
         cursor = dbapi_connection.cursor()
         cursor.execute("PRAGMA foreign_keys=ON")
@@ -24,8 +24,8 @@ def set_sqlite_pragma(dbapi_connection, connection_record):
 
 @pytest.fixture()
 def app() -> Flask:
-    """Create a Flask application configured for isolated testing."""
-    flask_app = create_app(
+    """Create a Flask application configured for isolated SQLite unit tests."""
+    return create_app(
         {
             "TESTING": True,
             "SECRET_KEY": "test-secret-key",
@@ -33,7 +33,6 @@ def app() -> Flask:
             "SQLALCHEMY_ENGINE_OPTIONS": {},
         }
     )
-    return flask_app
 
 
 @pytest.fixture()
@@ -44,7 +43,7 @@ def client(app: Flask) -> FlaskClient:
 
 @pytest.fixture()
 def db_session(app: Flask) -> Generator:
-    """Provide a transactional database session for model unit testing."""
+    """Provide an isolated SQLite session for model-level unit tests."""
     with app.app_context():
         db.create_all()
         yield db.session
@@ -54,11 +53,11 @@ def db_session(app: Flask) -> Generator:
 
 @pytest.fixture()
 def pg_app() -> Generator[Flask, None, None]:
-    """Provide a Flask application connected to PostgreSQL if TEST_DATABASE_URL is set."""
-    pg_url = os.getenv(
-        "TEST_DATABASE_URL",
-        "postgresql+psycopg://postgres:postgres@localhost:5433/autodrive_test",
-    )
+    """Provide a Flask app connected to the explicit PostgreSQL test database."""
+    pg_url = os.getenv("TEST_DATABASE_URL")
+    if not pg_url:
+        pytest.skip("TEST_DATABASE_URL is required for PostgreSQL integration tests")
+
     flask_app = create_app(
         {
             "TESTING": True,
@@ -68,4 +67,3 @@ def pg_app() -> Generator[Flask, None, None]:
         }
     )
     yield flask_app
-

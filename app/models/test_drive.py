@@ -27,7 +27,7 @@ if TYPE_CHECKING:
 
 
 class TestDriveRequest(Base, TimestampMixin):
-    """Represents a customer test-drive booking."""
+    """Persisted test-drive request; workflow logic is implemented later."""
 
     __tablename__ = "test_drive_requests"
     __test__ = False
@@ -44,7 +44,11 @@ class TestDriveRequest(Base, TimestampMixin):
     )
     car_id: Mapped[int] = mapped_column(
         Integer,
-        ForeignKey("cars.id", ondelete="RESTRICT", name="fk_test_drive_requests_car_id_cars"),
+        ForeignKey(
+            "cars.id",
+            ondelete="RESTRICT",
+            name="fk_test_drive_requests_car_id_cars",
+        ),
         nullable=False,
     )
     customer_name: Mapped[str] = mapped_column(String(150), nullable=False)
@@ -52,19 +56,18 @@ class TestDriveRequest(Base, TimestampMixin):
     preferred_date: Mapped[date] = mapped_column(Date, nullable=False)
     preferred_time: Mapped[time] = mapped_column(Time, nullable=False)
     status: Mapped[str] = mapped_column(
-        String(30), default="NEW", server_default="NEW", nullable=False
+        String(30),
+        default="NEW",
+        server_default="NEW",
+        nullable=False,
     )
     notes: Mapped[str | None] = mapped_column(Text, nullable=True)
-    idempotency_key: Mapped[str | None] = mapped_column(
-        String(100), unique=True, nullable=True
-    )
-    cancelled_at: Mapped[datetime | None] = mapped_column(
-        DateTime(timezone=True), nullable=True
-    )
+    idempotency_key: Mapped[str] = mapped_column(String(128), unique=True, nullable=False)
+    cancelled_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
 
-    # Relationships
     session: Mapped[ConversationSession] = relationship(
-        "ConversationSession", back_populates="test_drive_requests"
+        "ConversationSession",
+        back_populates="test_drive_requests",
     )
     car: Mapped[Car] = relationship("Car", back_populates="test_drive_requests")
 
@@ -72,6 +75,14 @@ class TestDriveRequest(Base, TimestampMixin):
         CheckConstraint(
             "status IN ('NEW', 'CONFIRMED', 'COMPLETED', 'CANCELLED')",
             name="test_drive_status_check",
+        ),
+        CheckConstraint(
+            "length(trim(customer_name)) > 0",
+            name="test_drive_customer_name_not_blank_check",
+        ),
+        CheckConstraint(
+            "length(trim(phone)) > 0",
+            name="test_drive_phone_not_blank_check",
         ),
         Index("ix_test_drive_requests_session_id", "session_id"),
         Index("ix_test_drive_requests_car_id", "car_id"),

@@ -1,11 +1,11 @@
-"""Relational ConversationSession model for customer dialogue state."""
+"""Conversation session model for persistent structured dialogue state."""
 
 from __future__ import annotations
 
 import uuid
 from typing import TYPE_CHECKING, Any
 
-from sqlalchemy import ForeignKey, Index, Integer, String, text
+from sqlalchemy import CheckConstraint, ForeignKey, Index, Integer, String, text
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.models.base import GUID, Base, PortableJSON, TimestampMixin
@@ -19,13 +19,16 @@ if TYPE_CHECKING:
 
 
 class ConversationSession(Base, TimestampMixin):
-    """Represents an anonymous or active customer interaction session."""
+    """Represents one isolated anonymous or customer conversation session."""
 
     __tablename__ = "conversation_sessions"
 
     id: Mapped[uuid.UUID] = mapped_column(GUID, primary_key=True, default=uuid.uuid4)
     preferences: Mapped[dict[str, Any]] = mapped_column(
-        PortableJSON, default=dict, server_default=text("'{}'"), nullable=False
+        PortableJSON,
+        default=dict,
+        server_default=text("'{}'"),
+        nullable=False,
     )
     selected_car_id: Mapped[int | None] = mapped_column(
         Integer,
@@ -46,17 +49,15 @@ class ConversationSession(Base, TimestampMixin):
         ),
         nullable=True,
     )
-    pending_action: Mapped[dict[str, Any] | None] = mapped_column(
-        PortableJSON, nullable=True
-    )
+    pending_action: Mapped[dict[str, Any] | None] = mapped_column(PortableJSON, nullable=True)
     status: Mapped[str] = mapped_column(
-        String(50), default="active", server_default="active", nullable=False
+        String(50),
+        default="active",
+        server_default="active",
+        nullable=False,
     )
 
-    # Relationships
-    selected_car: Mapped[Car | None] = relationship(
-        "Car", foreign_keys=[selected_car_id]
-    )
+    selected_car: Mapped[Car | None] = relationship("Car", foreign_keys=[selected_car_id])
     active_recommendation_snapshot: Mapped[RecommendationSnapshot | None] = relationship(
         "RecommendationSnapshot",
         foreign_keys=[active_recommendation_snapshot_id],
@@ -76,13 +77,21 @@ class ConversationSession(Base, TimestampMixin):
         order_by="RecommendationSnapshot.sequence_no",
     )
     test_drive_requests: Mapped[list[TestDriveRequest]] = relationship(
-        "TestDriveRequest", back_populates="session", passive_deletes="all"
+        "TestDriveRequest",
+        back_populates="session",
+        passive_deletes="all",
     )
     sales_leads: Mapped[list[SalesLead]] = relationship(
-        "SalesLead", back_populates="session", passive_deletes="all"
+        "SalesLead",
+        back_populates="session",
+        passive_deletes="all",
     )
 
     __table_args__ = (
+        CheckConstraint(
+            "status IN ('active', 'closed')",
+            name="conversation_session_status_check",
+        ),
         Index("ix_conversation_sessions_status", "status"),
     )
 
