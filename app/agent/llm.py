@@ -1,0 +1,225 @@
+"""Network-lazy LLM abstraction for structured understanding and safe composition."""
+
+from __future__ import annotations
+
+import json
+import re
+from collections.abc import Mapping, Sequence
+from typing import Any, Protocol
+
+from app.agent.prompts import GENERAL_COMPOSITION_SYSTEM_PROMPT, UNDERSTANDING_SYSTEM_PROMPT
+from app.agent.schemas import RequestUnderstanding
+
+
+class AgentLLMError(RuntimeError):
+    """Controlled LLM configuration, request, or validation failure."""
+
+
+class AgentLLM(Protocol):
+    model_name: str
+
+    def understand(
+        self,
+        message: str,
+        *,
+        recent_messages: Sequence[Mapping[str, Any]],
+        preferences: Mapping[str, Any],
+    ) -> RequestUnderstanding: ...
+
+    def compose_general(
+        self, message: str, *, verified_context: Mapping[str, Any]
+    ) -> str: ...
+
+
+class GeminiAgentLLM:
+    """Official Google Gen AI adapter; credentials are checked only on an actual call."""
+
+    def __init__(self, *, api_key: str | None, model_name: str, temperature: float = 0.1):
+        self.api_key = api_key
+        self.model_name = model_name
+        self.temperature = float(temperature)
+
+    def _client(self):
+        if not self.api_key:
+            raise AgentLLMError("Gemini agent credentials are not configured")
+        from google import genai
+
+        return genai.Client(api_key=self.api_key)
+
+    def understand(
+        self,
+        message: str,
+        *,
+        recent_messages: Sequence[Mapping[str, Any]],
+        preferences: Mapping[str, Any],
+    ) -> RequestUnderstanding:
+        try:
+            from google.genai import types
+
+            payload = {
+                "current_message": message,
+                "current_structured_preferences": dict(preferences),
+                "recent_messages_for_language_context": list(recent_messages)[-6:],
+            }
+            response = self._client().models.generate_content(
+                model=self.model_name,
+                contents=json.dumps(payload, ensure_ascii=False, default=str),
+                config=types.GenerateContentConfig(
+                    system_instruction=UNDERSTANDING_SYSTEM_PROMPT,
+                    temperature=self.temperature,
+                    response_mime_type="application/json",
+                    response_schema=RequestUnderstanding,
+                ),
+            )
+            if isinstance(response.parsed, RequestUnderstanding):
+                return response.parsed
+            if response.parsed is not None:
+                return RequestUnderstanding.model_validate(response.parsed)
+            if not response.text:
+                raise AgentLLMError("Gemini returned no structured understanding")
+            return RequestUnderstanding.model_validate_json(response.text)
+        except AgentLLMError:
+            raise
+        except Exception as exc:
+            raise AgentLLMError("Gemini request understanding failed") from exc
+
+    def compose_general(
+        self, message: str, *, verified_context: Mapping[str, Any]
+    ) -> str:
+        try:
+            from google.genai import types
+
+            payload = {
+                "customer_message": message,
+                "verified_context": dict(verified_context),
+            }
+            response = self._client().models.generate_content(
+                model=self.model_name,
+                contents=json.dumps(payload, ensure_ascii=False, default=str),
+                config=types.GenerateContentConfig(
+                    system_instruction=GENERAL_COMPOSITION_SYSTEM_PROMPT,
+                    temperature=self.temperature,
+                    max_output_tokens=180,
+                ),
+            )
+            text = (response.text or "").strip()
+            if not text:
+                raise AgentLLMError("Gemini returned no response text")
+            return text
+        except AgentLLMError:
+            raise
+        except Exception as exc:
+            raise AgentLLMError("Gemini response composition failed") from exc
+
+
+class DeterministicAgentLLM:
+    """Offline language fixture for CI; it is never a production fallback."""
+
+    model_name = "deterministic-agent-test-v1"
+
+    def understand(
+        self,
+        message: str,
+        *,
+        recent_messages: Sequence[Mapping[str, Any]],
+        preferences: Mapping[str, Any],
+    ) -> RequestUnderstanding:
+        del recent_messages, preferences
+        text = " ".join(message.strip().split())
+        lower = text.casefold()
+        updates: dict[str, Any] = {}
+        if "مستعمل" in lower or "used" in lower:
+            updates["condition"] = "used"
+        elif "جديد" in lower or "new" in lower:
+            updates["condition"] = "new"
+        if "suv" in lower:
+            updates["body_type"] = "SUV"
+        budget = re.search(r"(?:تحت|أقل من|اقل من|under)\s*([0-9][0-9,]*)", lower)
+        if budget:
+            updates["max_price"] = float(budget.group(1).replace(",", ""))
+        elif re.search(r"(?:تحت|أقل من|اقل من|under)\s+مليون", lower):
+            updates["max_price"] = 1_000_000
+
+        references: list[int] = []
+        if re.search(r"(?:أول|اول|first)\s+(?:اتنين|اثنين|two)", lower):
+            references = [1, 2]
+        elif any(word in lower for word in ("التانية", "الثاني", "second")):
+            references = [2]
+        elif any(word in lower for word in ("الأولى", "الاول", "الأول", "first")):
+            references = [1]
+
+        test_drive_language = any(
+            word in lower for word in ("تست درايف", "تجربة قيادة", "test drive")
+        )
+        requirements_question = test_drive_language and any(
+            word in lower for word in ("المطلوب", "البيانات", "متطلبات", "requirements")
+        )
+        if requirements_question:
+            intent = "knowledge_question"
+        elif any(word in lower for word in ("الغاء", "إلغاء", "cancel")) and test_drive_language:
+            intent = "cancel_test_drive"
+        elif any(word in lower for word in ("المبيعات", "sales")) and any(
+            word in lower for word in ("يكلمني", "تواصل", "call")
+        ):
+            intent = "sales_lead"
+        elif any(word in lower for word in ("احجز", "حجز", "book")) and test_drive_language:
+            intent = "test_drive"
+        elif any(word in lower for word in ("قارن", "compare")):
+            intent = "car_compare"
+        elif any(word in lower for word in ("اختار", "اختيار", "select")):
+            intent = "car_selection"
+        elif any(word in lower for word in ("تفاصيل", "details")):
+            intent = "car_details"
+        elif any(
+            word in lower
+            for word in (
+                "ضمان",
+                "تمويل",
+                "تقسيط",
+                "تأمين",
+                "تامين",
+                "السعر النهائي",
+                "متاحة في المعرض",
+                "سياسة",
+                "warranty",
+                "finance",
+                "insurance",
+            )
+        ):
+            intent = "knowledge_question"
+        elif updates or any(word in lower for word in ("عربية", "سيارة", "وريني", "عايز")):
+            intent = "catalog_search"
+        else:
+            intent = "general"
+        return RequestUnderstanding(
+            intent=intent,
+            preference_updates=updates,
+            car_reference=references[0] if len(references) == 1 else None,
+            comparison_references=references if intent == "car_compare" else [],
+        )
+
+    def compose_general(
+        self, message: str, *, verified_context: Mapping[str, Any]
+    ) -> str:
+        del verified_context
+        lower = message.casefold()
+        if "شكر" in lower or "thank" in lower:
+            return "العفو، أنا تحت أمرك في أي سؤال عن العربيات."
+        if any(word in lower for word in ("اهلا", "أهلا", "مرحبا", "hello", "hi")):
+            return "أهلاً بيك في AutoDrive Egypt. أقدر أساعدك تدور على عربية مناسبة."
+        return "ممكن توضح لي أكتر إيه اللي محتاجه بخصوص العربية؟"
+
+
+def build_agent_llm(config: Mapping[str, Any]) -> AgentLLM:
+    provider = str(config.get("AGENT_LLM_PROVIDER", "gemini")).strip().lower()
+    model = str(config.get("AGENT_LLM_MODEL", "gemini-2.5-flash")).strip()
+    temperature = float(config.get("AGENT_LLM_TEMPERATURE", 0.1))
+    if provider == "gemini":
+        return GeminiAgentLLM(
+            api_key=config.get("GEMINI_API_KEY"),
+            model_name=model,
+            temperature=temperature,
+        )
+    if provider == "deterministic":
+        return DeterministicAgentLLM()
+    raise AgentLLMError(f"Unsupported agent LLM provider: {provider}")

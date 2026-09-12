@@ -8,7 +8,7 @@ AI Sales & Customer Service technical-assessment project for AutoDrive Egypt.
 - **Phase 1 — Database & ORM: COMPLETE**
 - **Phase 2 — Catalog import, structured search, recommendation state, visible-list selection/comparison: COMPLETE**
 - **Phase 3 — Managed RAG + PostgreSQL pgvector knowledge retrieval: COMPLETE**
-- **Phase 4 — LangGraph Sales Orchestrator: NOT STARTED**
+- **Phase 4 — LangGraph Sales Orchestrator: COMPLETE**
 
 This is the clean final-project rebuild on the `Final-Project` branch. Legacy application code is not reused.
 
@@ -21,6 +21,7 @@ This is the clean final-project rebuild on the `Final-Project` branch. Legacy ap
 - Flask-Migrate / Alembic
 - Psycopg 3
 - Supabase PostgreSQL
+- LangGraph `StateGraph`
 - pytest
 - Ruff
 - GitHub Actions
@@ -74,7 +75,7 @@ If a NEW row has no source mileage, the importer defensively stores `mileage_km 
 
 The catalog represents recorded data, not guaranteed live showroom availability or real-time market pricing.
 
-RAG retrieval, embeddings, LangGraph, test-drive and lead workflows, customer chat, authentication, and the admin dashboard are intentionally not implemented in Phase 2.
+Test-drive and lead execution, customer chat, authentication, and the admin dashboard are intentionally not implemented in Phase 2.
 
 ## Phase 3 Managed RAG
 
@@ -107,7 +108,41 @@ uv run flask --app run:app rag-search "query text" --category faq --top-k 4
 
 Live Supabase verification on 2026-09-12 confirmed extension `vector` 0.8.2 in `extensions`, `vector(768)`, the HNSW cosine index, RLS, constraints, and migration head `4f6a8c2d91b7`. A temporary technical document passed real Gemini create → retrieve → update → retrieve-current-only → delete → no-retrieval verification. Cleanup left zero knowledge documents and zero chunks.
 
-**Production knowledge content: NOT SEEDED YET — awaiting approved AutoDrive business knowledge.** No business policies, prices, hours, addresses, or contact details were invented.
+Approved AutoDrive Knowledge Base v1 is live with eight active, current Gemini-embedded documents. No additional business policies, prices, hours, addresses, or contact details were invented.
+
+## Phase 4 LangGraph Sales Orchestrator
+
+Phase 4 provides one customer-facing sales orchestrator built with a real LangGraph `StateGraph`; it is not a multi-agent supervisor. PostgreSQL remains the only persistent memory store. The graph executes:
+
+```text
+START -> input_guard -> load_context -> understand_request -> update_state
+      -> route_request -> catalog_node | rag_node | business_gate | general_node
+      -> compose_response -> persist_context -> END
+```
+
+`load_context` creates or loads an isolated `ConversationSession`, current structured preferences, selected car, the exact active visible snapshot, pending action, and bounded recent messages. Current relational state outranks message history. Each valid completed turn persists one user and one assistant `ChatMessage`; LangGraph checkpoint memory is deliberately not used.
+
+The production `GeminiAgentLLM` uses schema-constrained structured output for intent and explicit preference extraction. Configuration is environment-driven, and the Gemini credential is checked only when an LLM call runs. CI uses `DeterministicAgentLLM`, so automated tests have no network dependency. Deterministic Python rejects invented IDs/references and delegates catalog-filter validation and preference merging/invalidation to the existing Phase 2 services.
+
+Conditional routes are grounded in existing services:
+
+- catalog search calls `RecommendationService.recommend_and_snapshot()` and renders the exact persisted visible positions;
+- details, selection, and comparison resolve the active snapshot without rerunning a catalog search;
+- preference changes call `ConversationStateService.update_preferences()` so compatible selection is retained and incompatible state is invalidated centrally;
+- knowledge questions call `RAGService`, while deterministic topic/content grounding prevents a nearest-but-unsupported result (for example warranty content for an insurance question) from becoming an answer;
+- test-drive, cancellation, and sales-lead intents return `deferred_to_phase5` and perform no business write or success claim;
+- general conversation may use Gemini for a short response, with a deterministic fallback if composition fails.
+
+Structured catalog and approved-knowledge responses use deterministic renderers so model output cannot add car facts, showroom availability, market-price claims, or dealership policy. Input, LLM, RAG, catalog, persistence, and database failures return controlled customer-safe responses without exposing tracebacks or internal prompts.
+
+Developer invocation:
+
+```bash
+uv run flask --app run:app agent-chat "عايز SUV مستعملة"
+uv run flask --app run:app agent-chat --session-id <UUID> "هات تفاصيل التانية"
+```
+
+Phase 5 will implement real test-drive, cancellation, and sales-lead actions. Phase 6 will add the customer chat UI; neither is part of this graph phase.
 
 ## Database Access and Security
 
@@ -134,6 +169,7 @@ Create `.env` from `.env.example` and provide:
 - `SECRET_KEY`
 - `DATABASE_URL`
 - optional Flask development settings
+- optional `AGENT_LLM_PROVIDER`, `AGENT_LLM_MODEL`, and agent limits/temperature
 
 Run locally:
 
@@ -182,6 +218,8 @@ The test suite includes:
 - deterministic chunker, embedding validation, and controlled provider/database failure tests
 - managed knowledge create/update/no-op/deactivate/reindex/delete unit tests
 - real PostgreSQL 17 + pgvector schema, vector persistence, HNSW, cosine-ordering, category, active/current-version, cascade, and CRUD/retrieval lifecycle tests
+- actual multi-node StateGraph routing, guarded input, structured understanding, persistent session context, preference merge/invalidation, exact visible ordinals, comparison order, RAG grounding, unsupported-insurance rejection, deferred business actions, failure fallbacks, and message persistence
+- PostgreSQL StateGraph integration coverage for snapshot ordinals, pgvector grounding, and zero business-action writes
 - Phase 0 health-check regressions
 
 GitHub Actions uses an ephemeral PostgreSQL 17 service with pgvector. It does not use the live Supabase database and does not build application Docker images.
@@ -192,7 +230,7 @@ Live Supabase was verified on 2026-09-12 with 7,771 total active records, 1,930 
 
 - **Phase 2:** COMPLETE — catalog import, deterministic recommendation state, visible-list selection/comparison
 - **Phase 3:** COMPLETE — managed RAG + pgvector + knowledge CRUD/reindex
-- **Phase 4:** LangGraph Sales Orchestrator
+- **Phase 4:** COMPLETE — LangGraph Sales Orchestrator with persistent context and conditional catalog/RAG/general/deferred-action paths
 - **Phase 5:** Test-drive/cancellation and sales-lead business actions
 - **Phase 6:** Customer Flask chat UI
 - **Phase 7:** Admin dashboard

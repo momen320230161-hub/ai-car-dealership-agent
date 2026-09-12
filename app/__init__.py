@@ -190,3 +190,38 @@ def _register_cli(app: Flask) -> None:
                 )
         except (EmbeddingError, RAGRetrievalError, ValueError) as exc:
             raise click.ClickException(str(exc)) from exc
+
+    @app.cli.command("agent-chat")
+    @click.argument("message")
+    @click.option("--session-id", type=click.UUID, default=None)
+    def agent_chat(message: str, session_id) -> None:
+        """Invoke the Phase 4 sales graph without exposing an HTTP/UI surface."""
+        from app.agent.graph import SalesOrchestrator
+        from app.agent.llm import AgentLLMError, build_agent_llm
+        from app.rag.embeddings import EmbeddingError, build_embedding_provider
+
+        try:
+            orchestrator = SalesOrchestrator(
+                db.session,
+                build_agent_llm(app.config),
+                build_embedding_provider(app.config),
+                max_message_length=app.config["AGENT_MAX_MESSAGE_LENGTH"],
+                recent_message_limit=app.config["AGENT_RECENT_MESSAGE_LIMIT"],
+                recommendation_limit=app.config["AGENT_RECOMMENDATION_LIMIT"],
+                rag_top_k=app.config["RAG_TOP_K"],
+                rag_max_top_k=app.config["RAG_MAX_TOP_K"],
+                rag_min_score=app.config["RAG_MIN_SCORE"],
+            )
+            result = orchestrator.handle_message(session_id, message)
+            click.echo(f"session id: {result.session_id}")
+            click.echo(f"intent: {result.intent}")
+            click.echo(f"route: {result.route}")
+            if result.recommendation_snapshot_id is not None:
+                click.echo(f"snapshot id: {result.recommendation_snapshot_id}")
+            if result.selected_car_id is not None:
+                click.echo(f"selected car id: {result.selected_car_id}")
+            if result.errors:
+                click.echo(f"errors: {', '.join(result.errors)}")
+            click.echo(result.response)
+        except (AgentLLMError, EmbeddingError, ValueError) as exc:
+            raise click.ClickException(str(exc)) from exc
