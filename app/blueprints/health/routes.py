@@ -20,7 +20,8 @@ def database_health() -> tuple[dict[str, str], int]:
     try:
         db.session.execute(text("SELECT 1"))
     except SQLAlchemyError:
-        current_app.logger.exception("Database health check failed")
+        # Keep client and production logs free of raw database exception details.
+        current_app.logger.warning("Database health check failed")
         return {"status": "error", "database": "unreachable"}, 503
 
     return {"status": "ok", "database": "reachable"}, 200
