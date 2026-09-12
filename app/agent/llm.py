@@ -48,6 +48,19 @@ def gemini_understanding_schema() -> dict[str, Any]:
     return clean(RequestUnderstanding.model_json_schema())
 
 
+def gemini_sampling_kwargs(model_name: str, temperature: float) -> dict[str, float]:
+    """Use sampling controls only on model families that still support them.
+
+    Gemini 3.x deprecated the legacy temperature/top-p/top-k sampling controls. Omitting
+    temperature on that family keeps the adapter compatible with current stable Gemini 3
+    endpoints while preserving the configurable value for older/custom model IDs.
+    """
+
+    if model_name.strip().casefold().startswith("gemini-3"):
+        return {}
+    return {"temperature": float(temperature)}
+
+
 class GeminiAgentLLM:
     """Official Google Gen AI adapter; credentials are checked only on an actual call."""
 
@@ -84,9 +97,9 @@ class GeminiAgentLLM:
                 contents=json.dumps(payload, ensure_ascii=False, default=str),
                 config=types.GenerateContentConfig(
                     system_instruction=UNDERSTANDING_SYSTEM_PROMPT,
-                    temperature=self.temperature,
                     response_mime_type="application/json",
                     response_json_schema=gemini_understanding_schema(),
+                    **gemini_sampling_kwargs(self.model_name, self.temperature),
                 ),
             )
             if isinstance(response.parsed, RequestUnderstanding):
@@ -117,8 +130,8 @@ class GeminiAgentLLM:
                 contents=json.dumps(payload, ensure_ascii=False, default=str),
                 config=types.GenerateContentConfig(
                     system_instruction=GENERAL_COMPOSITION_SYSTEM_PROMPT,
-                    temperature=self.temperature,
                     max_output_tokens=180,
+                    **gemini_sampling_kwargs(self.model_name, self.temperature),
                 ),
             )
             text = (response.text or "").strip()
