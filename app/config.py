@@ -15,6 +15,8 @@ def normalize_database_url(url: str | None) -> str | None:
         return None
 
     url = url.strip()
+    if not url:
+        return None
     if url.startswith("postgres://"):
         url = "postgresql://" + url.removeprefix("postgres://")
     if url.startswith("postgresql://"):
@@ -25,6 +27,8 @@ def normalize_database_url(url: str | None) -> str | None:
 class Config:
     """Base runtime configuration."""
 
+    FLASK_ENV = os.getenv("FLASK_ENV", "production")
+    DEBUG = os.getenv("FLASK_DEBUG", "0").lower() in ("1", "true", "yes")
     SECRET_KEY = os.getenv("SECRET_KEY")
     SQLALCHEMY_DATABASE_URI = normalize_database_url(os.getenv("DATABASE_URL"))
     SQLALCHEMY_TRACK_MODIFICATIONS = False

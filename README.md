@@ -1,101 +1,138 @@
-# AutoDrive Egypt
+# AutoDrive Egypt — AI Car Dealership Agent
 
-Car Dealership AI Sales & Customer Service technical assessment.
+AI Sales & Customer Service platform for AutoDrive Egypt.
 
-## Current status
+## Current Status
 
 **Phase 0 — Foundation**
 
-This branch is a clean rebuild of the final assessment project. No legacy application code is reused.
+This branch contains the foundational infrastructure for the AutoDrive Egypt platform. Legacy code has been pruned in favor of a clean, production-oriented architecture.
 
-### Foundation stack
+### Technology Stack
 
-- Python 3.12
-- uv for Python/dependency management
-- Flask application factory
-- SQLAlchemy + Flask-SQLAlchemy
-- Flask-Migrate / Alembic
-- Psycopg 3
-- Supabase PostgreSQL as the target relational database
-- Docker
-- pytest + Ruff
+- **Language & Runtime:** Python 3.12 (pinned via `.python-version`)
+- **Package & Dependency Management:** `uv` (using `pyproject.toml` and `uv.lock`)
+- **Web Framework:** Flask (Application Factory pattern)
+- **ORM & Database Toolkit:** SQLAlchemy 2.x & Flask-SQLAlchemy
+- **Schema & Migrations:** Flask-Migrate / Alembic
+- **Database Driver:** Psycopg 3 (`psycopg[binary]`)
+- **Relational Database:** External Supabase PostgreSQL (via Session Pooler)
+- **WSGI Production Server:** Gunicorn
+- **Containerization:** Docker & Docker Compose
+- **Quality Assurance:** pytest & Ruff
 
-RAG, pgvector models, LangGraph, business actions, customer UI, and admin dashboard are intentionally deferred to later phases.
+---
 
-## Local setup
+## Local Development Setup
 
-Install `uv`, then from the project root:
+### 1. Prerequisites
+
+Ensure Python 3.12 and [`uv`](https://github.com/astral-sh/uv) are installed on your system.
+
+### 2. Dependency Installation
+
+Synchronize locked dependencies in a virtual environment:
 
 ```bash
-uv sync
+uv sync --locked
 ```
 
-Copy the environment template:
+### 3. Environment Configuration
+
+Copy the example environment template:
 
 ```bash
+# Linux / macOS
 cp .env.example .env
-```
 
-On Windows PowerShell:
-
-```powershell
+# Windows PowerShell
 Copy-Item .env.example .env
 ```
 
-Set `SECRET_KEY` and `DATABASE_URL` in `.env`. For local IPv4 development, use the Supabase Session Pooler connection string on port `5432`. Keep all secrets out of Git.
+Configure `.env` with appropriate values:
+- `FLASK_ENV`: `development` or `production`
+- `FLASK_DEBUG`: `1` for local debugging
+- `SECRET_KEY`: A secure random string
+- `DATABASE_URL`: Supabase PostgreSQL connection string (use port `5432` Session Pooler for IPv4 compatibility)
 
-Run the application:
+> **Security Note:** Never commit `.env` or real database passwords to version control.
+
+### 4. Running the Application Locally
+
+Start the development server using `uv`:
 
 ```bash
-uv run flask --app run:app run --debug
+uv run flask --app run:app run --debug --port 5000
 ```
 
-Health endpoints:
+Or run via Gunicorn:
 
-```text
-GET /health
-GET /health/db
+```bash
+uv run gunicorn --bind 0.0.0.0:5000 run:app
 ```
 
-`/health` checks the Flask process only. `/health/db` executes `SELECT 1` through SQLAlchemy and returns HTTP 503 if the database is unavailable.
+---
 
-## Tests and lint
+## Health Check Endpoints
+
+The application provides two explicit health monitoring endpoints:
+
+- **Process Health:** `GET /health`
+  - Verifies the Flask process is alive without querying external services.
+  - Returns `200 OK` with JSON: `{"status": "ok", "service": "autodrive-egypt"}`
+- **Database Health:** `GET /health/db`
+  - Executes a lightweight `SELECT 1` query via SQLAlchemy.
+  - Returns `200 OK` with JSON: `{"status": "ok", "database": "reachable"}`
+  - Returns `503 Service Unavailable` with JSON: `{"status": "error", "database": "unreachable"}` on failure without exposing internal exceptions.
+
+---
+
+## Testing & Code Quality
+
+Run tests with `pytest`:
+
+```bash
+uv run pytest -q
+```
+
+Lint and format checking with `Ruff`:
 
 ```bash
 uv run ruff check .
-uv run pytest
 ```
 
-Tests use an isolated in-memory SQLite database. A passing unit/integration test does not count as a live Supabase verification.
+---
 
-## Docker
+## Docker & Containerization
 
-Generate/sync the lockfile first:
+### Build and Run with Docker
+
+Build the Docker image:
 
 ```bash
-uv sync
+docker build --tag autodrive-egypt:phase0 .
 ```
 
-Then build and run:
+Run the container:
+
+```bash
+docker run -d --name autodrive-web -p 5000:5000 --env-file .env autodrive-egypt:phase0
+```
+
+### Run with Docker Compose
 
 ```bash
 docker compose up --build
 ```
 
-The container exposes the Flask application on port `5000` and receives database credentials only through `.env`.
+---
 
-## Phase 0 Definition of Done
+## Project Roadmap (Future Phases)
 
-Phase 0 is complete only when:
+- **Phase 1:** Relational database domain models & initial Alembic migrations
+- **Phase 2:** Vehicle catalog schema, CSV dataset ingestion CLI, and inventory queries
+- **Phase 3:** pgvector semantic search & RAG knowledge base
+- **Phase 4:** LangGraph orchestration agent & multilingual dialogue engine
+- **Phase 5:** Business actions (leads, test-drive scheduling, human escalation)
+- **Phase 6:** Customer chat UI & dealership admin dashboard
 
-- Python 3.12 is pinned.
-- `uv.lock` is committed.
-- `uv sync` succeeds.
-- Flask app factory starts successfully.
-- `/health` returns HTTP 200.
-- SQLAlchemy is configured for the Supabase PostgreSQL URL.
-- `/health/db` succeeds against the real Supabase database.
-- Ruff and pytest pass.
-- Docker image builds and the container health check passes.
-
-Until real Supabase and container checks are executed, those items remain implemented but not live verified.
