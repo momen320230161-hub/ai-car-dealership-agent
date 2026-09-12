@@ -9,8 +9,8 @@ from sqlalchemy import select
 
 from app.models.knowledge import KnowledgeDocument
 from app.rag.embeddings import DeterministicEmbeddingProvider
-from app.services.knowledge_service import KnowledgeService
 from app.services.knowledge_seed_service import KnowledgeSeedError, KnowledgeSeedService
+from app.services.knowledge_service import KnowledgeService
 
 
 def _write_seed(path, documents, *, status="approved_for_seed", version="1.0"):
