@@ -124,3 +124,82 @@ def test_catalog_details_comparison_and_recommendations_use_only_recorded_facts(
 
     with pytest.raises(LookupError):
         service.compare_cars([cars[0].id, cars[3].id])
+
+
+def test_recommendations_use_budget_ceiling_and_prefer_distinct_models(db_session):
+    cars = [
+        Car(
+            brand="Shineray",
+            model="X30",
+            year=2026,
+            condition="new",
+            price_egp=Decimal("580000"),
+            body_type="Van",
+            transmission="Manual",
+            mileage_km=0,
+            color="Silver",
+            source="catalog-budget-test",
+            source_id="x30-silver",
+        ),
+        Car(
+            brand="Shineray",
+            model="X30",
+            year=2026,
+            condition="new",
+            price_egp=Decimal("580000"),
+            body_type="Van",
+            transmission="Manual",
+            mileage_km=0,
+            color="Gray",
+            source="catalog-budget-test",
+            source_id="x30-gray",
+        ),
+        Car(
+            brand="Audi",
+            model="Q3",
+            year=2026,
+            condition="new",
+            price_egp=Decimal("2500000"),
+            body_type="SUV",
+            transmission="Automatic",
+            mileage_km=0,
+            source="catalog-budget-test",
+            source_id="q3",
+        ),
+        Car(
+            brand="Skoda",
+            model="Superb",
+            year=2026,
+            condition="new",
+            price_egp=Decimal("2450000"),
+            body_type="Sedan",
+            transmission="Automatic",
+            mileage_km=0,
+            source="catalog-budget-test",
+            source_id="superb",
+        ),
+        Car(
+            brand="Kia",
+            model="Sportage",
+            year=2025,
+            condition="used",
+            price_egp=Decimal("2400000"),
+            body_type="SUV",
+            transmission="Automatic",
+            mileage_km=12000,
+            source="catalog-budget-test",
+            source_id="sportage",
+        ),
+    ]
+    db_session.add_all(cars)
+    db_session.commit()
+
+    recommendations = CatalogService(db_session).recommend({"max_price": 2_500_000}, limit=3)
+
+    assert [car.model for car in recommendations] == ["Q3", "Superb", "Sportage"]
+    assert [car.price_egp for car in recommendations] == [
+        Decimal("2500000"),
+        Decimal("2450000"),
+        Decimal("2400000"),
+    ]
+    assert len({(car.brand, car.model) for car in recommendations}) == 3
