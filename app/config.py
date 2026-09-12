@@ -36,3 +36,16 @@ class Config:
         "pool_pre_ping": True,
         "pool_recycle": 300,
     }
+    EMBEDDING_PROVIDER = os.getenv("EMBEDDING_PROVIDER", "gemini")
+    EMBEDDING_MODEL = os.getenv(
+        "EMBEDDING_MODEL", os.getenv("GEMINI_EMBEDDING_MODEL", "gemini-embedding-2")
+    )
+    EMBEDDING_DIMENSION = int(
+        os.getenv("EMBEDDING_DIMENSION", os.getenv("EMBEDDING_DIMENSIONS", "768"))
+    )
+    GEMINI_API_KEY = os.getenv("GEMINI_API_KEY") or os.getenv("EMBEDDING_API_KEY")
+    RAG_TOP_K = int(os.getenv("RAG_TOP_K", "4"))
+    RAG_MAX_TOP_K = int(os.getenv("RAG_MAX_TOP_K", "20"))
+    RAG_MIN_SCORE = (
+        float(os.environ["RAG_MIN_SCORE"]) if os.getenv("RAG_MIN_SCORE") else None
+    )

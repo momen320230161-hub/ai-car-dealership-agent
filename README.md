@@ -7,7 +7,8 @@ AI Sales & Customer Service technical-assessment project for AutoDrive Egypt.
 - **Phase 0 — Foundation: COMPLETE**
 - **Phase 1 — Database & ORM: COMPLETE**
 - **Phase 2 — Catalog import, structured search, recommendation state, visible-list selection/comparison: COMPLETE**
-- **Phase 3 — RAG foundation: NOT STARTED**
+- **Phase 3 — Managed RAG + PostgreSQL pgvector knowledge retrieval: COMPLETE**
+- **Phase 4 — LangGraph Sales Orchestrator: NOT STARTED**
 
 This is the clean final-project rebuild on the `Final-Project` branch. Legacy application code is not reused.
 
@@ -74,6 +75,39 @@ If a NEW row has no source mileage, the importer defensively stores `mileage_km 
 The catalog represents recorded data, not guaranteed live showroom availability or real-time market pricing.
 
 RAG retrieval, embeddings, LangGraph, test-drive and lead workflows, customer chat, authentication, and the admin dashboard are intentionally not implemented in Phase 2.
+
+## Phase 3 Managed RAG
+
+Phase 3 uses **PostgreSQL pgvector** as the persistent vector store. Chroma is not used. Alembic revision `4f6a8c2d91b7` creates the extension safely in the `extensions` schema when needed and adds the Phase 3 schema without rewriting revision `cd73103ae9e0`.
+
+`KnowledgeDocument` remains the managed source record and now tracks `content_version`, `index_status`, `indexed_version`, `indexed_at`, `index_error`, and `embedding_model`. `KnowledgeChunk` stores deterministic chunk order, document version, content hash, source text, model name, and a real `vector(768)` embedding. Its document foreign key cascades on deletion, and an HNSW cosine index supports database-native nearest-neighbor retrieval. RLS is enabled and direct `anon` / `authenticated` table privileges are revoked, matching the backend-controlled access pattern.
+
+The indexing lifecycle is explicit:
+
+1. Document content is committed as `pending`.
+2. The deterministic chunker produces non-empty chunks of at most 1,000 characters with up to 120 characters of word-aware overlap, preserving paragraph boundaries where practical.
+3. Embeddings are generated outside the database transaction and validated as exactly 768 finite numbers.
+4. Current chunks are atomically replaced and the document becomes `indexed` only after every chunk is persisted.
+5. A content update increments `content_version`; failed or pending versions cannot retrieve older chunks because retrieval requires `indexed_version = content_version` and matching chunk versions.
+
+Metadata-only title/category changes do not regenerate embeddings because the embedded input is chunk content only. Reindexing the same version replaces chunks without duplication. Delete relies on the database cascade, and inactive documents are excluded from normal retrieval.
+
+The production provider uses the official Google Gen AI SDK with environment-driven provider, model, API key, and dimension. The default model is `gemini-embedding-2` with a requested output dimension of 768. Credentials are checked only when an embedding operation runs, so health checks and migrations do not require an API key. Automated tests use a deterministic offline token-hash provider and never call an external API.
+
+`RAGService.retrieve()` embeds a query and executes cosine similarity in PostgreSQL. It returns structured document/chunk identifiers, title, category, chunk position, content, and `similarity = 1 - cosine_distance`; it does not compose a customer-facing answer. Retrieval supports normalized category filtering, an optional minimum similarity, and bounded `top_k` (default 4, maximum 20) with deterministic tie-breaking.
+
+Operational commands:
+
+```bash
+uv run flask --app run:app reindex-knowledge --document-id <UUID>
+uv run flask --app run:app reindex-knowledge --all
+uv run flask --app run:app reindex-knowledge --all --failed-only
+uv run flask --app run:app rag-search "query text" --category faq --top-k 4
+```
+
+Live Supabase verification on 2026-09-12 confirmed extension `vector` 0.8.2 in `extensions`, `vector(768)`, the HNSW cosine index, RLS, constraints, and migration head `4f6a8c2d91b7`. A temporary technical document passed real Gemini create → retrieve → update → retrieve-current-only → delete → no-retrieval verification. Cleanup left zero knowledge documents and zero chunks.
+
+**Production knowledge content: NOT SEEDED YET — awaiting approved AutoDrive business knowledge.** No business policies, prices, hours, addresses, or contact details were invented.
 
 ## Database Access and Security
 
@@ -145,16 +179,19 @@ The test suite includes:
 - PostgreSQL production-type persistence tests
 - PostgreSQL empty-database import proving 7,771 / 1,930 / 5,841 and a 7,771-row unchanged second run
 - PostgreSQL transaction-safe snapshot lifecycle and same-session active snapshot enforcement
+- deterministic chunker, embedding validation, and controlled provider/database failure tests
+- managed knowledge create/update/no-op/deactivate/reindex/delete unit tests
+- real PostgreSQL 17 + pgvector schema, vector persistence, HNSW, cosine-ordering, category, active/current-version, cascade, and CRUD/retrieval lifecycle tests
 - Phase 0 health-check regressions
 
-GitHub Actions uses an ephemeral PostgreSQL 17 service. It does not use the live Supabase database and does not build application Docker images.
+GitHub Actions uses an ephemeral PostgreSQL 17 service with pgvector. It does not use the live Supabase database and does not build application Docker images.
 
 Live Supabase was verified on 2026-09-12 with 7,771 total active records, 1,930 NEW, 5,841 USED, zero duplicate `(source, source_id)` groups, zero NEW `NULL` mileages, and 1,930 NEW zero mileages. Representative condition, brand, body type, mileage, price-range, and ascending/descending price searches were also verified. The corrected Peugeot 2008 model-year 2026 record is present.
 
 ## Roadmap
 
 - **Phase 2:** COMPLETE — catalog import, deterministic recommendation state, visible-list selection/comparison
-- **Phase 3:** RAG + pgvector + knowledge CRUD/reindex
+- **Phase 3:** COMPLETE — managed RAG + pgvector + knowledge CRUD/reindex
 - **Phase 4:** LangGraph Sales Orchestrator
 - **Phase 5:** Test-drive/cancellation and sales-lead business actions
 - **Phase 6:** Customer Flask chat UI

@@ -6,6 +6,7 @@ from typing import Any
 
 import click
 from flask import Flask
+from sqlalchemy import event
 
 from app.config import Config
 from app.extensions import db, migrate
@@ -26,6 +27,7 @@ def create_app(config_overrides: dict[str, Any] | None = None) -> Flask:
 
     db.init_app(app)
     migrate.init_app(app, db, compare_type=True)
+    _configure_postgres_search_path(app)
 
     from app.blueprints.health import bp as health_bp
 
@@ -45,6 +47,25 @@ def _validate_required_config(app: Flask) -> None:
     if missing:
         joined = ", ".join(missing)
         raise RuntimeError(f"Missing required environment configuration: {joined}")
+
+
+def _configure_postgres_search_path(app: Flask) -> None:
+    """Make pgvector operators in Supabase's extensions schema resolvable."""
+    with app.app_context():
+        engine = db.engine
+        if engine.dialect.name != "postgresql":
+            return
+
+        @event.listens_for(engine, "connect")
+        def set_search_path(dbapi_connection, connection_record) -> None:
+            del connection_record
+            previous_autocommit = dbapi_connection.autocommit
+            dbapi_connection.autocommit = True
+            try:
+                with dbapi_connection.cursor() as cursor:
+                    cursor.execute("SET SESSION search_path TO public, extensions")
+            finally:
+                dbapi_connection.autocommit = previous_autocommit
 
 
 def _register_cli(app: Flask) -> None:
@@ -67,3 +88,73 @@ def _register_cli(app: Flask) -> None:
         click.echo(f"rejected: {report.rejected}")
         for error in report.errors:
             click.echo(f"error: {error}", err=True)
+
+    @app.cli.command("reindex-knowledge")
+    @click.option("--document-id", type=click.UUID, default=None)
+    @click.option("--all", "reindex_all", is_flag=True)
+    @click.option("--failed-only", is_flag=True)
+    def reindex_knowledge(document_id, reindex_all: bool, failed_only: bool) -> None:
+        """Rebuild vector chunks for one document or an observable document set."""
+        if (document_id is None and not reindex_all) or (
+            document_id is not None and reindex_all
+        ):
+            raise click.UsageError("Choose exactly one of --document-id or --all")
+        if failed_only and not reindex_all:
+            raise click.UsageError("--failed-only requires --all")
+
+        from app.rag.embeddings import EmbeddingError, build_embedding_provider
+        from app.services.knowledge_service import KnowledgeService, KnowledgeServiceError
+
+        try:
+            service = KnowledgeService(db.session, build_embedding_provider(app.config))
+            if document_id is not None:
+                document = service.reindex_document(document_id)
+                click.echo(f"indexed document: {document.id}")
+                click.echo(f"status: {document.index_status}")
+            else:
+                report = service.reindex_all(failed_only=failed_only)
+                click.echo(f"requested: {report.requested}")
+                click.echo(f"indexed: {report.indexed}")
+                click.echo(f"failed: {report.failed}")
+                for error in report.errors:
+                    click.echo(f"error: {error}", err=True)
+                if report.failed:
+                    raise KnowledgeServiceError(
+                        f"{report.failed} knowledge document(s) failed to reindex"
+                    )
+        except (EmbeddingError, KnowledgeServiceError) as exc:
+            raise click.ClickException(str(exc)) from exc
+
+    @app.cli.command("rag-search")
+    @click.argument("query")
+    @click.option("--category", default=None)
+    @click.option("--top-k", type=click.IntRange(min=1), default=None)
+    @click.option("--min-score", type=float, default=None)
+    def rag_search(
+        query: str, category: str | None, top_k: int | None, min_score: float | None
+    ) -> None:
+        """Run structured pgvector retrieval without composing an LLM answer."""
+        from app.rag.embeddings import EmbeddingError, build_embedding_provider
+        from app.services.rag_service import RAGRetrievalError, RAGService
+
+        try:
+            service = RAGService(
+                db.session,
+                build_embedding_provider(app.config),
+                default_top_k=app.config["RAG_TOP_K"],
+                max_top_k=app.config["RAG_MAX_TOP_K"],
+                default_min_score=app.config["RAG_MIN_SCORE"],
+            )
+            results = service.retrieve(
+                query, category=category, top_k=top_k, min_score=min_score
+            )
+            if not results:
+                click.echo("no indexed knowledge matched")
+            for result in results:
+                excerpt = result.content[:160].replace("\n", " ")
+                click.echo(
+                    f"{result.title} | {result.category} | "
+                    f"similarity={result.similarity:.4f} | {excerpt}"
+                )
+        except (EmbeddingError, RAGRetrievalError, ValueError) as exc:
+            raise click.ClickException(str(exc)) from exc

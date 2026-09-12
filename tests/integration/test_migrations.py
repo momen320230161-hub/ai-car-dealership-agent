@@ -11,6 +11,7 @@ EXPECTED_TABLES = {
     "chat_messages",
     "conversation_sessions",
     "knowledge_documents",
+    "knowledge_chunks",
     "recommendation_snapshot_items",
     "recommendation_snapshots",
     "sales_leads",
@@ -37,7 +38,7 @@ def test_postgres_migration_lifecycle(pg_app):
         revision = db.session.execute(
             text("SELECT version_num FROM alembic_version")
         ).scalar_one()
-        assert revision == "cd73103ae9e0"
+        assert revision == "4f6a8c2d91b7"
 
         rls_rows = db.session.execute(
             text(
