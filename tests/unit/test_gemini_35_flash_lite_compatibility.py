@@ -2,6 +2,7 @@
 
 import pytest
 
+import app.agent.llm as llm_module
 from app.agent.llm import (
     AgentLLMError,
     GeminiAgentLLM,
@@ -9,6 +10,51 @@ from app.agent.llm import (
     gemini_sampling_kwargs,
     gemini_understanding_schema,
 )
+from app.agent.schemas import RequestUnderstanding
+
+
+class PassingSmokeGemini:
+    """Offline fake that satisfies the required live-smoke semantics."""
+
+    model_names: list[str] = []
+
+    def __init__(self, *, api_key, model_name: str, temperature: float = 0.1):
+        del api_key, temperature
+        self.model_name = model_name
+        type(self).model_names.append(model_name)
+
+    def understand(self, message: str, *, recent_messages, preferences) -> RequestUnderstanding:
+        del recent_messages, preferences
+        if "بي ام" in message:
+            return RequestUnderstanding(
+                intent="catalog_search",
+                preference_updates={"condition": "used"},
+            )
+        if "X6" in message:
+            return RequestUnderstanding(
+                intent="catalog_search",
+                preference_updates={"model": "X6"},
+            )
+        if "الضمان" in message or "تأمين" in message:
+            return RequestUnderstanding(intent="knowledge_question")
+        return RequestUnderstanding(intent="general")
+
+    def compose_general(self, message: str, *, verified_context) -> str:
+        del message, verified_context
+        return "العفو، أنا تحت أمرك."
+
+
+class WrongWarrantySmokeGemini(PassingSmokeGemini):
+    """Fake a semantic regression while keeping the API path itself successful."""
+
+    def understand(self, message: str, *, recent_messages, preferences) -> RequestUnderstanding:
+        if "الضمان" in message:
+            return RequestUnderstanding(intent="general")
+        return super().understand(
+            message,
+            recent_messages=recent_messages,
+            preferences=preferences,
+        )
 
 
 def test_gemini_35_flash_lite_uses_current_gemini3_adapter_path() -> None:
@@ -52,3 +98,41 @@ def test_agent_llm_smoke_cli_fails_without_credentials(app) -> None:
     assert result.exit_code != 0
     assert "GEMINI_API_KEY is not configured" in result.output
 
+
+def test_agent_llm_smoke_all_scenarios_enforces_expected_semantics(app, monkeypatch) -> None:
+    runner = app.test_cli_runner()
+    app.config["GEMINI_API_KEY"] = "test-key"
+    monkeypatch.setattr(llm_module, "GeminiAgentLLM", PassingSmokeGemini)
+
+    result = runner.invoke(args=["agent-llm-smoke", "--all-scenarios"])
+
+    assert result.exit_code == 0, result.output
+    assert result.output.count("semantic validation: PASS") == 5
+    assert "status: PASS" in result.output
+
+
+def test_agent_llm_smoke_fails_when_a_scenario_is_semantically_wrong(app, monkeypatch) -> None:
+    runner = app.test_cli_runner()
+    app.config["GEMINI_API_KEY"] = "test-key"
+    monkeypatch.setattr(llm_module, "GeminiAgentLLM", WrongWarrantySmokeGemini)
+
+    result = runner.invoke(args=["agent-llm-smoke", "--all-scenarios"])
+
+    assert result.exit_code != 0
+    assert "Scenario 3 (Knowledge Routing) semantic validation failed" in result.output
+    assert "intent expected 'knowledge_question', got 'general'" in result.output
+    assert "status: FAIL" in result.output
+
+
+def test_agent_llm_smoke_fallback_matches_new_default_model(app, monkeypatch) -> None:
+    runner = app.test_cli_runner()
+    app.config["GEMINI_API_KEY"] = "test-key"
+    app.config.pop("AGENT_LLM_MODEL", None)
+    PassingSmokeGemini.model_names.clear()
+    monkeypatch.setattr(llm_module, "GeminiAgentLLM", PassingSmokeGemini)
+
+    result = runner.invoke(args=["agent-llm-smoke"])
+
+    assert result.exit_code == 0, result.output
+    assert PassingSmokeGemini.model_names == ["gemini-3.5-flash-lite"]
+    assert "model: gemini-3.5-flash-lite" in result.output
