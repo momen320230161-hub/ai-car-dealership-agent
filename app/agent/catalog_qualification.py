@@ -1,10 +1,6 @@
 """Deterministic catalog-language normalization and sales qualification."""
 
-from __future__ import annotations
-
 import re
-from dataclasses import dataclass
-from typing import Any
 
 
 # Common Egyptian-Arabic spellings that cannot be validated by a literal
@@ -81,13 +77,20 @@ _RECOMMENDATION_MARKERS = (
 )
 
 
-@dataclass(frozen=True, slots=True)
 class CatalogQualification:
     """Whether a broad catalog request is ready to create a visible shortlist."""
 
-    ready: bool
-    message: str | None = None
-    missing: tuple[str, ...] = ()
+    __slots__ = ("ready", "message", "missing")
+
+    def __init__(
+        self,
+        ready: bool,
+        message: str | None = None,
+        missing: tuple[str, ...] = (),
+    ) -> None:
+        self.ready = ready
+        self.message = message
+        self.missing = missing
 
 
 def _normalized(message: str) -> str:
@@ -130,7 +133,7 @@ def explicitly_requests_recommendation(message: str) -> bool:
 
 
 def qualify_catalog_search(
-    preferences: dict[str, Any] | None,
+    preferences: dict[str, object] | None,
     message: str,
 ) -> CatalogQualification:
     """Ask for high-value missing preferences before creating a broad shortlist.
