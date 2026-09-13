@@ -158,13 +158,13 @@ def explicit_money_amounts(message: str) -> list[float]:
     words = "|".join(
         sorted((re.escape(word) for word in _MILLION_WORD_VALUES), key=len, reverse=True)
     )
-    for match in re.finditer(rf"\b({words})\s*(ونص)?\s*مليون\b", normalized):
+    for match in re.finditer(rf"\b({words})\s*مليون\s*ونص\b", normalized):
+        amounts.append((_MILLION_WORD_VALUES[match.group(1)] + 0.5) * 1_000_000)
+    for match in re.finditer(rf"\b({words})\s*(ونص)?\s*مليون\b(?!\s*ونص)", normalized):
         value = _MILLION_WORD_VALUES[match.group(1)]
         if match.group(2):
             value += 0.5
         amounts.append(value * 1_000_000)
-    for match in re.finditer(rf"\b({words})\s*مليون\s*ونص\b", normalized):
-        amounts.append((_MILLION_WORD_VALUES[match.group(1)] + 0.5) * 1_000_000)
 
     compact = normalized.replace(",", "")
     for match in re.finditer(r"(?<![0-9])([1-9][0-9]{5,})(?![0-9])", compact):
