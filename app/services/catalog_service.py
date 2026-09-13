@@ -86,13 +86,20 @@ class CatalogService:
         *,
         limit: int = 3,
     ) -> list[Car]:
-        """Return a deterministic, budget-aware, customer-diverse visible shortlist."""
+        """Return a deterministic, intent-aware, customer-diverse visible shortlist."""
         filters = (
             preferences
             if isinstance(preferences, CatalogFilters)
             else CatalogFilters.from_mapping(preferences)
         )
-        sort_by = "price_desc" if filters.max_price is not None else "year_desc"
+        if filters.model:
+            sort_by = (
+                "year_desc_mileage_asc"
+                if filters.condition == "used"
+                else "year_desc"
+            )
+        else:
+            sort_by = "price_desc" if filters.max_price is not None else "year_desc"
         candidate_limit = min(
             CatalogRepository.MAX_PAGE_SIZE,
             max(limit, limit * 10),
