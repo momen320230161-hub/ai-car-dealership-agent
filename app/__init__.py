@@ -236,14 +236,14 @@ def _register_cli(app: Flask) -> None:
     @click.option(
         "--all-scenarios",
         is_flag=True,
-        help="Run all 5 live compatibility scenarios.",
+        help="Run all 5 live compatibility scenarios with semantic assertions.",
     )
     def agent_llm_smoke(model: str | None, message: str, all_scenarios: bool) -> None:
         """Perform a safe live smoke test for Gemini LLM understanding and composition."""
         from app.agent.llm import AgentLLMError, GeminiAgentLLM
         from app.agent.schemas import sanitize_understanding
 
-        target_model = model or app.config.get("AGENT_LLM_MODEL", "gemini-3.6-flash")
+        target_model = model or app.config.get("AGENT_LLM_MODEL", "gemini-3.5-flash-lite")
         api_key = app.config.get("GEMINI_API_KEY")
         if not api_key:
             raise click.ClickException("GEMINI_API_KEY is not configured")
@@ -254,6 +254,44 @@ def _register_cli(app: Flask) -> None:
             temperature=float(app.config.get("AGENT_LLM_TEMPERATURE", 0.1)),
         )
 
+        def assert_semantics(
+            name: str,
+            sanitized,
+            expected_intent: str,
+            expected_preferences: dict[str, Any],
+        ) -> None:
+            failures: list[str] = []
+            if sanitized.intent != expected_intent:
+                failures.append(
+                    f"intent expected {expected_intent!r}, got {sanitized.intent!r}"
+                )
+
+            actual_preferences = sanitized.preference_updates.model_dump(exclude_none=True)
+            for key, expected_value in expected_preferences.items():
+                actual_value = actual_preferences.get(key)
+                if key in {"brand", "model", "condition"}:
+                    if str(actual_value).casefold() != str(expected_value).casefold():
+                        failures.append(
+                            f"{key} expected {expected_value!r}, got {actual_value!r}"
+                        )
+                elif key == "max_price":
+                    try:
+                        matches = abs(float(actual_value) - float(expected_value)) < 1
+                    except (TypeError, ValueError):
+                        matches = False
+                    if not matches:
+                        failures.append(
+                            f"{key} expected {expected_value!r}, got {actual_value!r}"
+                        )
+                elif actual_value != expected_value:
+                    failures.append(
+                        f"{key} expected {expected_value!r}, got {actual_value!r}"
+                    )
+
+            if failures:
+                details = "; ".join(failures)
+                raise AgentLLMError(f"{name} semantic validation failed: {details}")
+
         click.echo(f"model: {target_model}")
         try:
             if all_scenarios:
@@ -263,6 +301,8 @@ def _register_cli(app: Flask) -> None:
                         "عايز عربية بي ام مستعملة ومعايا 3 مليون",
                         [],
                         {},
+                        "catalog_search",
+                        {"brand": "BMW", "condition": "used", "max_price": 3_000_000},
                     ),
                     (
                         "Scenario 2 (Multi-turn Understanding)",
@@ -272,11 +312,15 @@ def _register_cli(app: Flask) -> None:
                             {"role": "assistant", "content": "تمام، في موديل معين في دماغك؟"},
                         ],
                         {"brand": "BMW", "max_price": 3000000},
+                        "catalog_search",
+                        {"model": "X6"},
                     ),
                     (
                         "Scenario 3 (Knowledge Routing)",
                         "الضمان مدته كام؟",
                         [],
+                        {},
+                        "knowledge_question",
                         {},
                     ),
                     (
@@ -284,15 +328,26 @@ def _register_cli(app: Flask) -> None:
                         "هل عندكم تأمين سيارات ضد الحوادث؟",
                         [],
                         {},
+                        "knowledge_question",
+                        {},
                     ),
                     (
                         "Scenario 5 (General)",
                         "شكراً",
                         [],
                         {},
+                        "general",
+                        {},
                     ),
                 ]
-                for name, msg, recent, prefs in scenarios:
+                for (
+                    name,
+                    msg,
+                    recent,
+                    prefs,
+                    expected_intent,
+                    expected_preferences,
+                ) in scenarios:
                     click.echo(f"\n--- {name} ---")
                     click.echo(f"input: {msg}")
                     raw = llm.understand(msg, recent_messages=recent, preferences=prefs)
@@ -303,6 +358,13 @@ def _register_cli(app: Flask) -> None:
                     sanitized_prefs = sanitized.preference_updates.model_dump(exclude_none=True)
                     click.echo(f"sanitized intent: {sanitized.intent}")
                     click.echo(f"sanitized preferences: {sanitized_prefs}")
+                    assert_semantics(
+                        name,
+                        sanitized,
+                        expected_intent,
+                        expected_preferences,
+                    )
+                    click.echo("semantic validation: PASS")
 
                 click.echo("\n--- Composition Test ---")
                 comp = llm.compose_general("شكراً", verified_context={"topic": "general_closing"})
