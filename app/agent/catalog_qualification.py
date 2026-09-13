@@ -9,8 +9,8 @@ from typing import Any
 
 
 # Common Egyptian-Arabic spellings that cannot be validated by a literal
-# substring check against the English canonical brand stored in the catalog.
-# Keep this intentionally explicit/auditable instead of fuzzy-matching brands.
+# substring check against the English canonical values stored in the catalog.
+# Keep these intentionally explicit/auditable instead of fuzzy matching.
 _BRAND_ALIASES: dict[str, tuple[str, ...]] = {
     "BMW": ("بي ام", "بي إم", "بى ام", "بي ام دبليو", "بي إم دبليو", "بى ام دبليو"),
     "Mercedes-Benz": ("مرسيدس", "مرسيدس بنز"),
@@ -45,6 +45,29 @@ _BRAND_ALIASES: dict[str, tuple[str, ...]] = {
     "Jeep": ("جيب",),
 }
 
+_BODY_TYPE_ALIASES: dict[str, tuple[str, ...]] = {
+    "SUV": ("اس يو في", "إس يو في", "اس يو فى", "إس يو فى"),
+    "Sedan": ("سيدان",),
+    "Hatchback": ("هاتشباك", "هاتش باك"),
+    "Coupe": ("كوبيه", "كوبيه"),
+    "Crossover": ("كروس اوفر", "كروس أوفر"),
+    "Convertible": ("كابورليه", "مكشوفة"),
+    "Pickup": ("بيك اب", "بيك أب"),
+    "Van": ("فان",),
+    "Wagon": ("واجن",),
+    "MPV": ("ام بي في", "إم بي في"),
+    "4X4": ("دفع رباعي", "4x4"),
+}
+
+_FUEL_TYPE_ALIASES: dict[str, tuple[str, ...]] = {
+    "Gasoline": ("بنزين", "petrol"),
+    "Diesel": ("ديزل",),
+    "Electric": ("كهربا", "كهرباء", "كهربائية"),
+    "Hybrid": ("هايبرد", "هجين"),
+    "Natural Gas": ("غاز طبيعي",),
+    "Gasoline/CNG": ("بنزين وغاز", "بنزين غاز"),
+}
+
 _RECOMMENDATION_MARKERS = (
     "رشح",
     "اقترح",
@@ -74,15 +97,32 @@ def _normalized(message: str) -> str:
     return " ".join(text.split())
 
 
-def explicit_brand_from_message(message: str) -> str | None:
-    """Resolve only explicit, allowlisted Arabic brand aliases to catalog names."""
+def _explicit_alias(
+    message: str,
+    aliases_by_canonical: Mapping[str, tuple[str, ...]],
+) -> str | None:
     normalized = _normalized(message)
-    for canonical, aliases in _BRAND_ALIASES.items():
+    for canonical, aliases in aliases_by_canonical.items():
         for alias in aliases:
             alias_normalized = _normalized(alias)
             if re.search(rf"(?<!\w){re.escape(alias_normalized)}(?!\w)", normalized):
                 return canonical
     return None
+
+
+def explicit_brand_from_message(message: str) -> str | None:
+    """Resolve only explicit, allowlisted Arabic brand aliases to catalog names."""
+    return _explicit_alias(message, _BRAND_ALIASES)
+
+
+def explicit_body_type_from_message(message: str) -> str | None:
+    """Resolve common Arabic body-type wording to canonical catalog values."""
+    return _explicit_alias(message, _BODY_TYPE_ALIASES)
+
+
+def explicit_fuel_type_from_message(message: str) -> str | None:
+    """Resolve common Arabic fuel wording to canonical catalog values."""
+    return _explicit_alias(message, _FUEL_TYPE_ALIASES)
 
 
 def explicitly_requests_recommendation(message: str) -> bool:
