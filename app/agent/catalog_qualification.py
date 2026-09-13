@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import re
-from collections.abc import Mapping
 from dataclasses import dataclass
 from typing import Any
 
@@ -49,7 +48,7 @@ _BODY_TYPE_ALIASES: dict[str, tuple[str, ...]] = {
     "SUV": ("اس يو في", "إس يو في", "اس يو فى", "إس يو فى"),
     "Sedan": ("سيدان",),
     "Hatchback": ("هاتشباك", "هاتش باك"),
-    "Coupe": ("كوبيه", "كوبيه"),
+    "Coupe": ("كوبيه",),
     "Crossover": ("كروس اوفر", "كروس أوفر"),
     "Convertible": ("كابورليه", "مكشوفة"),
     "Pickup": ("بيك اب", "بيك أب"),
@@ -99,7 +98,7 @@ def _normalized(message: str) -> str:
 
 def _explicit_alias(
     message: str,
-    aliases_by_canonical: Mapping[str, tuple[str, ...]],
+    aliases_by_canonical: dict[str, tuple[str, ...]],
 ) -> str | None:
     normalized = _normalized(message)
     for canonical, aliases in aliases_by_canonical.items():
@@ -131,7 +130,7 @@ def explicitly_requests_recommendation(message: str) -> bool:
 
 
 def qualify_catalog_search(
-    preferences: Mapping[str, Any] | None,
+    preferences: dict[str, Any] | None,
     message: str,
 ) -> CatalogQualification:
     """Ask for high-value missing preferences before creating a broad shortlist.
