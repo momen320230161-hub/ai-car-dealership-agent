@@ -9,6 +9,9 @@ def render_catalog(result: dict[str, Any] | None) -> str:
     if not result or result.get("type") == "no_results":
         return "ملقتش عربيات مطابقة حسب البيانات المتاحة عندي في الكتالوج المسجل."
     kind = result.get("type")
+    if kind == "clarification":
+        message = str(result.get("message") or "").strip()
+        return message or "محتاج أعرف شوية تفضيلات أكتر قبل ما أرشحلك عربيات."
     if kind == "recommendations":
         lines = ["حسب البيانات المتاحة عندي في الكتالوج المسجل:"]
         for item in result.get("cars", []):
