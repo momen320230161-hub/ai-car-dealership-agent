@@ -122,7 +122,7 @@ START -> input_guard -> load_context -> understand_request -> update_state
 
 `load_context` creates or loads an isolated `ConversationSession`, current structured preferences, selected car, the exact active visible snapshot, pending action, and bounded recent messages. Current relational state outranks message history. Each valid completed turn persists one user and one assistant `ChatMessage`; LangGraph checkpoint memory is deliberately not used.
 
-The production `GeminiAgentLLM` uses schema-constrained structured output for intent and explicit preference extraction. Its default model is the stable `gemini-3.6-flash`; configuration is environment-driven, and the Gemini credential is checked only when an LLM call runs. CI uses `DeterministicAgentLLM`, so automated tests have no network dependency. Deterministic Python rejects invented IDs/references and delegates catalog-filter validation and preference merging/invalidation to the existing Phase 2 services.
+The production `GeminiAgentLLM` uses schema-constrained structured output for intent and explicit preference extraction. Its default model is the high-quota `gemini-3.5-flash-lite` (with `AGENT_LLM_MODEL` environment override available for `gemini-3.6-flash` or other Gemini models); configuration is environment-driven, and the Gemini credential is checked only when an LLM call runs. CI uses `DeterministicAgentLLM`, so automated tests have no network dependency. Deterministic Python rejects invented IDs/references and delegates catalog-filter validation and preference merging/invalidation to the existing Phase 2 services.
 
 Conditional routes are grounded in existing services:
 
@@ -140,6 +140,7 @@ Developer invocation:
 ```bash
 uv run flask --app run:app agent-chat "عايز SUV مستعملة"
 uv run flask --app run:app agent-chat --session-id <UUID> "هات تفاصيل التانية"
+uv run flask --app run:app agent-llm-smoke --model "gemini-3.5-flash-lite" --all-scenarios
 ```
 
 Phase 5 will implement real test-drive, cancellation, and sales-lead actions. Phase 6 will add the customer chat UI; neither is part of this graph phase.

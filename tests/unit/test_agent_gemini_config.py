@@ -4,6 +4,7 @@ from app.agent.llm import gemini_sampling_kwargs
 
 
 def test_gemini_3_omits_deprecated_sampling_temperature():
+    assert gemini_sampling_kwargs("gemini-3.5-flash-lite", 0.1) == {}
     assert gemini_sampling_kwargs("gemini-3.6-flash", 0.1) == {}
     assert gemini_sampling_kwargs("GEMINI-3.8-FLASH", 0.7) == {}
 

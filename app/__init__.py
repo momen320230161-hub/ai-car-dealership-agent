@@ -225,3 +225,112 @@ def _register_cli(app: Flask) -> None:
             click.echo(result.response)
         except (AgentLLMError, EmbeddingError, ValueError) as exc:
             raise click.ClickException(str(exc)) from exc
+
+    @app.cli.command("agent-llm-smoke")
+    @click.option("--model", default=None, help="Target Gemini model ID to smoke test.")
+    @click.option(
+        "--message",
+        default="عايز عربية بي ام مستعملة ومعايا 3 مليون",
+        help="Test query message.",
+    )
+    @click.option(
+        "--all-scenarios",
+        is_flag=True,
+        help="Run all 5 live compatibility scenarios.",
+    )
+    def agent_llm_smoke(model: str | None, message: str, all_scenarios: bool) -> None:
+        """Perform a safe live smoke test for Gemini LLM understanding and composition."""
+        from app.agent.llm import AgentLLMError, GeminiAgentLLM
+        from app.agent.schemas import sanitize_understanding
+
+        target_model = model or app.config.get("AGENT_LLM_MODEL", "gemini-3.6-flash")
+        api_key = app.config.get("GEMINI_API_KEY")
+        if not api_key:
+            raise click.ClickException("GEMINI_API_KEY is not configured")
+
+        llm = GeminiAgentLLM(
+            api_key=api_key,
+            model_name=target_model,
+            temperature=float(app.config.get("AGENT_LLM_TEMPERATURE", 0.1)),
+        )
+
+        click.echo(f"model: {target_model}")
+        try:
+            if all_scenarios:
+                scenarios = [
+                    (
+                        "Scenario 1 (Catalog Understanding)",
+                        "عايز عربية بي ام مستعملة ومعايا 3 مليون",
+                        [],
+                        {},
+                    ),
+                    (
+                        "Scenario 2 (Multi-turn Understanding)",
+                        "عايزها X6",
+                        [
+                            {"role": "user", "content": "عايز عربية بي ام مستعملة ومعايا 3 مليون"},
+                            {"role": "assistant", "content": "تمام، في موديل معين في دماغك؟"},
+                        ],
+                        {"brand": "BMW", "max_price": 3000000},
+                    ),
+                    (
+                        "Scenario 3 (Knowledge Routing)",
+                        "الضمان مدته كام؟",
+                        [],
+                        {},
+                    ),
+                    (
+                        "Scenario 4 (Unsupported Knowledge Routing)",
+                        "هل عندكم تأمين سيارات ضد الحوادث؟",
+                        [],
+                        {},
+                    ),
+                    (
+                        "Scenario 5 (General)",
+                        "شكراً",
+                        [],
+                        {},
+                    ),
+                ]
+                for name, msg, recent, prefs in scenarios:
+                    click.echo(f"\n--- {name} ---")
+                    click.echo(f"input: {msg}")
+                    raw = llm.understand(msg, recent_messages=recent, preferences=prefs)
+                    raw_prefs = raw.preference_updates.model_dump(exclude_none=True)
+                    click.echo(f"raw parsed intent: {raw.intent}")
+                    click.echo(f"raw parsed preferences: {raw_prefs}")
+                    sanitized = sanitize_understanding(raw, msg)
+                    sanitized_prefs = sanitized.preference_updates.model_dump(exclude_none=True)
+                    click.echo(f"sanitized intent: {sanitized.intent}")
+                    click.echo(f"sanitized preferences: {sanitized_prefs}")
+
+                click.echo("\n--- Composition Test ---")
+                comp = llm.compose_general("شكراً", verified_context={"topic": "general_closing"})
+                click.echo(f"composition response: {comp}")
+                click.echo("\nstatus: PASS")
+            else:
+                raw_understanding = llm.understand(
+                    message,
+                    recent_messages=[],
+                    preferences={},
+                )
+                raw_prefs = raw_understanding.preference_updates.model_dump(exclude_none=True)
+                click.echo(f"raw parsed intent: {raw_understanding.intent}")
+                click.echo(f"raw parsed preferences: {raw_prefs}")
+
+                sanitized = sanitize_understanding(raw_understanding, message)
+                sanitized_prefs = sanitized.preference_updates.model_dump(exclude_none=True)
+                click.echo(f"sanitized intent: {sanitized.intent}")
+                click.echo(f"sanitized preferences: {sanitized_prefs}")
+
+                comp = llm.compose_general("شكراً", verified_context={"topic": "general_closing"})
+                click.echo(f"composition response: {comp}")
+                click.echo("status: PASS")
+        except AgentLLMError as exc:
+            click.echo(f"status: FAIL ({exc})", err=True)
+            raise click.ClickException(f"Live smoke test failed: {exc}") from exc
+        except Exception as exc:
+            click.echo(f"status: FAIL ({exc})", err=True)
+            raise click.ClickException(
+                f"Live smoke test encountered an unexpected error: {exc}"
+            ) from exc

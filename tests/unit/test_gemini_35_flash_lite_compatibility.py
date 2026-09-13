@@ -37,3 +37,18 @@ def test_gemini_35_flash_lite_uses_current_gemini3_adapter_path() -> None:
             recent_messages=[],
             preferences={},
         )
+
+
+def test_build_agent_llm_defaults_to_gemini_35_flash_lite() -> None:
+    provider = build_agent_llm({"AGENT_LLM_PROVIDER": "gemini", "GEMINI_API_KEY": None})
+    assert isinstance(provider, GeminiAgentLLM)
+    assert provider.model_name == "gemini-3.5-flash-lite"
+
+
+def test_agent_llm_smoke_cli_fails_without_credentials(app) -> None:
+    runner = app.test_cli_runner()
+    app.config["GEMINI_API_KEY"] = None
+    result = runner.invoke(args=["agent-llm-smoke"])
+    assert result.exit_code != 0
+    assert "GEMINI_API_KEY is not configured" in result.output
+

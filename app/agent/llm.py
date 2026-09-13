@@ -244,7 +244,7 @@ class DeterministicAgentLLM:
 
 def build_agent_llm(config: Mapping[str, Any]) -> AgentLLM:
     provider = str(config.get("AGENT_LLM_PROVIDER", "gemini")).strip().lower()
-    model = str(config.get("AGENT_LLM_MODEL", "gemini-3.6-flash")).strip()
+    model = str(config.get("AGENT_LLM_MODEL", "gemini-3.5-flash-lite")).strip()
     temperature = float(config.get("AGENT_LLM_TEMPERATURE", 0.1))
     if provider == "gemini":
         return GeminiAgentLLM(
