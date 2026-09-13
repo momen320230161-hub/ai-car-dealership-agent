@@ -1,8 +1,6 @@
 """Deterministic catalog-language normalization and sales qualification."""
 
 import re
-
-
 # Common Egyptian-Arabic spellings that cannot be validated by a literal
 # substring check against the English canonical values stored in the catalog.
 # Keep these intentionally explicit/auditable instead of fuzzy matching.
