@@ -7,6 +7,8 @@ from typing import Literal
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
+from app.agent.catalog_qualification import explicit_brand_from_message
+
 Intent = Literal[
     "catalog_search",
     "car_details",
@@ -218,7 +220,14 @@ def sanitize_understanding(
             updates["condition"] = "new"
         else:
             updates.pop("condition")
-    for name in ("brand", "model", "body_type"):
+
+    explicit_brand = explicit_brand_from_message(message)
+    if explicit_brand is not None:
+        updates["brand"] = explicit_brand
+    elif "brand" in updates and str(updates["brand"]).casefold() not in message_folded:
+        updates.pop("brand")
+
+    for name in ("model", "body_type"):
         if name in updates and str(updates[name]).casefold() not in message_folded:
             updates.pop(name)
     if "transmission" in updates:
