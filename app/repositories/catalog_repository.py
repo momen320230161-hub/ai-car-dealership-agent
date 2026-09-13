@@ -16,7 +16,13 @@ class CatalogRepository:
     """Focused query access for cars without business-workflow concerns."""
 
     MAX_PAGE_SIZE = 100
-    SORTS = {"price_asc", "price_desc", "year_desc", "mileage_asc"}
+    SORTS = {
+        "price_asc",
+        "price_desc",
+        "year_desc",
+        "year_desc_mileage_asc",
+        "mileage_asc",
+    }
 
     def __init__(self, session: Session):
         self.session = session
@@ -99,6 +105,14 @@ class CatalogRepository:
             return (Car.price_egp.desc(), Car.year.desc(), Car.id.asc())
         if sort_by == "year_desc":
             return (Car.year.desc(), Car.price_egp.asc(), Car.id.asc())
+        if sort_by == "year_desc_mileage_asc":
+            return (
+                Car.year.desc(),
+                case((Car.mileage_km.is_(None), 1), else_=0).asc(),
+                Car.mileage_km.asc(),
+                Car.price_egp.asc(),
+                Car.id.asc(),
+            )
         # NULL mileage stays after known USED mileage.
         return (
             case((Car.mileage_km.is_(None), 1), else_=0).asc(),
