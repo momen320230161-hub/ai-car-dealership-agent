@@ -73,7 +73,6 @@ _MILLION_WORD_VALUES = {
     "واحد": 1.0,
     "واحدة": 1.0,
     "اتنين": 2.0,
-    "اتنين": 2.0,
     "اثنين": 2.0,
     "اثنان": 2.0,
     "تلاتة": 3.0,
@@ -153,12 +152,10 @@ def explicit_money_amounts(message: str) -> list[float]:
 
     if re.search(r"\bمليونين\s*ونص\b", normalized):
         amounts.append(2_500_000.0)
-    if re.search(r"\bمليونين\b", normalized):
+    elif re.search(r"\bمليونين\b", normalized):
         amounts.append(2_000_000.0)
     if re.search(r"\bمليون\s*ونص\b", normalized):
         amounts.append(1_500_000.0)
-    if re.search(r"(?<!\w)مليون(?!\w)", normalized):
-        amounts.append(1_000_000.0)
 
     words = "|".join(
         sorted((re.escape(word) for word in _MILLION_WORD_VALUES), key=len, reverse=True)
@@ -174,6 +171,9 @@ def explicit_money_amounts(message: str) -> list[float]:
     compact = normalized.replace(",", "")
     for match in re.finditer(r"(?<![0-9])([1-9][0-9]{5,})(?![0-9])", compact):
         amounts.append(float(match.group(1)))
+
+    if not amounts and re.search(r"(?<!\w)مليون(?!\w)", normalized):
+        amounts.append(1_000_000.0)
 
     return list(dict.fromkeys(amounts))
 
