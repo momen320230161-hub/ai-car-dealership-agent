@@ -11,6 +11,7 @@ from langgraph.graph import END, START, StateGraph
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.orm import Session
 
+from app.agent.catalog_qualification import qualify_catalog_search
 from app.agent.grounding import choose_grounded_result
 from app.agent.llm import AgentLLM, AgentLLMError, DeterministicAgentLLM
 from app.agent.rendering import (
@@ -315,6 +316,16 @@ class SalesOrchestrator:
             session_id = uuid.UUID(state["session_id"])
             intent: CatalogIntent = state.get("intent", "catalog_search")  # type: ignore[assignment]
             if intent == "catalog_search":
+                qualification = qualify_catalog_search(
+                    state.get("preferences", {}), state.get("normalized_message", "")
+                )
+                if not qualification.ready:
+                    update["catalog_result"] = {
+                        "type": "clarification",
+                        "message": qualification.message,
+                        "missing": list(qualification.missing),
+                    }
+                    return update
                 snapshot = self.recommendations.recommend_and_snapshot(
                     session_id,
                     state.get("preferences", {}),
