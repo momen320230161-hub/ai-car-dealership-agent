@@ -203,3 +203,86 @@ def test_recommendations_use_budget_ceiling_and_prefer_distinct_models(db_sessio
         Decimal("2400000"),
     ]
     assert len({(car.brand, car.model) for car in recommendations}) == 3
+
+
+def test_specific_used_model_treats_budget_as_ceiling_and_prefers_newer_years(db_session):
+    cars = [
+        Car(
+            brand="BMW",
+            model="X6",
+            year=2017,
+            condition="used",
+            price_egp=Decimal("2650000"),
+            body_type="4X4",
+            transmission="Automatic",
+            mileage_km=145000,
+            source="catalog-model-ranking-test",
+            source_id="x6-2017-high-mileage",
+        ),
+        Car(
+            brand="BMW",
+            model="X6",
+            year=2019,
+            condition="used",
+            price_egp=Decimal("2700000"),
+            body_type="SUV",
+            transmission="Automatic",
+            mileage_km=140000,
+            source="catalog-model-ranking-test",
+            source_id="x6-2019",
+        ),
+        Car(
+            brand="BMW",
+            model="X6",
+            year=2018,
+            condition="used",
+            price_egp=Decimal("2550000"),
+            body_type="SUV",
+            transmission="Automatic",
+            mileage_km=190000,
+            source="catalog-model-ranking-test",
+            source_id="x6-2018",
+        ),
+        Car(
+            brand="BMW",
+            model="X6",
+            year=2017,
+            condition="used",
+            price_egp=Decimal("2600000"),
+            body_type="4X4",
+            transmission="Automatic",
+            mileage_km=132000,
+            source="catalog-model-ranking-test",
+            source_id="x6-2017-low-mileage",
+        ),
+        Car(
+            brand="BMW",
+            model="X6",
+            year=2021,
+            condition="used",
+            price_egp=Decimal("4500000"),
+            body_type="4X4",
+            transmission="Automatic",
+            mileage_km=80000,
+            source="catalog-model-ranking-test",
+            source_id="x6-over-budget",
+        ),
+    ]
+    db_session.add_all(cars)
+    db_session.commit()
+
+    recommendations = CatalogService(db_session).recommend(
+        {
+            "brand": "BMW",
+            "model": "X6",
+            "condition": "used",
+            "max_price": 3_000_000,
+        },
+        limit=3,
+    )
+
+    assert [(car.year, car.mileage_km, car.price_egp) for car in recommendations] == [
+        (2019, 140000, Decimal("2700000")),
+        (2018, 190000, Decimal("2550000")),
+        (2017, 132000, Decimal("2600000")),
+    ]
