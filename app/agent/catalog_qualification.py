@@ -179,6 +179,12 @@ def qualify_catalog_search(
             )
         return CatalogQualification(True)
 
+    # A condition by itself is already a meaningful broad browse request.
+    # Price-constrained or otherwise qualified searches still ask for body type
+    # so a budget does not immediately become an arbitrary top-three shortlist.
+    if condition and not body_type and set(prefs) == {"condition"}:
+        return CatalogQualification(True)
+
     missing: list[str] = []
     if not condition:
         missing.append("condition")
