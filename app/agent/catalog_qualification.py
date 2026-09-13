@@ -3,8 +3,9 @@
 from __future__ import annotations
 
 import re
+from collections.abc import Mapping
 from dataclasses import dataclass
-from typing import Any, Mapping
+from typing import Any
 
 
 # Common Egyptian-Arabic spellings that cannot be validated by a literal
@@ -23,7 +24,7 @@ _BRAND_ALIASES: dict[str, tuple[str, ...]] = {
     "Skoda": ("سكودا", "شكودا"),
     "Volkswagen": ("فولكس فاجن", "فولكس واجن"),
     "Chery": ("شيري", "شيرى"),
-    "Chevrolet": ("شيفروليه", "شيفروليه"),
+    "Chevrolet": ("شيفروليه",),
     "MG": ("ام جي", "إم جي", "ام جى", "إم جى"),
     "Opel": ("اوبل", "أوبل"),
     "Fiat": ("فيات",),
