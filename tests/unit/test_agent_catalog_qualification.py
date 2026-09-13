@@ -1,7 +1,8 @@
-"""Regression coverage for catalog sales qualification and Arabic brand aliases."""
+"""Regression coverage for catalog sales qualification and Arabic aliases."""
 
 from __future__ import annotations
 
+import uuid
 from collections import deque
 from decimal import Decimal
 
@@ -68,6 +69,18 @@ def test_arabic_bmw_alias_is_preserved_as_canonical_brand():
     assert sanitized.preference_updates.max_price == 3_000_000
 
 
+def test_arabic_body_and_fuel_aliases_are_preserved_as_canonical_values():
+    raw = RequestUnderstanding(
+        intent="catalog_search",
+        preference_updates={"body_type": "Sedan", "fuel_type": "Gasoline"},
+    )
+
+    sanitized = sanitize_understanding(raw, "عايز عربية سيدان بنزين")
+
+    assert sanitized.preference_updates.body_type == "Sedan"
+    assert sanitized.preference_updates.fuel_type == "Gasoline"
+
+
 def test_budget_only_search_asks_preferences_before_creating_snapshot(db_session):
     orchestrator = _orchestrator(
         db_session,
@@ -86,7 +99,7 @@ def test_budget_only_search_asks_preferences_before_creating_snapshot(db_session
     assert "SUV" in result.response
     assert "Sedan" in result.response
     assert db_session.scalar(select(func.count()).select_from(RecommendationSnapshot)) == 0
-    session = db_session.get(ConversationSession, result.session_id)
+    session = db_session.get(ConversationSession, uuid.UUID(result.session_id))
     assert session.preferences == {"max_price": 2_000_000}
 
 
@@ -118,7 +131,7 @@ def test_brand_budget_search_asks_model_or_recommendation_then_uses_persisted_br
     assert "BMW" in first.response
     assert "موديل معين" in first.response
     assert "أرشحلك" in first.response
-    first_session = db_session.get(ConversationSession, first.session_id)
+    first_session = db_session.get(ConversationSession, uuid.UUID(first.session_id))
     assert first_session.preferences == {"brand": "BMW", "max_price": 3_000_000}
 
     second = orchestrator.handle_message(first.session_id, "رشحلي جديدة")
@@ -126,7 +139,7 @@ def test_brand_budget_search_asks_model_or_recommendation_then_uses_persisted_br
     assert second.recommendation_snapshot_id is not None
     assert second.visible_recommendations
     assert all(item["car"]["brand"] == "BMW" for item in second.visible_recommendations)
-    session = db_session.get(ConversationSession, second.session_id)
+    session = db_session.get(ConversationSession, uuid.UUID(second.session_id))
     assert session.preferences == {
         "brand": "BMW",
         "condition": "new",
