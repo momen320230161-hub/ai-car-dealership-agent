@@ -7,7 +7,11 @@ from typing import Literal
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
-from app.agent.catalog_qualification import explicit_brand_from_message
+from app.agent.catalog_qualification import (
+    explicit_body_type_from_message,
+    explicit_brand_from_message,
+    explicit_fuel_type_from_message,
+)
 
 Intent = Literal[
     "catalog_search",
@@ -227,9 +231,15 @@ def sanitize_understanding(
     elif "brand" in updates and str(updates["brand"]).casefold() not in message_folded:
         updates.pop("brand")
 
-    for name in ("model", "body_type"):
-        if name in updates and str(updates[name]).casefold() not in message_folded:
-            updates.pop(name)
+    if "model" in updates and str(updates["model"]).casefold() not in message_folded:
+        updates.pop("model")
+
+    explicit_body_type = explicit_body_type_from_message(message)
+    if explicit_body_type is not None:
+        updates["body_type"] = explicit_body_type
+    elif "body_type" in updates and str(updates["body_type"]).casefold() not in message_folded:
+        updates.pop("body_type")
+
     if "transmission" in updates:
         value = str(updates["transmission"]).casefold()
         automatic = value == "automatic" and any(
@@ -240,7 +250,11 @@ def sanitize_understanding(
         )
         if not (value in message_folded or automatic or manual):
             updates.pop("transmission")
-    if "fuel_type" in updates:
+
+    explicit_fuel_type = explicit_fuel_type_from_message(message)
+    if explicit_fuel_type is not None:
+        updates["fuel_type"] = explicit_fuel_type
+    elif "fuel_type" in updates:
         value = str(updates["fuel_type"]).casefold()
         if value not in message_folded:
             updates.pop("fuel_type")
