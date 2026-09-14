@@ -68,7 +68,11 @@ class BusinessActionWorkflowService:
             pending = existing if same_attempt else self._new_pending(intent)
             fields = dict(pending.get("fields") or {})
 
-            allow_bare_name = same_attempt and not fields.get("customer_name")
+            allow_bare_name = (
+                intent in {"test_drive", "sales_lead"}
+                and same_attempt
+                and not fields.get("customer_name")
+            )
             parsed = parse_business_fields(
                 message,
                 allow_bare_name=allow_bare_name,
@@ -125,7 +129,9 @@ class BusinessActionWorkflowService:
             raise
         except SQLAlchemyError as exc:
             self.session.rollback()
-            raise BusinessActionWorkflowError("Pending business action could not be updated") from exc
+            raise BusinessActionWorkflowError(
+                "Pending business action could not be updated"
+            ) from exc
 
     def execute_action(
         self,
@@ -163,9 +169,10 @@ class BusinessActionWorkflowService:
                     "preferred_time": request.preferred_time.isoformat(timespec="minutes"),
                 }
             elif intent == "sales_lead":
+                car_id = int(fields["car_id"]) if fields.get("car_id") is not None else None
                 lead = self.sales_leads.create_lead(
                     session_id=session_id,
-                    car_id=(int(fields["car_id"]) if fields.get("car_id") is not None else None),
+                    car_id=car_id,
                     customer_name=str(fields["customer_name"]),
                     phone=str(fields["phone"]),
                     email=(str(fields["email"]) if fields.get("email") else None),
@@ -311,7 +318,9 @@ class BusinessActionWorkflowService:
             raise
         except SQLAlchemyError as exc:
             self.session.rollback()
-            raise BusinessActionWorkflowError("Completed action state could not be cleared") from exc
+            raise BusinessActionWorkflowError(
+                "Completed action state could not be cleared"
+            ) from exc
 
     @staticmethod
     def _idempotency_key(intent: str, session_id: uuid.UUID, attempt_id: str) -> str:
