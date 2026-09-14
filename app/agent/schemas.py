@@ -71,9 +71,11 @@ class RequestUnderstanding(BaseModel):
 
 _ARABIC_DIGITS = str.maketrans("٠١٢٣٤٥٦٧٨٩", "0123456789")
 _ORDINAL_REFERENCES = (
-    (r"\b(?:الأولى|الاولى|الأول|الاول|أول|اول|first)\b", 1),
-    (r"\b(?:التانية|الثاني|الثانية|تاني|second)\b", 2),
-    (r"\b(?:التالتة|التالت|الثالثة|الثالث|third)\b", 3),
+    (r"\b(?:الأولى|الاولى|الأول|الاول|أول|اول|الأولانية|الاولانية|first)\b", 1),
+    (r"\b(?:التانية|التانيه|الثاني|الثانية|الثانيه|تاني|تانيه|second)\b", 2),
+    (r"\b(?:التالتة|التالته|التالت|الثالثة|الثالثه|الثالث|third)\b", 3),
+    (r"\b(?:الرابعة|الرابعه|الرابع|fourth)\b", 4),
+    (r"\b(?:الخامسة|الخامسه|الخامس|fifth)\b", 5),
 )
 _EXPLICIT_CAR_ID_RE = re.compile(
     r"(?:\bcar\s*id\b|\bid\b|رقم\s+العربية|العربية\s+(?:رقم|id))"
@@ -125,7 +127,7 @@ def explicit_visible_references(message: str) -> list[int]:
         match = re.search(pattern, normalized)
         if match:
             references.append((match.start(), position))
-    for match in re.finditer(r"(?:#|رقم\s*)([1-9][0-9]*)", normalized):
+    for match in re.finditer(r"(?:#|رقم\s*|(?:العربية|السيارة)\s*#?)([1-9][0-9]*)", normalized):
         references.append((match.start(), int(match.group(1))))
     comparison = re.search(
         r"(?:قارن|compare).*?\b([1-9][0-9]*)\b\s*(?:و|and|,)\s*\b([1-9][0-9]*)\b",

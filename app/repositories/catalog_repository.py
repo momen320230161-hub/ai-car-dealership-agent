@@ -118,9 +118,7 @@ class CatalogRepository:
         filters: CatalogFilters | Mapping[str, Any] | None,
     ) -> CatalogFilters:
         return (
-            filters
-            if isinstance(filters, CatalogFilters)
-            else CatalogFilters.from_mapping(filters)
+            filters if isinstance(filters, CatalogFilters) else CatalogFilters.from_mapping(filters)
         )
 
     @staticmethod

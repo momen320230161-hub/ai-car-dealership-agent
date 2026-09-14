@@ -311,12 +311,8 @@ class SalesOrchestrator:
         elif intent in {"test_drive", "cancel_test_drive", "sales_lead"}:
             route = "business_gate"
         elif has_pending_business and (
-            intent == "general"
-            or (
-                intent in {"car_details", "car_selection"}
-                and not pending_action.get("fields", {}).get("car_id")
-                and state.get("car_reference") is not None
-            )
+            intent in {"general", "car_details", "car_selection"}
+            or (intent == "catalog_search" and not state.get("extracted_preferences"))
         ):
             route = "business_gate"
         elif intent in {"catalog_search", "car_details", "car_compare", "car_selection"}:
@@ -366,7 +362,11 @@ class SalesOrchestrator:
                         "snapshot_id": active.get("id"),
                     }
             elif intent == "car_details":
-                car_id, position = self._resolve_detail_target(state, session_id)
+                target = self._resolve_detail_target(state, session_id)
+                if isinstance(target, dict) and target.get("type") == "clarification":
+                    update["catalog_result"] = target
+                    return update
+                car_id, position = target
                 car = self.catalog.get_car_details(car_id)
                 if car is None:
                     raise VisibleRecommendationError("The requested car is unavailable")
@@ -391,6 +391,21 @@ class SalesOrchestrator:
                 )
             else:
                 references = state.get("comparison_references", [])
+                if len(references) < 2:
+                    active = state.get("active_snapshot")
+                    if not active or not active.get("items"):
+                        context = self.context.load(session_id)
+                        active = context.active_snapshot
+                    if active and active.get("items"):
+                        items = active["items"]
+                        if len(items) == 2:
+                            references = [1, 2]
+                        elif len(items) > 2:
+                            update["catalog_result"] = {
+                                "type": "clarification",
+                                "message": "اختار رقمين من القائمة للمقارنة (مثلاً: قارن 1 و 2).",
+                            }
+                            return update
                 comparison = self.recommendations.compare_visible(session_id, references)
                 update["catalog_result"] = {
                     "type": "comparison",
@@ -404,7 +419,7 @@ class SalesOrchestrator:
 
     def _resolve_detail_target(
         self, state: AgentState, session_id: uuid.UUID
-    ) -> tuple[int, int | None]:
+    ) -> tuple[int, int | None] | dict[str, Any]:
         reference = state.get("car_reference")
         if reference is not None:
             item = self.recommendations.resolve_visible_item(session_id, reference)
@@ -415,6 +430,20 @@ class SalesOrchestrator:
         selected_car_id = state.get("selected_car_id")
         if selected_car_id is not None:
             return selected_car_id, None
+        active = state.get("active_snapshot")
+        if not active or not active.get("items"):
+            context = self.context.load(session_id)
+            active = context.active_snapshot
+        if active and active.get("items"):
+            items = active["items"]
+            if len(items) == 1:
+                return items[0]["car_id"], items[0]["position"]
+            positions = [str(item["position"]) for item in items]
+            options = " ولا ".join(positions)
+            return {
+                "type": "clarification",
+                "message": f"تقصد رقم كام من القائمة؟ {options}؟",
+            }
         raise VisibleRecommendationError("No selected or visibly referenced car")
 
     def _rag_node(self, state: AgentState) -> AgentState:

@@ -169,10 +169,29 @@ class DeterministicAgentLLM:
         references: list[int] = []
         if re.search(r"(?:أول|اول|first)\s+(?:اتنين|اثنين|two)", lower):
             references = [1, 2]
-        elif any(word in lower for word in ("التانية", "الثاني", "second")):
+        elif any(
+            word in lower
+            for word in ("التانية", "التانيه", "الثاني", "الثانية", "الثانيه", "second")
+        ):
             references = [2]
-        elif any(word in lower for word in ("الأولى", "الاول", "الأول", "first")):
+        elif any(
+            word in lower
+            for word in (
+                "الأولى",
+                "الاولى",
+                "الاول",
+                "الأول",
+                "الأولانية",
+                "الاولانية",
+                "first",
+            )
+        ):
             references = [1]
+        elif any(
+            word in lower
+            for word in ("التالتة", "التالته", "الثالث", "الثالثة", "الثالثه", "third")
+        ):
+            references = [3]
 
         test_drive_language = any(
             word in lower for word in ("تست درايف", "تجربة قيادة", "test drive")
@@ -198,7 +217,10 @@ class DeterministicAgentLLM:
             intent = "car_compare"
         elif any(word in lower for word in ("اختار", "اختيار", "select")):
             intent = "car_selection"
-        elif any(word in lower for word in ("تفاصيل", "details")):
+        elif any(
+            word in lower
+            for word in ("تفاصيل", "تفاصيلها", "مواصفات", "مواصفاتها", "details", "عنها")
+        ):
             intent = "car_details"
         elif any(
             word in lower
@@ -221,6 +243,10 @@ class DeterministicAgentLLM:
             intent = "catalog_search"
         else:
             intent = "general"
+
+        if references and not updates and intent == "general":
+            intent = "car_details"
+
         return RequestUnderstanding(
             intent=intent,
             preference_updates=updates,

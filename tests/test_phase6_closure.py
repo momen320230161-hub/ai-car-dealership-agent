@@ -100,12 +100,8 @@ def test_browser_business_flow_creates_cancels_and_creates_sales_lead(
     assert start.get_json()["state"]["pending_action_type"] == "test_drive"
     assert db_session.query(TestDriveRequest).count() == 0
 
-    assert client.post(
-        "/api/chat/messages", json={"message": "اسمي محمد جمال"}
-    ).status_code == 200
-    assert client.post(
-        "/api/chat/messages", json={"message": "01012345678"}
-    ).status_code == 200
+    assert client.post("/api/chat/messages", json={"message": "اسمي محمد جمال"}).status_code == 200
+    assert client.post("/api/chat/messages", json={"message": "01012345678"}).status_code == 200
     completed = client.post(
         "/api/chat/messages",
         json={"message": "2026-09-16 الساعة 4 مساء"},
@@ -117,17 +113,13 @@ def test_browser_business_flow_creates_cancels_and_creates_sales_lead(
     assert booking.status == "NEW"
     assert completed.get_json()["state"]["pending_action_type"] is None
 
-    cancelled = client.post(
-        "/api/chat/messages", json={"message": "عايز الغي التست درايف"}
-    )
+    cancelled = client.post("/api/chat/messages", json={"message": "عايز الغي التست درايف"})
     assert cancelled.status_code == 200
     db_session.refresh(booking)
     assert booking.status == "CANCELLED"
     assert booking.cancelled_at is not None
 
-    lead_start = client.post(
-        "/api/chat/messages", json={"message": "عايز حد من المبيعات يكلمني"}
-    )
+    lead_start = client.post("/api/chat/messages", json={"message": "عايز حد من المبيعات يكلمني"})
     assert lead_start.status_code == 200
     assert lead_start.get_json()["state"]["pending_action_type"] == "sales_lead"
     lead_complete = client.post(
