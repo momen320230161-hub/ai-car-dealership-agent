@@ -14,7 +14,8 @@ from app.models.conversation import ConversationSession
 from app.models.test_drive import TestDriveRequest
 from app.rag.embeddings import DeterministicEmbeddingProvider
 from app.services.business_action_workflow_service import BusinessActionWorkflowService
-from app.services.test_drive_service import TestDriveService, TestDriveServiceError
+from app.services.test_drive_service import TestDriveService
+from app.services.test_drive_service import TestDriveServiceError as DriveServiceError
 
 
 def _session_with_selected_car(db_session, *, source_id: str) -> tuple[ConversationSession, Car]:
@@ -77,7 +78,7 @@ def test_pending_acknowledgement_does_not_become_customer_name(db_session) -> No
 class _FailingTestDriveService(TestDriveService):
     def create_request(self, **kwargs):
         del kwargs
-        raise TestDriveServiceError("simulated test-drive write failure")
+        raise DriveServiceError("simulated test-drive write failure")
 
 
 def test_service_failure_is_wrapped_and_rendered_as_controlled_graph_error(db_session) -> None:
