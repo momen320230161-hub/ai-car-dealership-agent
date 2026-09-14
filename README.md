@@ -101,15 +101,16 @@ The production provider uses the official Google Gen AI SDK with environment-dri
 Operational commands:
 
 ```bash
+uv run flask --app run:app seed-knowledge
 uv run flask --app run:app reindex-knowledge --document-id <UUID>
 uv run flask --app run:app reindex-knowledge --all
 uv run flask --app run:app reindex-knowledge --all --failed-only
 uv run flask --app run:app rag-search "query text" --category faq --top-k 4
 ```
 
-Live Supabase verification on 2026-09-12 confirmed extension `vector` 0.8.2 in `extensions`, `vector(768)`, the HNSW cosine index, RLS, constraints, and migration head `4f6a8c2d91b7`. A temporary technical document passed real Gemini create → retrieve → update → retrieve-current-only → delete → no-retrieval verification. Cleanup left zero knowledge documents and zero chunks.
+Live Supabase verification on 2026-09-12 confirmed extension `vector` 0.8.2 in `extensions`, `vector(768)`, the HNSW cosine index, RLS, constraints, and migration head `4f6a8c2d91b7`. A temporary technical document passed real Gemini create → retrieve → update → retrieve-current-only → delete → no-retrieval verification.
 
-Approved AutoDrive Knowledge Base v1 is live with eight active, current Gemini-embedded documents. No additional business policies, prices, hours, addresses, or contact details were invented.
+Approved AutoDrive Knowledge Base v1 is defined by `data/knowledge_seed.json` with eight stable document IDs. Run `seed-knowledge` to synchronize and (re)index the approved content through the managed RAG service. A production environment is RAG-ready only when those documents are `indexed` at their current version and their current chunks exist.
 
 ## Phase 4 LangGraph Sales Orchestrator
 
@@ -131,10 +132,10 @@ Conditional routes are grounded in existing services:
 - details, selection, and comparison resolve the active snapshot without rerunning a catalog search;
 - preference changes call `ConversationStateService.update_preferences()` so compatible selection is retained and incompatible state is invalidated centrally;
 - knowledge questions call `RAGService`, while deterministic topic/content grounding prevents a nearest-but-unsupported result (for example warranty content for an insurance question) from becoming an answer;
-- test-drive, cancellation, and sales-lead intents return `deferred_to_phase5` and perform no business write or success claim;
+- business intents route through `business_gate`; Phase 5 now executes those actions through deterministic services instead of the original Phase 4 deferred stub;
 - general conversation may use Gemini for a short response, with a deterministic fallback if composition fails.
 
-Structured catalog and approved-knowledge responses use deterministic renderers so model output cannot add car facts, showroom availability, market-price claims, or dealership policy. Input, LLM, RAG, catalog, persistence, and database failures return controlled customer-safe responses without exposing tracebacks or internal prompts.
+Structured catalog, approved-knowledge, and business-success responses use deterministic renderers so model output cannot add car facts, showroom availability, market-price claims, dealership policy, booking IDs, or lead IDs. Input, LLM, RAG, catalog, persistence, and database failures return controlled customer-safe responses without exposing tracebacks or internal prompts.
 
 Developer invocation:
 
@@ -144,7 +145,7 @@ uv run flask --app run:app agent-chat --session-id <UUID> "هات تفاصيل �
 uv run flask --app run:app agent-llm-smoke --model "gemini-3.5-flash-lite" --all-scenarios
 ```
 
-Phase 5 will implement real test-drive, cancellation, and sales-lead actions. Phase 6 will add the customer chat UI; neither is part of this graph phase.
+Phase 5 implements real test-drive, cancellation, and sales-lead actions on top of this graph. Phase 6 adds the customer chat UI.
 
 ## Database Access and Security
 
@@ -192,11 +193,13 @@ GET /health/db
 
 Alembic / Flask-Migrate is the only application schema migration source of truth.
 
+Normal application startup/upgrade uses:
+
 ```bash
 uv run flask --app run:app db upgrade
-uv run flask --app run:app db downgrade
-uv run flask --app run:app db upgrade
 ```
+
+Migration lifecycle verification (`upgrade -> downgrade -> upgrade`) must run **only against a disposable local/test database or CI database**. Never run `db downgrade` against the live Supabase project as a routine verification step because destructive downgrades can remove derived data such as RAG vector chunks. If a deliberate schema reset recreates the RAG index tables, run `seed-knowledge` afterward and verify the documents/chunks are current before serving RAG traffic.
 
 Do not use `db.create_all()` as an application migration strategy. It is used only inside isolated SQLite unit-test fixtures.
 
@@ -213,29 +216,30 @@ The test suite includes:
 - importer validation, NEW-mileage provenance, update-in-place, rollback, and idempotency tests
 - complete structured-filter, sorting, pagination, details, recommendation, and comparison tests
 - exact visible-order, controlled ordinal, stale-state invalidation, selected-car, and session-isolation tests
-- PostgreSQL 17 migration lifecycle tests
+- PostgreSQL 17 migration lifecycle tests on disposable CI PostgreSQL
 - PostgreSQL production-type persistence tests
 - PostgreSQL empty-database import proving 7,771 / 1,930 / 5,841 and a 7,771-row unchanged second run
 - PostgreSQL transaction-safe snapshot lifecycle and same-session active snapshot enforcement
 - deterministic chunker, embedding validation, and controlled provider/database failure tests
 - managed knowledge create/update/no-op/deactivate/reindex/delete unit tests
 - real PostgreSQL 17 + pgvector schema, vector persistence, HNSW, cosine-ordering, category, active/current-version, cascade, and CRUD/retrieval lifecycle tests
-- actual multi-node StateGraph routing, guarded input, structured understanding, persistent session context, preference merge/invalidation, exact visible ordinals, comparison order, RAG grounding, unsupported-insurance rejection, deferred business actions, failure fallbacks, and message persistence
-- PostgreSQL StateGraph integration coverage for snapshot ordinals, pgvector grounding, and zero business-action writes
+- actual multi-node StateGraph routing, guarded input, structured understanding, persistent session context, preference merge/invalidation, exact visible ordinals, comparison order, RAG grounding, unsupported-insurance rejection, business routing, failure fallbacks, and message persistence
+- Phase 5 multi-turn test-drive creation, visible-ordinal resolution, pending-field collection, replay/duplicate protection, session-owned cancellation, sales-lead creation, and controlled business-service failure tests
 - Phase 0 health-check regressions
 
 GitHub Actions uses an ephemeral PostgreSQL 17 service with pgvector. It does not use the live Supabase database and does not build application Docker images.
 
-Live Supabase was verified on 2026-09-12 with 7,771 total active records, 1,930 NEW, 5,841 USED, zero duplicate `(source, source_id)` groups, zero NEW `NULL` mileages, and 1,930 NEW zero mileages. Representative condition, brand, body type, mileage, price-range, and ascending/descending price searches were also verified. The corrected Peugeot 2008 model-year 2026 record is present.
+Live Supabase catalog verification on 2026-09-12 confirmed 7,771 total active records, 1,930 NEW, 5,841 USED, zero duplicate `(source, source_id)` groups, zero NEW `NULL` mileages, and 1,930 NEW zero mileages. Representative condition, brand, body type, mileage, price-range, and ascending/descending price searches were also verified. The corrected Peugeot 2008 model-year 2026 record is present.
 
 ## Phase 5 Real Business Actions
 
 Phase 5 replaces deferred actions with real PostgreSQL-backed business workflows integrated into the LangGraph Sales Orchestrator:
 
 - **Test-Drive Booking Workflow (`test_drive` intent)**:
-  - Multi-turn collection of required fields: car choice (selected car or ordinal from active visible snapshot), customer name, Egyptian phone number (`01[0125]\d{8}`), preferred date, and preferred time.
+  - Multi-turn collection of required fields: car choice (selected car or ordinal from the active visible snapshot), customer name, Egyptian phone number (`01[0125]\d{8}`), preferred date, and preferred time.
   - State persistence in `ConversationSession.pending_action` keeps uncommitted data safely between conversation turns.
   - Real database write to `test_drive_requests` with status `NEW`, session ownership, and deterministic idempotency key to prevent accidental duplicate inserts.
+  - Replayed final messages do not create a second request after the original pending action has completed.
   - Clears session pending action upon successful creation.
 
 - **Test-Drive Cancellation Workflow (`cancel_test_drive` intent)**:
@@ -247,17 +251,22 @@ Phase 5 replaces deferred actions with real PostgreSQL-backed business workflows
 
 - **Sales Lead Workflow (`sales_lead` intent)**:
   - Collects customer name and validated phone number.
-  - Associates current selected car (or sole car from visible snapshot) when present.
+  - Associates a valid explicitly referenced visible car or the current selected car when present; otherwise the lead may remain unbound to a car.
   - Real database write to `sales_leads` with status `NEW` and deterministic idempotency.
 
-- **Deterministic Business Rendering**:
-  - Responses rendered deterministically via `app.agent.business_rendering.render_business_action()` without LLM hallucinations of booking IDs, dates, or contact confirmation.
+- **Pending-Action Hardening**:
+  - Bare-name parsing is allowed only while the workflow is waiting for a name and rejects common acknowledgement/request words so conversational replies such as `تمام يا باشا شكرا` cannot silently become a customer name.
+  - Clear catalog/RAG/business intents continue to route normally; only explicit current-message fields are merged into pending business state.
+
+- **Deterministic Business Rendering & Failures**:
+  - Responses are rendered deterministically via `app.agent.business_rendering.render_business_action()` without LLM hallucinations of booking IDs, dates, or contact confirmation.
+  - Test-drive/sales-lead service failures are wrapped into the controlled business-workflow error path, rolled back, and rendered without traceback or false success claims.
 
 ## Roadmap
 
 - **Phase 2:** COMPLETE — catalog import, deterministic recommendation state, visible-list selection/comparison
 - **Phase 3:** COMPLETE — managed RAG + pgvector + knowledge CRUD/reindex
-- **Phase 4:** COMPLETE — LangGraph Sales Orchestrator with persistent context and conditional catalog/RAG/general/deferred-action paths
+- **Phase 4:** COMPLETE — LangGraph Sales Orchestrator with persistent context and conditional catalog/RAG/general/business routes
 - **Phase 5:** COMPLETE — Test-drive booking/cancellation and sales-lead business actions
 - **Phase 6:** Customer Flask chat UI
 - **Phase 7:** Admin dashboard
