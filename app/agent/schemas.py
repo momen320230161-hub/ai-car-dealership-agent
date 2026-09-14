@@ -223,13 +223,12 @@ def sanitize_understanding(
 
     updates = understanding.preference_updates.model_dump(exclude_none=True)
     message_folded = normalized.casefold()
-    if "condition" in updates:
-        if "مستعمل" in message_folded or "used" in message_folded:
-            updates["condition"] = "used"
-        elif "جديد" in message_folded or "new" in message_folded:
-            updates["condition"] = "new"
-        else:
-            updates.pop("condition")
+    if "مستعمل" in message_folded or "used" in message_folded:
+        updates["condition"] = "used"
+    elif "جديد" in message_folded or "new" in message_folded:
+        updates["condition"] = "new"
+    elif "condition" in updates:
+        updates.pop("condition")
 
     explicit_brand = explicit_brand_from_message(message)
     if explicit_brand is not None:
