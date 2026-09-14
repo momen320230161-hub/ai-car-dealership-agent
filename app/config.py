@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import os
+from datetime import timedelta
 
 from dotenv import load_dotenv
 
@@ -24,11 +25,18 @@ def normalize_database_url(url: str | None) -> str | None:
     return url
 
 
+def _env_bool(name: str, default: bool = False) -> bool:
+    raw = os.getenv(name)
+    if raw is None:
+        return default
+    return raw.strip().lower() in {"1", "true", "yes", "on"}
+
+
 class Config:
     """Base runtime configuration."""
 
     FLASK_ENV = os.getenv("FLASK_ENV", "production")
-    DEBUG = os.getenv("FLASK_DEBUG", "0").lower() in ("1", "true", "yes")
+    DEBUG = _env_bool("FLASK_DEBUG")
     SECRET_KEY = os.getenv("SECRET_KEY")
     SQLALCHEMY_DATABASE_URI = normalize_database_url(os.getenv("DATABASE_URL"))
     SQLALCHEMY_TRACK_MODIFICATIONS = False
@@ -36,6 +44,12 @@ class Config:
         "pool_pre_ping": True,
         "pool_recycle": 300,
     }
+    SESSION_COOKIE_HTTPONLY = True
+    SESSION_COOKIE_SAMESITE = "Lax"
+    SESSION_COOKIE_SECURE = _env_bool("SESSION_COOKIE_SECURE")
+    PERMANENT_SESSION_LIFETIME = timedelta(
+        days=max(1, int(os.getenv("SESSION_LIFETIME_DAYS", "7")))
+    )
     EMBEDDING_PROVIDER = os.getenv("EMBEDDING_PROVIDER", "gemini")
     EMBEDDING_MODEL = os.getenv(
         "EMBEDDING_MODEL", os.getenv("GEMINI_EMBEDDING_MODEL", "gemini-embedding-2")

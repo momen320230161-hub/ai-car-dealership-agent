@@ -1,0 +1,67 @@
+<!doctype html>
+<html lang="ar" dir="rtl">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#0b0f14">
+  <title>{% block title %}AutoDrive Egypt{% endblock %}</title>
+  <meta name="description" content="AutoDrive Egypt AI Car Dealership">
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/site.css') }}">
+  {% block head %}{% endblock %}
+</head>
+<body class="{% block body_class %}{% endblock %}">
+  <header class="site-header">
+    <div class="container nav">
+      <a class="brand" href="{{ url_for('site.home') }}" aria-label="AutoDrive Egypt Home">
+        <span class="brand-mark" aria-hidden="true">
+          <svg viewBox="0 0 32 32">
+            <path d="M6 19h20l-3-6.2A4 4 0 0 0 19.4 10h-6.8A4 4 0 0 0 9 12.8L6 19Z" fill="currentColor"/>
+            <path d="M8 18h16a3 3 0 0 1 3 3v2H5v-2a3 3 0 0 1 3-3Z" fill="currentColor" opacity=".72"/>
+            <circle cx="10" cy="23" r="2.5" fill="currentColor"/>
+            <circle cx="22" cy="23" r="2.5" fill="currentColor"/>
+          </svg>
+        </span>
+        <span class="brand-text">
+          <strong>AutoDrive Egypt</strong>
+          <small>AI Car Dealership</small>
+        </span>
+      </a>
+      <nav class="nav-links" aria-label="التنقل الرئيسي">
+        <a class="{{ 'active' if request.endpoint == 'site.home' else '' }}" href="{{ url_for('site.home') }}">الرئيسية</a>
+        <a class="{{ 'active' if request.endpoint in ('site.cars', 'site.car_detail') else '' }}" href="{{ url_for('site.cars') }}">السيارات</a>
+        <a class="{{ 'active' if request.endpoint == 'chat.chat_page' else '' }}" href="{{ url_for('chat.chat_page') }}">المساعد الذكي</a>
+      </nav>
+      <div class="nav-actions">
+        <a class="btn btn-light desktop-only" href="{{ url_for('site.cars') }}">تصفح الكتالوج</a>
+        <a class="btn btn-primary" href="{{ url_for('chat.chat_page') }}">ابدأ محادثة</a>
+      </div>
+    </div>
+  </header>
+  <main>{% block content %}{% endblock %}</main>
+  {% block footer %}
+  <footer class="footer">
+    <div class="container footer-grid">
+      <div>
+        <a class="brand footer-brand" href="{{ url_for('site.home') }}">
+          <span class="brand-mark" aria-hidden="true">
+            <svg viewBox="0 0 32 32"><path d="M6 19h20l-3-6.2A4 4 0 0 0 19.4 10h-6.8A4 4 0 0 0 9 12.8L6 19Z" fill="currentColor"/><path d="M8 18h16a3 3 0 0 1 3 3v2H5v-2a3 3 0 0 1 3-3Z" fill="currentColor" opacity=".72"/><circle cx="10" cy="23" r="2.5" fill="currentColor"/><circle cx="22" cy="23" r="2.5" fill="currentColor"/></svg>
+          </span>
+          <span class="brand-text"><strong>AutoDrive Egypt</strong><small>AI Car Dealership</small></span>
+        </a>
+        <p>تجربة رقمية ذكية للبحث والمقارنة وفهم سياسات الوكيل وتسجيل طلبات حقيقية. بيانات السيارات حسب الكتالوج المسجل وليست تأكيدًا لمخزون حي أو سعر سوق لحظي.</p>
+      </div>
+      <div class="footer-links">
+        <a href="{{ url_for('site.home') }}">الرئيسية</a>
+        <a href="{{ url_for('site.cars') }}">السيارات</a>
+        <a href="{{ url_for('chat.chat_page') }}">المساعد الذكي</a>
+      </div>
+    </div>
+  </footer>
+  {% endblock %}
+  {% if request.endpoint != 'chat.chat_page' %}
+  <a class="floating-chat" href="{{ url_for('chat.chat_page') }}" aria-label="فتح المساعد الذكي">💬</a>
+  {% endif %}
+  <script src="{{ url_for('static', filename='js/site.js') }}" defer></script>
+  {% block scripts %}{% endblock %}
+</body>
+</html>

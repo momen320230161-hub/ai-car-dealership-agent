@@ -1,0 +1,5 @@
+{% extends 'base.html' %}
+{% block title %}الصفحة غير موجودة — AutoDrive Egypt{% endblock %}
+{% block content %}
+<section class="error-page"><div class="container error-card"><span>404</span><h1>الصفحة دي مش موجودة</h1><p>ممكن ترجع للكتالوج أو تكمل مع المساعد الذكي.</p><div class="hero-actions"><a class="btn btn-primary" href="{{ url_for('site.cars') }}">تصفح السيارات</a><a class="btn btn-light" href="{{ url_for('chat.chat_page') }}">افتح المساعد</a></div></div></section>
+{% endblock %}

@@ -70,8 +70,18 @@ class CatalogService:
         offset: int = 0,
     ) -> list[Car]:
         return self.repository.search(
-            filters, sort_by=sort_by, limit=limit, offset=offset, active_only=True
+            filters,
+            sort_by=sort_by,
+            limit=limit,
+            offset=offset,
+            active_only=True,
         )
+
+    def count(self, filters: CatalogFilters | Mapping[str, Any] | None = None) -> int:
+        return self.repository.count(filters, active_only=True)
+
+    def facet_values(self, field_name: str, *, limit: int = 100) -> list[str]:
+        return self.repository.facet_values(field_name, active_only=True, limit=limit)
 
     def get_car(self, car_id: int) -> Car | None:
         return self.repository.get(car_id, active_only=True)

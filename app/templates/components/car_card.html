@@ -1,0 +1,10 @@
+{% macro car_card(car) -%}
+<a class="car-card" href="{{ url_for('site.car_detail', car_id=car.id) }}">
+  <div class="car-image" aria-hidden="true"><span class="car-tag">{{ car.condition|condition_ar }}</span><span class="catalog-id">#{{ car.id }}</span></div>
+  <div class="car-card-body">
+    <div class="car-title-row"><div><h3>{{ car.brand }} {{ car.model }}</h3><div class="car-sub">{{ car.body_type or 'نوع الجسم غير مسجل' }} · {{ car.transmission or 'ناقل الحركة غير مسجل' }}</div></div><span class="car-year">{{ car.year }}</span></div>
+    <div class="chips">{% if car.mileage_km is not none %}<span class="chip">{{ '{:,}'.format(car.mileage_km) }} كم</span>{% endif %}{% if car.fuel_type %}<span class="chip">{{ car.fuel_type }}</span>{% endif %}{% if car.engine_capacity_cc %}<span class="chip">{{ car.engine_capacity_cc }} cc</span>{% endif %}</div>
+    <div class="price-line"><div><strong>{{ car.price_egp|egp }}</strong><span>حسب الكتالوج المسجل</span></div><b aria-hidden="true">←</b></div>
+  </div>
+</a>
+{%- endmacro %}

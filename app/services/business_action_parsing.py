@@ -15,6 +15,11 @@ _REQUEST_ID_RE = re.compile(
     r"(?:طلب|الحجز|حجز|booking|request)\s*(?:رقم|number|#)?\s*[:#-]?\s*([1-9][0-9]*)",
     re.IGNORECASE,
 )
+_CAR_ID_RE = re.compile(
+    r"(?:\bcar\s*id\b|\bid\b|رقم\s+العربية|العربية\s+(?:رقم|id))"
+    r"\s*[:#-]?\s*([1-9][0-9]*)",
+    re.IGNORECASE,
+)
 _WEEKDAYS = {
     "الاثنين": 0,
     "الاتنين": 0,
@@ -91,6 +96,7 @@ class ParsedBusinessFields:
     preferred_time: time | None = None
     email: str | None = None
     request_id: int | None = None
+    car_id: int | None = None
 
     def as_json_fields(self) -> dict[str, object]:
         result: dict[str, object] = {}
@@ -106,6 +112,8 @@ class ParsedBusinessFields:
             result["email"] = self.email
         if self.request_id is not None:
             result["request_id"] = self.request_id
+        if self.car_id is not None:
+            result["car_id"] = self.car_id
         return result
 
 
@@ -130,6 +138,7 @@ def parse_business_fields(
     preferred_date = explicit_date(normalized, today=resolved_today)
     preferred_time = explicit_time(normalized)
     request_id = explicit_request_id(normalized)
+    car_id = explicit_car_id(normalized)
     customer_name = explicit_customer_name(
         normalized,
         allow_bare=allow_bare_name,
@@ -143,6 +152,7 @@ def parse_business_fields(
         preferred_time=preferred_time,
         email=email,
         request_id=request_id,
+        car_id=car_id,
     )
 
 
@@ -168,6 +178,13 @@ def explicit_email(message: str) -> str | None:
 def explicit_request_id(message: str) -> int | None:
     normalized = message.translate(_ARABIC_DIGITS)
     match = _REQUEST_ID_RE.search(normalized)
+    return int(match.group(1)) if match else None
+
+
+def explicit_car_id(message: str) -> int | None:
+    """Return only a catalog ID explicitly marked as a car identifier."""
+    normalized = message.translate(_ARABIC_DIGITS)
+    match = _CAR_ID_RE.search(normalized)
     return int(match.group(1)) if match else None
 
 
@@ -270,7 +287,7 @@ def explicit_customer_name(
     non_name_markers = (
         r"\b(?:عربية|سيارة|الأولى|الاولى|الأول|الاول|أول|اول|تاني|تانية|التانية|"
         r"الثاني|الثانية|تالت|تالتة|التالتة|الثالث|الثالثة|على|في|فى|رقم|طلب|حجز|"
-        r"تست|درايف|مبيعات|تواصل)\b"
+        r"تست|درايف|مبيعات|تواصل|id|car)\b"
     )
     remainder = re.sub(non_name_markers, " ", remainder, flags=re.IGNORECASE)
     remainder = re.sub(r"[^A-Za-z\u0600-\u06ff\s]", " ", remainder)

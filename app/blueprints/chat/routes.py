@@ -1,0 +1,133 @@
+"""HTTP adapter for the customer-facing Sales Orchestrator."""
+
+from __future__ import annotations
+
+from typing import Any
+
+from flask import current_app, jsonify, render_template, request
+from flask import session as browser_session
+from sqlalchemy.exc import SQLAlchemyError
+
+from app.agent.factory import build_sales_orchestrator
+from app.agent.llm import AgentLLMError
+from app.blueprints.chat import bp
+from app.extensions import db
+from app.rag.embeddings import EmbeddingError
+from app.services.conversation_context_service import ConversationContextError
+from app.services.customer_web_service import CustomerChatState, CustomerWebService
+
+_BROWSER_SESSION_KEY = "autodrive_conversation_id"
+_CRITICAL_AGENT_ERRORS = {"orchestrator_failed", "context_failed", "persistence_failed"}
+
+
+def _service() -> CustomerWebService:
+    return CustomerWebService(
+        db.session,
+        recent_message_limit=current_app.config["AGENT_RECENT_MESSAGE_LIMIT"],
+    )
+
+
+def _ensure_browser_conversation(service: CustomerWebService):
+    browser_session.permanent = True
+    stored_session_id = browser_session.get(_BROWSER_SESSION_KEY)
+    try:
+        context = service.ensure_conversation(stored_session_id)
+    except (ConversationContextError, ValueError):
+        browser_session.pop(_BROWSER_SESSION_KEY, None)
+        context = service.ensure_conversation(None)
+    browser_session[_BROWSER_SESSION_KEY] = str(context.session_id)
+    return context
+
+
+def _state_payload(state: CustomerChatState) -> dict[str, Any]:
+    selected_car = state.selected_car
+    if selected_car is not None:
+        selected_car = {
+            "id": selected_car.get("id"),
+            "brand": selected_car.get("brand"),
+            "model": selected_car.get("model"),
+            "year": selected_car.get("year"),
+        }
+    return {
+        "selected_car": selected_car,
+        "pending_action_type": state.pending_action_type,
+        "visible_recommendations": state.visible_recommendations,
+    }
+
+
+def _safe_service_error(status_code: int = 503):
+    return (
+        jsonify(
+            {
+                "ok": False,
+                "message": "حصلت مشكلة مؤقتة. جرّب تبعت رسالتك تاني بعد لحظات.",
+            }
+        ),
+        status_code,
+    )
+
+
+@bp.get("/chat")
+def chat_page():
+    service = _service()
+    try:
+        context = _ensure_browser_conversation(service)
+        state = service.chat_state(context.session_id)
+    except (ConversationContextError, SQLAlchemyError, ValueError):
+        db.session.rollback()
+        current_app.logger.exception("Customer chat page could not load")
+        return render_template("errors/500.html"), 503
+    return render_template("chat/index.html", chat_state=state)
+
+
+@bp.post("/api/chat/messages")
+def send_message():
+    payload = request.get_json(silent=True)
+    if not isinstance(payload, dict) or not isinstance(payload.get("message"), str):
+        return jsonify({"ok": False, "message": "الرسالة غير صالحة."}), 400
+
+    message = payload["message"]
+    normalized = message.strip()
+    if not normalized:
+        return jsonify({"ok": False, "message": "اكتب رسالة قبل الإرسال."}), 400
+    if len(message) > int(current_app.config["AGENT_MAX_MESSAGE_LENGTH"]):
+        return jsonify({"ok": False, "message": "الرسالة أطول من الحد المسموح."}), 400
+
+    service = _service()
+    try:
+        context = _ensure_browser_conversation(service)
+        orchestrator = build_sales_orchestrator(db.session, current_app.config)
+        result = orchestrator.handle_message(context.session_id, message)
+        state = service.chat_state(result.session_id or context.session_id)
+    except (AgentLLMError, EmbeddingError, ConversationContextError, SQLAlchemyError, ValueError):
+        db.session.rollback()
+        current_app.logger.exception("Customer chat request failed before a safe agent response")
+        return _safe_service_error()
+
+    errors = list(result.errors)
+    status_code = 503 if _CRITICAL_AGENT_ERRORS.intersection(errors) else 200
+    response_payload = {
+        "ok": status_code == 200,
+        "response": result.response,
+        "intent": result.intent,
+        "route": result.route,
+        "errors": errors,
+        "recommendation_snapshot_id": result.recommendation_snapshot_id,
+        "visible_recommendations": result.visible_recommendations,
+        "state": _state_payload(state),
+    }
+    return jsonify(response_payload), status_code
+
+
+@bp.post("/api/chat/session")
+def new_session():
+    service = _service()
+    browser_session.pop(_BROWSER_SESSION_KEY, None)
+    try:
+        context = _ensure_browser_conversation(service)
+        state = service.chat_state(context.session_id)
+    except (ConversationContextError, SQLAlchemyError, ValueError):
+        db.session.rollback()
+        current_app.logger.exception("Customer chat session reset failed")
+        return _safe_service_error()
+    return jsonify({"ok": True, "state": _state_payload(state)})

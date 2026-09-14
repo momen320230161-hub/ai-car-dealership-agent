@@ -11,6 +11,7 @@ from sqlalchemy import select
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.orm import Session
 
+from app.models.car import Car
 from app.models.conversation import ConversationSession
 from app.services.business_action_parsing import cairo_today, parse_business_fields
 from app.services.recommendation_service import RecommendationService
@@ -242,7 +243,19 @@ class BusinessActionWorkflowService:
             item = self.recommendations.resolve_visible_item(conversation.id, car_reference)
             fields["car_id"] = item.car_id
             return
-        if fields.get("car_id") is None and conversation.selected_car_id is not None:
+        if fields.get("car_id") is not None:
+            try:
+                explicit_car_id = int(fields["car_id"])
+            except (TypeError, ValueError):
+                fields.pop("car_id", None)
+                return
+            car = self.session.get(Car, explicit_car_id)
+            if car is None or not car.active:
+                fields.pop("car_id", None)
+                return
+            fields["car_id"] = car.id
+            return
+        if conversation.selected_car_id is not None:
             fields["car_id"] = conversation.selected_car_id
         if not required:
             return

@@ -29,8 +29,12 @@ def create_app(config_overrides: dict[str, Any] | None = None) -> Flask:
     migrate.init_app(app, db, compare_type=True)
     _configure_postgres_search_path(app)
 
+    from app.blueprints.chat import bp as chat_bp
     from app.blueprints.health import bp as health_bp
+    from app.blueprints.site import bp as site_bp
 
+    app.register_blueprint(site_bp)
+    app.register_blueprint(chat_bp)
     app.register_blueprint(health_bp)
     _register_cli(app)
     return app
@@ -191,24 +195,15 @@ def _register_cli(app: Flask) -> None:
     @click.argument("message")
     @click.option("--session-id", type=click.UUID, default=None)
     def agent_chat(message: str, session_id) -> None:
-        """Invoke the Phase 4 sales graph without exposing an HTTP/UI surface."""
-        from app.agent.graph import SalesOrchestrator
-        from app.agent.llm import AgentLLMError, build_agent_llm
-        from app.rag.embeddings import EmbeddingError, build_embedding_provider
+        """Invoke the sales graph from the command line."""
+        from app.agent.factory import build_sales_orchestrator
+        from app.agent.llm import AgentLLMError
+        from app.rag.embeddings import EmbeddingError
 
         try:
-            orchestrator = SalesOrchestrator(
-                db.session,
-                build_agent_llm(app.config),
-                build_embedding_provider(app.config),
-                max_message_length=app.config["AGENT_MAX_MESSAGE_LENGTH"],
-                recent_message_limit=app.config["AGENT_RECENT_MESSAGE_LIMIT"],
-                recommendation_limit=app.config["AGENT_RECOMMENDATION_LIMIT"],
-                rag_top_k=app.config["RAG_TOP_K"],
-                rag_max_top_k=app.config["RAG_MAX_TOP_K"],
-                rag_min_score=app.config["RAG_MIN_SCORE"],
+            result = build_sales_orchestrator(db.session, app.config).handle_message(
+                session_id, message
             )
-            result = orchestrator.handle_message(session_id, message)
             click.echo(f"session id: {result.session_id}")
             click.echo(f"intent: {result.intent}")
             click.echo(f"route: {result.route}")

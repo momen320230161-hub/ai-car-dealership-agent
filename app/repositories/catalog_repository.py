@@ -23,6 +23,12 @@ class CatalogRepository:
         "year_desc_mileage_asc",
         "mileage_asc",
     }
+    FACET_COLUMNS = {
+        "brand": Car.brand,
+        "body_type": Car.body_type,
+        "transmission": Car.transmission,
+        "fuel_type": Car.fuel_type,
+    }
 
     def __init__(self, session: Session):
         self.session = session
@@ -53,9 +59,7 @@ class CatalogRepository:
         active_only: bool = True,
     ) -> list[Car]:
         """Search with validated filters, allowlisted ordering, and bounded pagination."""
-        catalog_filters = (
-            filters if isinstance(filters, CatalogFilters) else CatalogFilters.from_mapping(filters)
-        )
+        catalog_filters = self._validated_filters(filters)
         if sort_by not in self.SORTS:
             raise ValueError(f"Unsupported catalog sort: {sort_by}")
         if (
@@ -71,10 +75,61 @@ class CatalogRepository:
         statement = statement.order_by(*self._sort_columns(sort_by)).limit(limit).offset(offset)
         return list(self.session.scalars(statement))
 
+    def count(
+        self,
+        filters: CatalogFilters | Mapping[str, Any] | None = None,
+        *,
+        active_only: bool = True,
+    ) -> int:
+        """Count rows using exactly the same structured filters as ``search``."""
+        catalog_filters = self._validated_filters(filters)
+        statement = self._apply_filters(
+            select(func.count(Car.id)),
+            catalog_filters,
+            active_only=active_only,
+        )
+        return int(self.session.scalar(statement) or 0)
+
+    def facet_values(
+        self,
+        field_name: str,
+        *,
+        active_only: bool = True,
+        limit: int = 100,
+    ) -> list[str]:
+        """Return bounded distinct values for allowlisted customer filter controls."""
+        column = self.FACET_COLUMNS.get(field_name)
+        if column is None:
+            raise ValueError(f"Unsupported catalog facet: {field_name}")
+        if isinstance(limit, bool) or not isinstance(limit, int) or not 1 <= limit <= 200:
+            raise ValueError("facet limit must be between 1 and 200")
+
+        statement = select(column).where(
+            column.is_not(None),
+            func.length(func.trim(column)) > 0,
+        )
+        if active_only:
+            statement = statement.where(Car.active.is_(True))
+        statement = statement.distinct().order_by(column.asc()).limit(limit)
+        return [str(value) for value in self.session.scalars(statement) if value is not None]
+
+    @staticmethod
+    def _validated_filters(
+        filters: CatalogFilters | Mapping[str, Any] | None,
+    ) -> CatalogFilters:
+        return (
+            filters
+            if isinstance(filters, CatalogFilters)
+            else CatalogFilters.from_mapping(filters)
+        )
+
     @staticmethod
     def _apply_filters(
-        statement: Select[tuple[Car]], filters: CatalogFilters, *, active_only: bool
-    ) -> Select[tuple[Car]]:
+        statement: Select,
+        filters: CatalogFilters,
+        *,
+        active_only: bool,
+    ) -> Select:
         if active_only:
             statement = statement.where(Car.active.is_(True))
         if filters.condition:

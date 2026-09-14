@@ -1,0 +1,5 @@
+{% extends 'base.html' %}
+{% block title %}مشكلة مؤقتة — AutoDrive Egypt{% endblock %}
+{% block content %}
+<section class="error-page"><div class="container error-card"><span>!</span><h1>حصلت مشكلة مؤقتة</h1><p>مفيش تفاصيل تقنية هتظهر هنا. جرّب تاني بعد لحظات أو ارجع للصفحة الرئيسية.</p><div class="hero-actions"><a class="btn btn-primary" href="{{ url_for('site.home') }}">الصفحة الرئيسية</a></div></div></section>
+{% endblock %}
