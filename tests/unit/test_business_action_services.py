@@ -16,9 +16,9 @@ from app.models.test_drive import TestDriveRequest
 from app.services.sales_lead_service import SalesLeadService, SalesLeadServiceError
 from app.services.test_drive_service import (
     AmbiguousTestDriveError,
-    TestDriveNotFoundError,
-    TestDriveService,
-    TestDriveServiceError,
+    TestDriveNotFoundError as DriveNotFoundError,
+    TestDriveService as DriveService,
+    TestDriveServiceError as DriveServiceError,
 )
 
 
@@ -42,7 +42,7 @@ def _session_and_car(db_session, *, source_id: str = "phase5-car"):
 
 def test_test_drive_create_persists_real_row_once(db_session) -> None:
     conversation, car = _session_and_car(db_session)
-    service = TestDriveService(db_session)
+    service = DriveService(db_session)
 
     first = service.create_request(
         session_id=conversation.id,
@@ -72,7 +72,7 @@ def test_test_drive_create_persists_real_row_once(db_session) -> None:
 
 def test_test_drive_rejects_missing_required_data_without_insert(db_session) -> None:
     conversation, car = _session_and_car(db_session)
-    service = TestDriveService(db_session)
+    service = DriveService(db_session)
 
     with pytest.raises(ValueError, match="customer_name"):
         service.create_request(
@@ -90,7 +90,7 @@ def test_test_drive_rejects_missing_required_data_without_insert(db_session) -> 
 
 def test_test_drive_idempotency_key_cannot_be_reused_for_different_payload(db_session) -> None:
     conversation, car = _session_and_car(db_session)
-    service = TestDriveService(db_session)
+    service = DriveService(db_session)
     service.create_request(
         session_id=conversation.id,
         car_id=car.id,
@@ -101,7 +101,7 @@ def test_test_drive_idempotency_key_cannot_be_reused_for_different_payload(db_se
         idempotency_key="attempt-test-drive-conflict",
     )
 
-    with pytest.raises(TestDriveServiceError, match="already used"):
+    with pytest.raises(DriveServiceError, match="already used"):
         service.create_request(
             session_id=conversation.id,
             car_id=car.id,
@@ -120,7 +120,7 @@ def test_test_drive_cancellation_is_session_owned_and_idempotent(db_session) -> 
     other = ConversationSession(id=uuid.uuid4())
     db_session.add(other)
     db_session.commit()
-    service = TestDriveService(db_session)
+    service = DriveService(db_session)
     request = service.create_request(
         session_id=owner.id,
         car_id=car.id,
@@ -131,7 +131,7 @@ def test_test_drive_cancellation_is_session_owned_and_idempotent(db_session) -> 
         idempotency_key="attempt-test-drive-cancel",
     )
 
-    with pytest.raises(TestDriveNotFoundError):
+    with pytest.raises(DriveNotFoundError):
         service.cancel_request(session_id=other.id, request_id=request.id)
 
     cancelled = service.cancel_request(session_id=owner.id, request_id=request.id)
@@ -145,7 +145,7 @@ def test_test_drive_cancellation_is_session_owned_and_idempotent(db_session) -> 
 
 def test_test_drive_cancellation_requires_id_when_multiple_are_active(db_session) -> None:
     conversation, car = _session_and_car(db_session)
-    service = TestDriveService(db_session)
+    service = DriveService(db_session)
     for index, hour in enumerate((17, 18), start=1):
         service.create_request(
             session_id=conversation.id,
