@@ -14,12 +14,10 @@ from app.models.conversation import ConversationSession
 from app.models.lead import SalesLead
 from app.models.test_drive import TestDriveRequest
 from app.services.sales_lead_service import SalesLeadService, SalesLeadServiceError
-from app.services.test_drive_service import (
-    AmbiguousTestDriveError,
-    TestDriveNotFoundError as DriveNotFoundError,
-    TestDriveService as DriveService,
-    TestDriveServiceError as DriveServiceError,
-)
+from app.services.test_drive_service import AmbiguousTestDriveError
+from app.services.test_drive_service import TestDriveNotFoundError as DriveNotFoundError
+from app.services.test_drive_service import TestDriveService as DriveService
+from app.services.test_drive_service import TestDriveServiceError as DriveServiceError
 
 
 def _session_and_car(db_session, *, source_id: str = "phase5-car"):
