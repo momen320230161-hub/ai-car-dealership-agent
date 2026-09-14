@@ -75,6 +75,11 @@ _ORDINAL_REFERENCES = (
     (r"\b(?:التانية|الثاني|الثانية|تاني|second)\b", 2),
     (r"\b(?:التالتة|التالت|الثالثة|الثالث|third)\b", 3),
 )
+_EXPLICIT_CAR_ID_RE = re.compile(
+    r"(?:\bcar\s*id\b|\bid\b|رقم\s+العربية|العربية\s+(?:رقم|id))"
+    r"\s*[:#-]?\s*([1-9][0-9]*)",
+    re.IGNORECASE,
+)
 _MILLION_WORD_VALUES = {
     "واحد": 1.0,
     "واحدة": 1.0,
@@ -143,6 +148,13 @@ def explicit_visible_references(message: str) -> list[int]:
     return list(dict.fromkeys(ordered))
 
 
+def explicit_car_id_from_message(message: str) -> int | None:
+    """Extract a car ID only when the current message explicitly marks it as an ID."""
+    normalized = message.translate(_ARABIC_DIGITS)
+    match = _EXPLICIT_CAR_ID_RE.search(normalized)
+    return int(match.group(1)) if match else None
+
+
 def explicit_money_amounts(message: str) -> list[float]:
     """Parse customer-written EGP amounts without asking the LLM to prove arithmetic."""
     normalized = message.translate(_ARABIC_DIGITS).replace("٫", ".").replace("٬", ",").casefold()
@@ -204,11 +216,8 @@ def sanitize_understanding(
         if isinstance(understanding.car_reference, int) or reference_text not in normalized:
             data["car_reference"] = None
 
-    if understanding.explicit_car_id is not None:
-        supplied = str(understanding.explicit_car_id)
-        id_pattern = rf"(?:\bid\b|معرف|رقم\s+العربية)\s*[:#-]?\s*{re.escape(supplied)}\b"
-        if not re.search(id_pattern, normalized, flags=re.IGNORECASE):
-            data["explicit_car_id"] = None
+    # IDs are owned by deterministic parsing of the current message, not by the LLM.
+    data["explicit_car_id"] = explicit_car_id_from_message(message)
 
     updates = understanding.preference_updates.model_dump(exclude_none=True)
     message_folded = normalized.casefold()
