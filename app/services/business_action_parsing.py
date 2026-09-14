@@ -48,6 +48,7 @@ _DATE_WORDS = tuple(_WEEKDAYS) + (
     "بعد بكرة",
     "بعد بكره",
 )
+_CLOCK_PREFIX = r"(?:(?:الساعة|الساعه|ساعة|ساعه)\s*|at\s+)"
 
 
 @dataclass(frozen=True, slots=True)
@@ -166,7 +167,7 @@ def explicit_date(message: str, *, today: date) -> date | None:
 def explicit_time(message: str) -> time | None:
     normalized = message.translate(_ARABIC_DIGITS).casefold()
     pattern = re.compile(
-        r"(?:الساعة|الساعه|ساعة|ساعه|at\s+)?"
+        rf"(?:{_CLOCK_PREFIX})?"
         r"(?<!\d)([01]?\d|2[0-3])(?::([0-5]\d))?\s*"
         r"(صباح(?:ا|اً)?|مساء(?:ا|ً)?|am|pm)?",
         re.IGNORECASE,
@@ -219,13 +220,11 @@ def explicit_customer_name(
     remainder = _EMAIL_RE.sub(" ", remainder)
     remainder = re.sub(r"\b20\d{2}[-/]\d{1,2}[-/]\d{1,2}\b", " ", remainder)
     remainder = re.sub(r"\b\d{1,2}[/-]\d{1,2}[/-]20\d{2}\b", " ", remainder)
-    remainder = re.sub(
-        r"(?:الساعة|الساعه|ساعة|ساعه|at\s+)?(?:[01]?\d|2[0-3])(?::[0-5]\d)?\s*"
-        r"(?:صباح(?:ا|اً)?|مساء(?:ا|ً)?|am|pm)?",
-        " ",
-        remainder,
-        flags=re.IGNORECASE,
+    time_pattern = (
+        rf"(?:{_CLOCK_PREFIX})?(?:[01]?\d|2[0-3])(?::[0-5]\d)?\s*"
+        r"(?:صباح(?:ا|اً)?|مساء(?:ا|ً)?|am|pm)?"
     )
+    remainder = re.sub(time_pattern, " ", remainder, flags=re.IGNORECASE)
     for term in sorted(_DATE_WORDS, key=len, reverse=True):
         remainder = re.sub(re.escape(term), " ", remainder, flags=re.IGNORECASE)
     contact_markers = r"\b(?:رقمي|موبايلي|الموبايل|phone|email|ايميلي|إيميلي)\b"
