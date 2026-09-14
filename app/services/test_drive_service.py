@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import uuid
-from datetime import date, datetime, time, timezone
+from datetime import UTC, date, datetime, time
 
 from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError, SQLAlchemyError
@@ -151,7 +151,12 @@ class TestDriveService:
         try:
             request: TestDriveRequest | None
             if request_id is not None:
-                if isinstance(request_id, bool) or not isinstance(request_id, int) or request_id < 1:
+                invalid_id = (
+                    isinstance(request_id, bool)
+                    or not isinstance(request_id, int)
+                    or request_id < 1
+                )
+                if invalid_id:
                     raise ValueError("request_id must be a positive integer")
                 request = self.session.scalar(
                     select(TestDriveRequest)
@@ -162,7 +167,9 @@ class TestDriveService:
                     .with_for_update()
                 )
                 if request is None:
-                    raise TestDriveNotFoundError("Test-drive request was not found for this session")
+                    raise TestDriveNotFoundError(
+                        "Test-drive request was not found for this session"
+                    )
                 if request.status == "CANCELLED":
                     return request
                 if request.status not in self.ACTIVE_STATUSES:
@@ -180,13 +187,15 @@ class TestDriveService:
                     )
                 )
                 if not active:
-                    raise TestDriveNotFoundError("No active test-drive request exists for this session")
+                    raise TestDriveNotFoundError(
+                        "No active test-drive request exists for this session"
+                    )
                 if len(active) > 1:
                     raise AmbiguousTestDriveError([item.id for item in active])
                 request = active[0]
 
             request.status = "CANCELLED"
-            request.cancelled_at = datetime.now(timezone.utc)
+            request.cancelled_at = datetime.now(UTC)
             self.session.commit()
             return request
         except (TestDriveServiceError, ValueError):
