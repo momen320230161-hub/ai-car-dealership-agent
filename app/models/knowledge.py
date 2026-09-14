@@ -122,9 +122,7 @@ class KnowledgeChunk(Base):
         DateTime(timezone=True), server_default=func.now(), nullable=False
     )
 
-    document: Mapped[KnowledgeDocument] = relationship(
-        "KnowledgeDocument", back_populates="chunks"
-    )
+    document: Mapped[KnowledgeDocument] = relationship("KnowledgeDocument", back_populates="chunks")
 
     __table_args__ = (
         CheckConstraint("chunk_index >= 0", name="knowledge_chunk_index_non_negative_check"),

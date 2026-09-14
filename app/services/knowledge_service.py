@@ -199,8 +199,7 @@ class KnowledgeService:
             if len(embeddings) != len(chunks):
                 raise EmbeddingError("Embedding provider returned an incomplete batch")
             vectors = [
-                validate_embedding(embedding, self.provider.dimension)
-                for embedding in embeddings
+                validate_embedding(embedding, self.provider.dimension) for embedding in embeddings
             ]
         except (EmbeddingError, ValueError) as exc:
             self._mark_failed(document_id, version, "Embedding generation failed")

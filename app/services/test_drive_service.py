@@ -33,6 +33,8 @@ class AmbiguousTestDriveError(TestDriveServiceError):
 class TestDriveService:
     """Create and cancel persisted test-drive requests without LLM-side writes."""
 
+    __test__ = False
+
     ACTIVE_STATUSES = ("NEW", "CONFIRMED")
 
     def __init__(self, session: Session):

@@ -48,9 +48,7 @@ def choose_grounded_result(
             any(term in haystack for term in ("تمويل", "تقسيط")) or category == "financing"
         ):
             return result
-        if topic == "test_drive" and (
-            "تجربه قياده" in haystack or category == "test drive policy"
-        ):
+        if topic == "test_drive" and ("تجربه قياده" in haystack or category == "test drive policy"):
             return result
         if topic == "availability_price" and (
             any(term in haystack for term in ("توافر", "السعر النهائي", "بيانات السيارات"))
@@ -66,9 +64,7 @@ def choose_grounded_result(
         if len(token) >= 4 and token not in {"عندكم", "ممكن", "عايز", "ايه", "هذه"}
     }
     for result in results:
-        haystack = normalize_arabic(
-            f"{result.get('title', '')} {result.get('content', '')}"
-        )
+        haystack = normalize_arabic(f"{result.get('title', '')} {result.get('content', '')}")
         if query_tokens and any(token in haystack for token in query_tokens):
             return result
     return None

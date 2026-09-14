@@ -74,9 +74,7 @@ def test_wrong_dimension_and_non_finite_embeddings_are_rejected():
 
 
 def test_gemini_credentials_are_checked_only_when_provider_is_used():
-    provider = GeminiEmbeddingProvider(
-        api_key=None, model_name="gemini-embedding-2", dimension=768
-    )
+    provider = GeminiEmbeddingProvider(api_key=None, model_name="gemini-embedding-2", dimension=768)
     with pytest.raises(EmbeddingError, match="credentials are not configured"):
         provider.embed_text("query")
 
@@ -129,9 +127,7 @@ def test_gemini_rejects_incomplete_multi_input_response(monkeypatch):
     class FakeModels:
         def embed_content(self, *, model, contents, config):
             del model, contents, config
-            return SimpleNamespace(
-                embeddings=[SimpleNamespace(values=[0.1] * 768)]
-            )
+            return SimpleNamespace(embeddings=[SimpleNamespace(values=[0.1] * 768)])
 
     class FakeClient:
         def __init__(self, *, api_key):

@@ -11,11 +11,11 @@ from langgraph.graph import END, START, StateGraph
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.orm import Session
 
+from app.agent.business_rendering import render_business_action
 from app.agent.catalog_qualification import qualify_catalog_search
 from app.agent.grounding import choose_grounded_result
 from app.agent.llm import AgentLLM, AgentLLMError, DeterministicAgentLLM
 from app.agent.rendering import (
-    render_business_action,
     render_catalog,
     render_error,
     render_knowledge,
@@ -23,6 +23,10 @@ from app.agent.rendering import (
 from app.agent.schemas import sanitize_understanding
 from app.agent.state import AgentState
 from app.rag.embeddings import EmbeddingProvider
+from app.services.business_action_workflow_service import (
+    BusinessActionWorkflowError,
+    BusinessActionWorkflowService,
+)
 from app.services.catalog_service import CatalogService
 from app.services.conversation_context_service import (
     ConversationContext,
@@ -89,6 +93,7 @@ class SalesOrchestrator:
         recommendation_service: RecommendationService | None = None,
         catalog_service: CatalogService | None = None,
         rag_service: RAGService | None = None,
+        business_action_service: BusinessActionWorkflowService | None = None,
     ):
         if max_message_length < 1:
             raise ValueError("max_message_length must be positive")
@@ -110,6 +115,10 @@ class SalesOrchestrator:
             default_top_k=rag_top_k,
             max_top_k=rag_max_top_k,
             default_min_score=rag_min_score,
+        )
+        self.business_actions = business_action_service or BusinessActionWorkflowService(
+            session,
+            recommendations=self.recommendations,
         )
         self.graph = self._build_graph()
 
@@ -249,9 +258,7 @@ class SalesOrchestrator:
                 recent_messages=state.get("recent_messages", []),
                 preferences=state.get("preferences", {}),
             )
-            understanding = sanitize_understanding(
-                understanding, state["normalized_message"]
-            )
+            understanding = sanitize_understanding(understanding, state["normalized_message"])
             update.update(
                 {
                     "intent": understanding.intent,
@@ -290,16 +297,32 @@ class SalesOrchestrator:
     def _route_request(self, state: AgentState) -> AgentState:
         update = self._trace(state, "route_request")
         intent = state.get("intent", "general")
+        pending_action = state.get("pending_action")
+        has_pending_business = isinstance(pending_action, dict) and pending_action.get("type") in {
+            "test_drive",
+            "cancel_test_drive",
+            "sales_lead",
+        }
+
         if "understanding_failed" in state.get("errors", []) or "state_update_failed" in state.get(
             "errors", []
         ):
             route: Route = "general_node"
+        elif intent in {"test_drive", "cancel_test_drive", "sales_lead"}:
+            route = "business_gate"
+        elif has_pending_business and (
+            intent == "general"
+            or (
+                intent in {"car_details", "car_selection"}
+                and not pending_action.get("fields", {}).get("car_id")
+                and state.get("car_reference") is not None
+            )
+        ):
+            route = "business_gate"
         elif intent in {"catalog_search", "car_details", "car_compare", "car_selection"}:
             route = "catalog_node"
         elif intent == "knowledge_question":
             route = "rag_node"
-        elif intent in {"test_drive", "cancel_test_drive", "sales_lead"}:
-            route = "business_gate"
         else:
             route = "general_node"
         update["route"] = route.removesuffix("_node")
@@ -432,10 +455,35 @@ class SalesOrchestrator:
 
     def _business_gate(self, state: AgentState) -> AgentState:
         update = self._trace(state, "business_gate")
-        update["action_status"] = {
-            "status": "deferred_to_phase5",
-            "intent": state.get("intent", "general"),
-        }
+        try:
+            session_id = uuid.UUID(state["session_id"])
+            intent = state.get("intent", "general")
+            car_reference = state.get("car_reference")
+            message = state.get("normalized_message", "")
+
+            plan = self.business_actions.prepare_action(
+                session_id,
+                intent,
+                message,
+                car_reference=car_reference,
+            )
+            if plan.get("status") == "ready":
+                result = self.business_actions.execute_action(session_id, plan)
+                update["action_status"] = result
+            else:
+                update["action_status"] = plan
+
+            context = self.context.load(session_id)
+            update.update(self._context_update(context))
+        except (
+            BusinessActionWorkflowError,
+            VisibleRecommendationError,
+            ValueError,
+            SQLAlchemyError,
+        ):
+            self.session.rollback()
+            update["errors"] = self._errors(state, "business_action_failed")
+            update["action_status"] = None
         return update
 
     def _general_node(self, state: AgentState) -> AgentState:
@@ -458,7 +506,7 @@ class SalesOrchestrator:
                 state.get("knowledge_supported", False), state.get("grounded_knowledge")
             )
         elif state.get("route") == "business_gate":
-            response = render_business_action(state.get("intent", "general"))
+            response = render_business_action(state.get("action_status"))
         else:
             try:
                 response = self.llm.compose_general(

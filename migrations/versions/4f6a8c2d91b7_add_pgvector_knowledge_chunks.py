@@ -168,21 +168,18 @@ def downgrade():
     op.drop_index(
         "ix_knowledge_documents_retrieval_state", table_name="knowledge_documents"
     )
-    op.drop_constraint(
-        op.f("ck_knowledge_documents_knowledge_document_index_status_check"),
-        "knowledge_documents",
-        type_="check",
-    )
-    op.drop_constraint(
-        op.f("ck_knowledge_documents_knowledge_document_indexed_version_positive_check"),
-        "knowledge_documents",
-        type_="check",
-    )
-    op.drop_constraint(
-        op.f("ck_knowledge_documents_knowledge_document_content_version_positive_check"),
-        "knowledge_documents",
-        type_="check",
-    )
+    for constraint_name in (
+        "ck_knowledge_documents_knowledge_document_index_status_check",
+        "ck_knowledge_documents_knowledge_document_indexed_version_posit",
+        "ck_knowledge_documents_knowledge_document_indexed_version_positive_check",
+        "ck_knowledge_documents_knowledge_document_content_version_posit",
+        "ck_knowledge_documents_knowledge_document_content_version_positive_check",
+    ):
+        op.execute(
+            sa.text(
+                f"ALTER TABLE knowledge_documents DROP CONSTRAINT IF EXISTS {constraint_name}"
+            )
+        )
     op.drop_column("knowledge_documents", "embedding_model")
     op.drop_column("knowledge_documents", "index_error")
     op.drop_column("knowledge_documents", "indexed_at")

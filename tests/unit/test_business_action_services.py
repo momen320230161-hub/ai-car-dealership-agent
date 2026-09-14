@@ -159,9 +159,12 @@ def test_test_drive_cancellation_requires_id_when_multiple_are_active(db_session
         service.cancel_request(session_id=conversation.id)
 
     assert len(exc_info.value.request_ids) == 2
-    assert db_session.scalar(
-        select(func.count(TestDriveRequest.id)).where(TestDriveRequest.status == "NEW")
-    ) == 2
+    assert (
+        db_session.scalar(
+            select(func.count(TestDriveRequest.id)).where(TestDriveRequest.status == "NEW")
+        )
+        == 2
+    )
 
 
 def test_sales_lead_create_persists_once_with_selected_car(db_session) -> None:

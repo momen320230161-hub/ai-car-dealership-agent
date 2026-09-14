@@ -95,9 +95,7 @@ def _register_cli(app: Flask) -> None:
     @click.option("--failed-only", is_flag=True)
     def reindex_knowledge(document_id, reindex_all: bool, failed_only: bool) -> None:
         """Rebuild vector chunks for one document or an observable document set."""
-        if (document_id is None and not reindex_all) or (
-            document_id is not None and reindex_all
-        ):
+        if (document_id is None and not reindex_all) or (document_id is not None and reindex_all):
             raise click.UsageError("Choose exactly one of --document-id or --all")
         if failed_only and not reindex_all:
             raise click.UsageError("--failed-only requires --all")
@@ -177,9 +175,7 @@ def _register_cli(app: Flask) -> None:
                 max_top_k=app.config["RAG_MAX_TOP_K"],
                 default_min_score=app.config["RAG_MIN_SCORE"],
             )
-            results = service.retrieve(
-                query, category=category, top_k=top_k, min_score=min_score
-            )
+            results = service.retrieve(query, category=category, top_k=top_k, min_score=min_score)
             if not results:
                 click.echo("no indexed knowledge matched")
             for result in results:
@@ -262,31 +258,23 @@ def _register_cli(app: Flask) -> None:
         ) -> None:
             failures: list[str] = []
             if sanitized.intent != expected_intent:
-                failures.append(
-                    f"intent expected {expected_intent!r}, got {sanitized.intent!r}"
-                )
+                failures.append(f"intent expected {expected_intent!r}, got {sanitized.intent!r}")
 
             actual_preferences = sanitized.preference_updates.model_dump(exclude_none=True)
             for key, expected_value in expected_preferences.items():
                 actual_value = actual_preferences.get(key)
                 if key in {"brand", "model", "condition"}:
                     if str(actual_value).casefold() != str(expected_value).casefold():
-                        failures.append(
-                            f"{key} expected {expected_value!r}, got {actual_value!r}"
-                        )
+                        failures.append(f"{key} expected {expected_value!r}, got {actual_value!r}")
                 elif key == "max_price":
                     try:
                         matches = abs(float(actual_value) - float(expected_value)) < 1
                     except (TypeError, ValueError):
                         matches = False
                     if not matches:
-                        failures.append(
-                            f"{key} expected {expected_value!r}, got {actual_value!r}"
-                        )
+                        failures.append(f"{key} expected {expected_value!r}, got {actual_value!r}")
                 elif actual_value != expected_value:
-                    failures.append(
-                        f"{key} expected {expected_value!r}, got {actual_value!r}"
-                    )
+                    failures.append(f"{key} expected {expected_value!r}, got {actual_value!r}")
 
             if failures:
                 details = "; ".join(failures)

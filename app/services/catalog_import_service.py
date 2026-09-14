@@ -109,8 +109,7 @@ class CatalogImportService:
 
         try:
             existing = {
-                (car.source, car.source_id): car
-                for car in self.session.scalars(select(Car)).all()
+                (car.source, car.source_id): car for car in self.session.scalars(select(Car)).all()
             }
             for values in parsed_rows:
                 identity = (values["source"], values["source_id"])
@@ -217,18 +216,14 @@ class CatalogImportService:
         return parsed
 
     @classmethod
-    def _required_decimal(
-        cls, value: str | None, name: str, *, minimum: int
-    ) -> Decimal:
+    def _required_decimal(cls, value: str | None, name: str, *, minimum: int) -> Decimal:
         parsed = cls._optional_decimal(value, name, minimum=minimum)
         if parsed is None:
             raise ValueError(f"required field {name!r} is blank")
         return parsed
 
     @classmethod
-    def _optional_decimal(
-        cls, value: str | None, name: str, *, minimum: int
-    ) -> Decimal | None:
+    def _optional_decimal(cls, value: str | None, name: str, *, minimum: int) -> Decimal | None:
         text = cls._text(value)
         if not text:
             return None

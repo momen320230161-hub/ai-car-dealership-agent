@@ -113,9 +113,7 @@ def test_stategraph_uses_postgres_pgvector_and_rejects_unsupported_insurance(pg_
         orchestrator = SalesOrchestrator(db.session, DeterministicAgentLLM(), provider)
 
         known = orchestrator.handle_message(None, "الضمان مدته كام؟")
-        unknown = orchestrator.handle_message(
-            known.session_id, "هل عندكم تأمين سيارات ضد الحوادث؟"
-        )
+        unknown = orchestrator.handle_message(known.session_id, "هل عندكم تأمين سيارات ضد الحوادث؟")
 
         assert known.route == unknown.route == "rag"
         assert known.response == "لا تتوفر مدة ضمان موحدة لكل السيارات."
@@ -131,9 +129,7 @@ def test_stategraph_business_intents_persist_messages_but_create_no_actions(pg_a
         orchestrator = _orchestrator()
 
         booking = orchestrator.handle_message(None, "عايز احجز تست درايف")
-        lead = orchestrator.handle_message(
-            booking.session_id, "عايز حد من المبيعات يكلمني"
-        )
+        lead = orchestrator.handle_message(booking.session_id, "عايز حد من المبيعات يكلمني")
 
         assert booking.intent == "test_drive"
         assert lead.intent == "sales_lead"

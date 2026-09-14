@@ -123,8 +123,7 @@ class RecommendationService:
             select(RecommendationSnapshot)
             .join(
                 ConversationSession,
-                ConversationSession.active_recommendation_snapshot_id
-                == RecommendationSnapshot.id,
+                ConversationSession.active_recommendation_snapshot_id == RecommendationSnapshot.id,
             )
             .where(
                 ConversationSession.id == session_id,
@@ -163,8 +162,7 @@ class RecommendationService:
             snapshot = self.session.scalar(
                 select(RecommendationSnapshot)
                 .where(
-                    RecommendationSnapshot.id
-                    == conversation.active_recommendation_snapshot_id,
+                    RecommendationSnapshot.id == conversation.active_recommendation_snapshot_id,
                     RecommendationSnapshot.session_id == session_id,
                     RecommendationSnapshot.status == "active",
                 )

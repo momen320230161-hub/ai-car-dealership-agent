@@ -21,10 +21,7 @@ EXPECTED_TABLES = {
 
 def _public_tables() -> set[str]:
     rows = db.session.execute(
-        text(
-            "SELECT table_name FROM information_schema.tables "
-            "WHERE table_schema = 'public'"
-        )
+        text("SELECT table_name FROM information_schema.tables WHERE table_schema = 'public'")
     ).fetchall()
     return {row[0] for row in rows}
 
@@ -35,9 +32,7 @@ def test_postgres_migration_lifecycle(pg_app):
         upgrade()
         assert EXPECTED_TABLES.issubset(_public_tables())
 
-        revision = db.session.execute(
-            text("SELECT version_num FROM alembic_version")
-        ).scalar_one()
+        revision = db.session.execute(text("SELECT version_num FROM alembic_version")).scalar_one()
         assert revision == "4f6a8c2d91b7"
 
         rls_rows = db.session.execute(

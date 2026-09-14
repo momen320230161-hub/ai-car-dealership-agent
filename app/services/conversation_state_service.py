@@ -68,8 +68,7 @@ class ConversationStateService:
                 snapshot = self.session.scalar(
                     select(RecommendationSnapshot)
                     .where(
-                        RecommendationSnapshot.id
-                        == conversation.active_recommendation_snapshot_id,
+                        RecommendationSnapshot.id == conversation.active_recommendation_snapshot_id,
                         RecommendationSnapshot.session_id == session_id,
                     )
                     .options(selectinload(RecommendationSnapshot.items))
@@ -78,12 +77,9 @@ class ConversationStateService:
                     conversation.active_recommendation_snapshot_id = None
                 else:
                     car_ids = [item.car_id for item in snapshot.items]
-                    visible_cars = self.catalog_repository.get_many(
-                        car_ids, active_only=False
-                    )
+                    visible_cars = self.catalog_repository.get_many(car_ids, active_only=False)
                     incompatible = len(visible_cars) != len(car_ids) or any(
-                        not self.car_matches_preferences(car, filters)
-                        for car in visible_cars
+                        not self.car_matches_preferences(car, filters) for car in visible_cars
                     )
                     if incompatible:
                         snapshot.status = "invalidated"

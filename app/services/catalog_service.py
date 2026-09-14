@@ -93,11 +93,7 @@ class CatalogService:
             else CatalogFilters.from_mapping(preferences)
         )
         if filters.model:
-            sort_by = (
-                "year_desc_mileage_asc"
-                if filters.condition == "used"
-                else "year_desc"
-            )
+            sort_by = "year_desc_mileage_asc" if filters.condition == "used" else "year_desc"
         else:
             sort_by = "price_desc" if filters.max_price is not None else "year_desc"
         candidate_limit = min(
@@ -140,8 +136,7 @@ class CatalogService:
         return {
             "car_ids": list(car_ids),
             "cars": [
-                {field: getattr(car, field) for field in self.COMPARISON_FIELDS}
-                | {"id": car.id}
+                {field: getattr(car, field) for field in self.COMPARISON_FIELDS} | {"id": car.id}
                 for car in cars
             ],
         }

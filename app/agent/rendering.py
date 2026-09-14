@@ -59,36 +59,22 @@ def render_knowledge(supported: bool, result: dict[str, Any] | None) -> str:
     return str(result["content"]).strip()
 
 
-def render_business_action(intent: str) -> str:
-    labels = {
-        "test_drive": "حجز تجربة قيادة",
-        "cancel_test_drive": "إلغاء تجربة قيادة",
-        "sales_lead": "طلب تواصل مع فريق المبيعات",
-    }
-    label = labels.get(intent, "الطلب")
-    return (
-        f"فهمت إنك محتاج {label}. تنفيذ الإجراء نفسه لسه غير متاح في المرحلة الحالية، "
-        "ومفيش أي طلب اتسجل أو اتأكد."
-    )
-
-
 def render_error(code: str | None) -> str:
     messages = {
         "blank_input": "اكتب سؤالك أو طلبك، وأنا هساعدك.",
         "unsupported_input": "الرسالة لازم تكون نص.",
         "message_too_long": "الرسالة طويلة زيادة. اختصرها شوية وحاول تاني.",
         "sensitive_request": (
-            "مقدرش أعرض تعليمات داخلية أو أسرار، لكن أقدر أساعدك "
-            "في العربيات والخدمات المتاحة."
+            "مقدرش أعرض تعليمات داخلية أو أسرار، لكن أقدر أساعدك في العربيات والخدمات المتاحة."
         ),
         "understanding_failed": "معلش، مقدرتش أفهم الطلب بشكل آمن. حاول تصيغه بطريقة أبسط.",
         "context_failed": "حصلت مشكلة مؤقتة في تحميل المحادثة. حاول مرة تانية.",
         "state_update_failed": "مقدرتش أحفظ تفضيلاتك حاليًا. حاول مرة تانية.",
         "catalog_unavailable": (
-            "القائمة أو العربية المطلوبة مش متاحة في السياق الحالي. "
-            "اطلب قائمة عربيات الأول."
+            "القائمة أو العربية المطلوبة مش متاحة في السياق الحالي. اطلب قائمة عربيات الأول."
         ),
         "rag_failed": "مقدرتش أراجع قاعدة المعرفة حاليًا. حاول مرة تانية.",
+        "business_action_failed": "مقدرتش أنفذ الطلب حاليًا. حاول مرة تانية.",
     }
     return messages.get(code, "حصلت مشكلة مؤقتة. حاول مرة تانية.")
 
@@ -177,16 +163,10 @@ def _comparison_differences(
 
     left_mileage = _numeric(left.get("mileage_km"))
     right_mileage = _numeric(right.get("mileage_km"))
-    if (
-        left_mileage is not None
-        and right_mileage is not None
-        and left_mileage != right_mileage
-    ):
+    if left_mileage is not None and right_mileage is not None and left_mileage != right_mileage:
         lower_mileage_label = left_label if left_mileage < right_mileage else right_label
         mileage_difference = abs(left_mileage - right_mileage)
-        differences.append(
-            f"{lower_mileage_label} ممشاها أقل بـ {_number(mileage_difference)} كم."
-        )
+        differences.append(f"{lower_mileage_label} ممشاها أقل بـ {_number(mileage_difference)} كم.")
 
     left_price = _numeric(left.get("price_egp"))
     right_price = _numeric(right.get("price_egp"))
@@ -201,8 +181,7 @@ def _comparison_differences(
         larger_engine_label = left_label if left_engine > right_engine else right_label
         engine_difference = abs(left_engine - right_engine)
         differences.append(
-            f"سعة المحرك المسجلة في {larger_engine_label} أكبر بـ "
-            f"{_number(engine_difference)} cc."
+            f"سعة المحرك المسجلة في {larger_engine_label} أكبر بـ {_number(engine_difference)} cc."
         )
 
     return differences

@@ -46,9 +46,7 @@ class Config:
     GEMINI_API_KEY = os.getenv("GEMINI_API_KEY") or os.getenv("EMBEDDING_API_KEY")
     RAG_TOP_K = int(os.getenv("RAG_TOP_K", "4"))
     RAG_MAX_TOP_K = int(os.getenv("RAG_MAX_TOP_K", "20"))
-    RAG_MIN_SCORE = (
-        float(os.environ["RAG_MIN_SCORE"]) if os.getenv("RAG_MIN_SCORE") else None
-    )
+    RAG_MIN_SCORE = float(os.environ["RAG_MIN_SCORE"]) if os.getenv("RAG_MIN_SCORE") else None
     AGENT_LLM_PROVIDER = os.getenv("AGENT_LLM_PROVIDER", "gemini")
     AGENT_LLM_MODEL = os.getenv("AGENT_LLM_MODEL", "gemini-3.5-flash-lite")
     AGENT_LLM_TEMPERATURE = float(os.getenv("AGENT_LLM_TEMPERATURE", "0.1"))

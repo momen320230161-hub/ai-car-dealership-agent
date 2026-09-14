@@ -55,13 +55,9 @@ def test_create_indexes_document_and_update_replaces_old_chunks(db_session):
     assert len(document.chunks) == 1
     assert len(document.chunks[0].embedding) == 768
 
-    updated = service.update_document(
-        document.id, content="Phase3 verification policy beta"
-    )
+    updated = service.update_document(document.id, content="Phase3 verification policy beta")
     chunks = list(
-        db_session.scalars(
-            select(KnowledgeChunk).where(KnowledgeChunk.document_id == document.id)
-        )
+        db_session.scalars(select(KnowledgeChunk).where(KnowledgeChunk.document_id == document.id))
     )
     assert updated.content_version == updated.indexed_version == 2
     assert updated.index_status == "indexed"
@@ -93,18 +89,14 @@ def test_create_validates_required_text(db_session, field):
     values = {"title": "FAQ", "category": "faq", "content": "Test fixture"}
     values[field] = "   "
     with pytest.raises(ValueError, match=f"{field} must not be blank"):
-        KnowledgeService(db_session, DeterministicEmbeddingProvider()).create_document(
-            **values
-        )
+        KnowledgeService(db_session, DeterministicEmbeddingProvider()).create_document(**values)
 
 
 @pytest.mark.parametrize(
     "provider",
     [FailingProvider(), PartialProvider(), WrongDimensionOutputProvider()],
 )
-def test_embedding_failures_persist_failed_state_without_current_chunks(
-    db_session, provider
-):
+def test_embedding_failures_persist_failed_state_without_current_chunks(db_session, provider):
     service = KnowledgeService(db_session, provider)
     with pytest.raises(KnowledgeIndexingError) as error:
         service.create_document(
@@ -130,9 +122,7 @@ def test_failed_content_update_keeps_old_chunks_but_makes_them_stale(db_session)
 
     db_session.refresh(document)
     chunks = list(
-        db_session.scalars(
-            select(KnowledgeChunk).where(KnowledgeChunk.document_id == document.id)
-        )
+        db_session.scalars(select(KnowledgeChunk).where(KnowledgeChunk.document_id == document.id))
     )
     assert document.content_version == 2
     assert document.indexed_version == 1
@@ -143,9 +133,7 @@ def test_failed_content_update_keeps_old_chunks_but_makes_them_stale(db_session)
 
 def test_wrong_provider_dimension_is_rejected_before_database_work(db_session):
     with pytest.raises(KnowledgeIndexingError, match="768-dimensional"):
-        KnowledgeService(
-            db_session, DeterministicEmbeddingProvider(dimension=32)
-        )
+        KnowledgeService(db_session, DeterministicEmbeddingProvider(dimension=32))
 
 
 def test_chunk_database_failure_rolls_back_and_records_failed_state(db_session):
@@ -155,9 +143,7 @@ def test_chunk_database_failure_rolls_back_and_records_failed_state(db_session):
     def fail_chunk_flush(session, flush_context, instances):
         del flush_context, instances
         nonlocal failed_once
-        if not failed_once and any(
-            isinstance(item, KnowledgeChunk) for item in session.new
-        ):
+        if not failed_once and any(isinstance(item, KnowledgeChunk) for item in session.new):
             failed_once = True
             raise SQLAlchemyError("synthetic chunk failure")
 

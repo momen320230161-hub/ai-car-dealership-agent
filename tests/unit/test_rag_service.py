@@ -50,9 +50,7 @@ def test_retrieve_returns_structured_results_and_normalizes_options(db_session):
     repository = StubRepository([expected])
     service.repository = repository
 
-    results = service.retrieve(
-        "synthetic answer", category=" FAQ ", top_k=2, min_score=0.2
-    )
+    results = service.retrieve("synthetic answer", category=" FAQ ", top_k=2, min_score=0.2)
 
     assert results == [expected]
     assert repository.call["category"] == "faq"
@@ -64,9 +62,7 @@ def test_retrieve_returns_structured_results_and_normalizes_options(db_session):
 @pytest.mark.parametrize("top_k", [0, -1, 21, True, 1.5])
 def test_top_k_is_strictly_bounded(db_session, top_k):
     with pytest.raises(ValueError, match="top_k must be between"):
-        RAGService(db_session, DeterministicEmbeddingProvider()).retrieve(
-            "query", top_k=top_k
-        )
+        RAGService(db_session, DeterministicEmbeddingProvider()).retrieve("query", top_k=top_k)
 
 
 def test_blank_query_and_invalid_min_score_are_rejected(db_session):

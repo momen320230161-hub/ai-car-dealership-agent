@@ -113,8 +113,7 @@ class KnowledgeSeedService:
 
     def _existing_by_id(self) -> dict[uuid.UUID, KnowledgeDocument]:
         return {
-            document.id: document
-            for document in self.knowledge_service.repository.list_documents()
+            document.id: document for document in self.knowledge_service.repository.list_documents()
         }
 
     def _load_seed(self, path: str | Path) -> tuple[str, list[SeedDocument]]:
@@ -143,9 +142,7 @@ class KnowledgeSeedService:
         for index, raw_document in enumerate(raw_documents, start=1):
             if not isinstance(raw_document, dict):
                 raise KnowledgeSeedError(f"Knowledge seed document #{index} must be an object")
-            document_id = self._required_uuid(
-                raw_document.get("id"), f"documents[{index}].id"
-            )
+            document_id = self._required_uuid(raw_document.get("id"), f"documents[{index}].id")
             title = self._required_text(raw_document.get("title"), f"documents[{index}].title")
             category = self._required_text(
                 raw_document.get("category"), f"documents[{index}].category"

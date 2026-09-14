@@ -145,12 +145,7 @@ def explicit_visible_references(message: str) -> list[int]:
 
 def explicit_money_amounts(message: str) -> list[float]:
     """Parse customer-written EGP amounts without asking the LLM to prove arithmetic."""
-    normalized = (
-        message.translate(_ARABIC_DIGITS)
-        .replace("٫", ".")
-        .replace("٬", ",")
-        .casefold()
-    )
+    normalized = message.translate(_ARABIC_DIGITS).replace("٫", ".").replace("٬", ",").casefold()
     amounts: list[float] = []
 
     for match in re.finditer(r"(?<!\w)([0-9]+(?:\.[0-9]+)?)\s*مليون", normalized):

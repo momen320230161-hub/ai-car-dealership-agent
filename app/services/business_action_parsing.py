@@ -210,7 +210,13 @@ def explicit_customer_name(
         flags=re.IGNORECASE,
     )
     if marked:
-        candidate = _clean_name(marked.group(1))
+        raw_match = marked.group(1)
+        stop_markers = (
+            r"\b(?:و?رقمي|و?رقم|و?موبايلي|و?الموبايل|و?ايميلي|و?إيميلي|"
+            r"و?يوم|الساعة|الساعه|ساعة|ساعه|phone|email)\b"
+        )
+        raw_match = re.split(stop_markers, raw_match, flags=re.IGNORECASE)[0]
+        candidate = _clean_name(raw_match)
         return candidate or None
     if not allow_bare:
         return None
@@ -222,13 +228,19 @@ def explicit_customer_name(
     remainder = re.sub(r"\b\d{1,2}[/-]\d{1,2}[/-]20\d{2}\b", " ", remainder)
     time_pattern = (
         rf"(?:{_CLOCK_PREFIX})?(?:[01]?\d|2[0-3])(?::[0-5]\d)?\s*"
-        r"(?:صباح(?:ا|اً)?|مساء(?:ا|ً)?|am|pm)?"
+        r"(?:صباح(?:ا|اً)?|مساء(?:ا|اً)?|am|pm)?"
     )
     remainder = re.sub(time_pattern, " ", remainder, flags=re.IGNORECASE)
     for term in sorted(_DATE_WORDS, key=len, reverse=True):
         remainder = re.sub(re.escape(term), " ", remainder, flags=re.IGNORECASE)
     contact_markers = r"\b(?:رقمي|موبايلي|الموبايل|phone|email|ايميلي|إيميلي)\b"
     remainder = re.sub(contact_markers, " ", remainder, flags=re.IGNORECASE)
+    non_name_markers = (
+        r"\b(?:عربية|سيارة|الأولى|الاولى|الأول|الاول|أول|اول|تاني|تانية|التانية|"
+        r"الثاني|الثانية|تالت|تالتة|التالتة|الثالث|الثالثة|على|في|فى|رقم|طلب|حجز|"
+        r"تست|درايف|مبيعات|تواصل)\b"
+    )
+    remainder = re.sub(non_name_markers, " ", remainder, flags=re.IGNORECASE)
     remainder = re.sub(r"[^A-Za-z\u0600-\u06ff\s]", " ", remainder)
     candidate = _clean_name(remainder)
     tokens = candidate.split() if candidate else []

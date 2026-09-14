@@ -22,9 +22,7 @@ class KnowledgeRepository:
 
     def get_document_for_update(self, document_id: uuid.UUID) -> KnowledgeDocument | None:
         return self.session.scalar(
-            select(KnowledgeDocument)
-            .where(KnowledgeDocument.id == document_id)
-            .with_for_update()
+            select(KnowledgeDocument).where(KnowledgeDocument.id == document_id).with_for_update()
         )
 
     def list_documents(
@@ -43,9 +41,7 @@ class KnowledgeRepository:
             statement = statement.where(KnowledgeDocument.active.is_(True))
         if failed_only:
             statement = statement.where(KnowledgeDocument.index_status == "failed")
-        statement = statement.order_by(
-            KnowledgeDocument.title.asc(), KnowledgeDocument.id.asc()
-        )
+        statement = statement.order_by(KnowledgeDocument.title.asc(), KnowledgeDocument.id.asc())
         return list(self.session.scalars(statement))
 
     def delete_chunks(self, document_id: uuid.UUID) -> None:

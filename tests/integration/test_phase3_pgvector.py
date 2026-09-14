@@ -14,10 +14,7 @@ from app.services.rag_service import RAGService
 
 def _truncate_knowledge() -> None:
     db.session.execute(
-        text(
-            "TRUNCATE TABLE knowledge_chunks, knowledge_documents "
-            "RESTART IDENTITY CASCADE"
-        )
+        text("TRUNCATE TABLE knowledge_chunks, knowledge_documents RESTART IDENTITY CASCADE")
     )
     db.session.commit()
 
@@ -106,9 +103,7 @@ def test_actual_cosine_order_category_and_active_filtering(pg_app):
             other_category.id,
         ]
         assert results[0].similarity > results[-1].similarity
-        faq_results = rag.retrieve(
-            "Phase3 verification policy alpha", category="FAQ", top_k=3
-        )
+        faq_results = rag.retrieve("Phase3 verification policy alpha", category="FAQ", top_k=3)
         assert [result.document_id for result in faq_results] == [
             relevant.id,
             unrelated.id,
@@ -167,12 +162,8 @@ def test_managed_crud_retrieval_lifecycle_replaces_and_deletes_content(pg_app):
             for result in alpha_results
         )
 
-        updated = knowledge.update_document(
-            document.id, content="Phase3 verification policy beta"
-        )
-        beta_results = rag.retrieve(
-            "Phase3 verification policy beta", category="test drive policy"
-        )
+        updated = knowledge.update_document(document.id, content="Phase3 verification policy beta")
+        beta_results = rag.retrieve("Phase3 verification policy beta", category="test drive policy")
         assert updated.content_version == updated.indexed_version == 2
         assert any(result.content == "Phase3 verification policy beta" for result in beta_results)
         assert all("alpha" not in result.content for result in beta_results)

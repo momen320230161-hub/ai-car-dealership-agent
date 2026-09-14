@@ -9,6 +9,7 @@ AI Sales & Customer Service technical-assessment project for AutoDrive Egypt.
 - **Phase 2 — Catalog import, structured search, recommendation state, visible-list selection/comparison: COMPLETE**
 - **Phase 3 — Managed RAG + PostgreSQL pgvector knowledge retrieval: COMPLETE**
 - **Phase 4 — LangGraph Sales Orchestrator: COMPLETE**
+- **Phase 5 — Test-drive booking/cancellation & sales-lead business actions: COMPLETE**
 
 This is the clean final-project rebuild on the `Final-Project` branch. Legacy application code is not reused.
 
@@ -227,12 +228,37 @@ GitHub Actions uses an ephemeral PostgreSQL 17 service with pgvector. It does no
 
 Live Supabase was verified on 2026-09-12 with 7,771 total active records, 1,930 NEW, 5,841 USED, zero duplicate `(source, source_id)` groups, zero NEW `NULL` mileages, and 1,930 NEW zero mileages. Representative condition, brand, body type, mileage, price-range, and ascending/descending price searches were also verified. The corrected Peugeot 2008 model-year 2026 record is present.
 
+## Phase 5 Real Business Actions
+
+Phase 5 replaces deferred actions with real PostgreSQL-backed business workflows integrated into the LangGraph Sales Orchestrator:
+
+- **Test-Drive Booking Workflow (`test_drive` intent)**:
+  - Multi-turn collection of required fields: car choice (selected car or ordinal from active visible snapshot), customer name, Egyptian phone number (`01[0125]\d{8}`), preferred date, and preferred time.
+  - State persistence in `ConversationSession.pending_action` keeps uncommitted data safely between conversation turns.
+  - Real database write to `test_drive_requests` with status `NEW`, session ownership, and deterministic idempotency key to prevent accidental duplicate inserts.
+  - Clears session pending action upon successful creation.
+
+- **Test-Drive Cancellation Workflow (`cancel_test_drive` intent)**:
+  - Session-owned query against active requests (`status IN ('NEW', 'CONFIRMED')`).
+  - Auto-cancellation when exactly one active request exists for the session.
+  - Disambiguation prompt showing active IDs when multiple exist, followed by targeted ID cancellation.
+  - Controlled response when no active request exists.
+  - Database status transitioned to `CANCELLED` and `cancelled_at` timestamp recorded.
+
+- **Sales Lead Workflow (`sales_lead` intent)**:
+  - Collects customer name and validated phone number.
+  - Associates current selected car (or sole car from visible snapshot) when present.
+  - Real database write to `sales_leads` with status `NEW` and deterministic idempotency.
+
+- **Deterministic Business Rendering**:
+  - Responses rendered deterministically via `app.agent.business_rendering.render_business_action()` without LLM hallucinations of booking IDs, dates, or contact confirmation.
+
 ## Roadmap
 
 - **Phase 2:** COMPLETE — catalog import, deterministic recommendation state, visible-list selection/comparison
 - **Phase 3:** COMPLETE — managed RAG + pgvector + knowledge CRUD/reindex
 - **Phase 4:** COMPLETE — LangGraph Sales Orchestrator with persistent context and conditional catalog/RAG/general/deferred-action paths
-- **Phase 5:** Test-drive/cancellation and sales-lead business actions
+- **Phase 5:** COMPLETE — Test-drive booking/cancellation and sales-lead business actions
 - **Phase 6:** Customer Flask chat UI
 - **Phase 7:** Admin dashboard
 - **Phase 8:** Hardening, integration tests, live LLM/graph E2E

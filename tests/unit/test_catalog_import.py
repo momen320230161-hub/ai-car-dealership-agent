@@ -112,9 +112,7 @@ def test_import_updates_existing_record_without_replacing_id(db_session, tmp_pat
     assert str(refreshed.price_egp) == "1300000.00"
 
 
-def test_import_reports_bad_json_numbers_required_values_and_file_duplicates(
-    db_session, tmp_path
-):
+def test_import_reports_bad_json_numbers_required_values_and_file_duplicates(db_session, tmp_path):
     path = tmp_path / "bad.csv"
     _write_csv(
         path,
@@ -148,9 +146,7 @@ def test_import_rejects_missing_headers(db_session, tmp_path):
         CatalogImportService(db_session).import_file(path)
 
 
-def test_import_rolls_back_all_database_writes_when_commit_fails(
-    db_session, tmp_path, monkeypatch
-):
+def test_import_rolls_back_all_database_writes_when_commit_fails(db_session, tmp_path, monkeypatch):
     path = tmp_path / "catalog.csv"
     _write_csv(path, [_row(source_id="rollback")])
 

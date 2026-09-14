@@ -88,10 +88,7 @@ class GeminiEmbeddingProvider:
             client = genai.Client(api_key=self.api_key)
             # Gemini Embedding 2 aggregates multiple raw parts into one embedding.
             # Wrap each text in its own Content so one chunk always maps to one vector.
-            contents = [
-                types.Content(parts=[types.Part.from_text(text=text)])
-                for text in texts
-            ]
+            contents = [types.Content(parts=[types.Part.from_text(text=text)]) for text in texts]
             response = client.models.embed_content(
                 model=self.model_name,
                 contents=contents,
@@ -99,9 +96,7 @@ class GeminiEmbeddingProvider:
             )
             embeddings = response.embeddings or []
             if len(embeddings) != len(texts):
-                raise EmbeddingError(
-                    "Gemini embedding response count does not match input count"
-                )
+                raise EmbeddingError("Gemini embedding response count does not match input count")
             return [
                 validate_embedding(embedding.values or [], self.dimension)
                 for embedding in embeddings

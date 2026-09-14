@@ -244,9 +244,7 @@ def test_preference_updates_are_session_isolated(db_session):
     snapshot_b = recommendations.create_visible_snapshot(session_b.id, [car_b.id])
     recommendations.select_visible_car(session_b.id, 1)
 
-    ConversationStateService(db_session).update_preferences(
-        session_a.id, {"brand": "Kia"}
-    )
+    ConversationStateService(db_session).update_preferences(session_a.id, {"brand": "Kia"})
 
     db_session.refresh(session_b)
     db_session.refresh(snapshot_a)

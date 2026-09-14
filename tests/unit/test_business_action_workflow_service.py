@@ -66,9 +66,7 @@ def test_action_parser_extracts_explicit_fields_without_inventing_phone() -> Non
 
 
 def test_test_drive_pending_collects_only_missing_fields_before_insert(db_session) -> None:
-    conversation, car = _conversation_with_selected_car(
-        db_session, source_id="pending-test-drive"
-    )
+    conversation, car = _conversation_with_selected_car(db_session, source_id="pending-test-drive")
     workflow = _workflow(db_session)
 
     first = workflow.prepare_action(
@@ -195,9 +193,7 @@ def test_cancellation_with_multiple_session_requests_waits_for_explicit_id(db_se
 
 
 def test_cancellation_auto_resolves_exactly_one_active_session_request(db_session) -> None:
-    conversation, car = _conversation_with_selected_car(
-        db_session, source_id="single-cancel"
-    )
+    conversation, car = _conversation_with_selected_car(db_session, source_id="single-cancel")
     request = DriveService(db_session).create_request(
         session_id=conversation.id,
         car_id=car.id,

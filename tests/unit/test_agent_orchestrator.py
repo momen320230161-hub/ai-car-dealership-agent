@@ -144,9 +144,7 @@ def test_gemini_provider_is_network_lazy_without_credentials():
 
 
 def test_gemini_provider_keeps_client_alive_during_understanding(monkeypatch):
-    provider = GeminiAgentLLM(
-        api_key="synthetic-key", model_name="configured-test-model"
-    )
+    provider = GeminiAgentLLM(api_key="synthetic-key", model_name="configured-test-model")
     expected = RequestUnderstanding(intent="catalog_search")
     client = SimpleNamespace(
         models=SimpleNamespace(
@@ -260,9 +258,7 @@ def test_preferences_merge_and_incompatible_snapshot_is_replaced(db_session):
     first = orchestrator.handle_message(None, "عايز SUV مستعملة")
     first_snapshot_id = first.recommendation_snapshot_id
 
-    second = orchestrator.handle_message(
-        first.session_id, "خلي الميزانية أقل من 1000000"
-    )
+    second = orchestrator.handle_message(first.session_id, "خلي الميزانية أقل من 1000000")
 
     conversation = db_session.get(ConversationSession, uuid.UUID(first.session_id))
     old_snapshot = db_session.get(RecommendationSnapshot, first_snapshot_id)
@@ -309,9 +305,7 @@ def test_followup_ordinal_resolves_exact_visible_second_without_new_search(db_se
     )
     count_before = db_session.scalar(select(func.count()).select_from(RecommendationSnapshot))
 
-    result = _orchestrator(db_session).handle_message(
-        conversation.id, "هات تفاصيل التانية"
-    )
+    result = _orchestrator(db_session).handle_message(conversation.id, "هات تفاصيل التانية")
 
     count_after = db_session.scalar(select(func.count()).select_from(RecommendationSnapshot))
     assert "Hyundai" in result.response
@@ -416,7 +410,7 @@ def test_business_intents_have_zero_side_effects_and_no_success_claim(db_session
     result = _orchestrator(db_session).handle_message(None, message)
 
     assert result.route == "business_gate"
-    assert "مفيش أي طلب اتسجل أو اتأكد" in result.response
+    assert "محتاج منك بس" in result.response
     assert db_session.scalar(select(func.count()).select_from(TestDriveRequest)) == 0
     assert db_session.scalar(select(func.count()).select_from(SalesLead)) == 0
 
@@ -449,9 +443,7 @@ def test_understanding_failure_is_controlled_and_persisted(db_session):
 
 
 def test_composition_failure_uses_deterministic_fallback(db_session):
-    result = _orchestrator(db_session, llm=CompositionFailureLLM()).handle_message(
-        None, "شكراً"
-    )
+    result = _orchestrator(db_session, llm=CompositionFailureLLM()).handle_message(None, "شكراً")
 
     assert "composition_failed" in result.errors
     assert result.response == "العفو، أنا تحت أمرك في أي سؤال عن العربيات."

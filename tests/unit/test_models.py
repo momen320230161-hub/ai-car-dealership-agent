@@ -249,11 +249,7 @@ def test_knowledge_document_persistence_and_category_active_query(db_session):
     db_session.add_all([active, inactive])
     db_session.commit()
 
-    matches = (
-        db_session.query(KnowledgeDocument)
-        .filter_by(category="warranty", active=True)
-        .all()
-    )
+    matches = db_session.query(KnowledgeDocument).filter_by(category="warranty", active=True).all()
     assert [document.id for document in matches] == [active.id]
 
 

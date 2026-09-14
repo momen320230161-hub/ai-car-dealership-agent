@@ -51,8 +51,7 @@ def test_official_catalog_import_counts_normalization_and_idempotency(pg_app):
         first = service.import_file(DATASET)
         preserved_id = db.session.scalar(
             select(Car.id).where(
-                Car.source_id
-                == "shamsfathalla-egypt-automotive:3584adbdeb0ad76b152370e2"
+                Car.source_id == "shamsfathalla-egypt-automotive:3584adbdeb0ad76b152370e2"
             )
         )
 
@@ -64,9 +63,7 @@ def test_official_catalog_import_counts_normalization_and_idempotency(pg_app):
         assert db.session.scalar(select(func.count()).where(Car.condition == "used")) == 5841
         assert (
             db.session.scalar(
-                select(func.count()).where(
-                    Car.condition == "new", Car.mileage_km.is_(None)
-                )
+                select(func.count()).where(Car.condition == "new", Car.mileage_km.is_(None))
             )
             == 0
         )
@@ -89,8 +86,7 @@ def test_official_catalog_import_counts_normalization_and_idempotency(pg_app):
         assert (
             db.session.scalar(
                 select(Car.id).where(
-                    Car.source_id
-                    == "shamsfathalla-egypt-automotive:3584adbdeb0ad76b152370e2"
+                    Car.source_id == "shamsfathalla-egypt-automotive:3584adbdeb0ad76b152370e2"
                 )
             )
             == preserved_id

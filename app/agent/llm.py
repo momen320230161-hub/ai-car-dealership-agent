@@ -26,9 +26,7 @@ class AgentLLM(Protocol):
         preferences: Mapping[str, Any],
     ) -> RequestUnderstanding: ...
 
-    def compose_general(
-        self, message: str, *, verified_context: Mapping[str, Any]
-    ) -> str: ...
+    def compose_general(self, message: str, *, verified_context: Mapping[str, Any]) -> str: ...
 
 
 def gemini_understanding_schema() -> dict[str, Any]:
@@ -37,9 +35,7 @@ def gemini_understanding_schema() -> dict[str, Any]:
     def clean(value: Any) -> Any:
         if isinstance(value, dict):
             return {
-                key: clean(item)
-                for key, item in value.items()
-                if key != "additionalProperties"
+                key: clean(item) for key, item in value.items() if key != "additionalProperties"
             }
         if isinstance(value, list):
             return [clean(item) for item in value]
@@ -114,9 +110,7 @@ class GeminiAgentLLM:
         except Exception as exc:
             raise AgentLLMError("Gemini request understanding failed") from exc
 
-    def compose_general(
-        self, message: str, *, verified_context: Mapping[str, Any]
-    ) -> str:
+    def compose_general(self, message: str, *, verified_context: Mapping[str, Any]) -> str:
         try:
             from google.genai import types
 
@@ -188,13 +182,17 @@ class DeterministicAgentLLM:
         )
         if requirements_question:
             intent = "knowledge_question"
-        elif any(word in lower for word in ("الغاء", "إلغاء", "cancel")) and test_drive_language:
+        elif (
+            any(word in lower for word in ("الغاء", "إلغاء", "الغي", "ألغي", "ألغى", "cancel"))
+            and test_drive_language
+        ):
             intent = "cancel_test_drive"
         elif any(word in lower for word in ("المبيعات", "sales")) and any(
-            word in lower for word in ("يكلمني", "تواصل", "call")
+            word in lower
+            for word in ("يكلمني", "تواصل", "اتصل", "call", "كلمنا", "تتواصل", "حد", "مندوب")
         ):
             intent = "sales_lead"
-        elif any(word in lower for word in ("احجز", "حجز", "book")) and test_drive_language:
+        elif test_drive_language or any(word in lower for word in ("احجز", "حجز", "book")):
             intent = "test_drive"
         elif any(word in lower for word in ("قارن", "compare")):
             intent = "car_compare"
@@ -230,9 +228,7 @@ class DeterministicAgentLLM:
             comparison_references=references if intent == "car_compare" else [],
         )
 
-    def compose_general(
-        self, message: str, *, verified_context: Mapping[str, Any]
-    ) -> str:
+    def compose_general(self, message: str, *, verified_context: Mapping[str, Any]) -> str:
         del verified_context
         lower = message.casefold()
         if "شكر" in lower or "thank" in lower:
