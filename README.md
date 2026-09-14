@@ -1,178 +1,228 @@
 # AutoDrive Egypt — AI Car Dealership Agent
 
-AI Sales & Customer Service technical-assessment project for AutoDrive Egypt.
+AutoDrive Egypt is a Flask + LangGraph AI Sales & Customer Service technical-assessment project for a car dealership. The system combines a structured PostgreSQL vehicle catalog, managed RAG knowledge, deterministic business services, and a customer-facing premium Flask website.
 
 ## Current Status
 
 - **Phase 0 — Foundation: COMPLETE**
 - **Phase 1 — Database & ORM: COMPLETE**
-- **Phase 2 — Catalog import, structured search, recommendation state, visible-list selection/comparison: COMPLETE**
-- **Phase 3 — Managed RAG + PostgreSQL pgvector knowledge retrieval: COMPLETE**
-- **Phase 4 — LangGraph Sales Orchestrator: COMPLETE**
-- **Phase 5 — Test-drive booking/cancellation & sales-lead business actions: COMPLETE**
+- **Phase 2 — Catalog, state, visible recommendations & ordinals: COMPLETE**
+- **Phase 3 — Managed RAG + PostgreSQL pgvector: COMPLETE / LIVE VERIFIED**
+- **Phase 4 — LangGraph Sales Orchestrator: COMPLETE / LIVE VERIFIED**
+- **Phase 5 — Test-drive & sales-lead business actions: COMPLETE / LIVE VERIFIED**
+- **Phase 6 — Premium customer website & browser chat: IMPLEMENTED / CI TESTED; live browser E2E pending**
 
-This is the clean final-project rebuild on the `Final-Project` branch. Legacy application code is not reused.
+Phase 7 is the Admin Dashboard, including cars, test drives, leads, overview metrics, and RAG knowledge CRUD/reindex controls.
 
-## Current Stack
+## Required Stack
 
 - Python 3.12
-- `uv` with `pyproject.toml` + committed `uv.lock`
 - Flask Application Factory
-- Flask-SQLAlchemy / SQLAlchemy 2.x
+- Flask Templates + HTML/CSS/JavaScript
+- SQLAlchemy 2.x / Flask-SQLAlchemy
 - Flask-Migrate / Alembic
-- Psycopg 3
-- Supabase PostgreSQL
+- PostgreSQL / Supabase
+- pgvector
 - LangGraph `StateGraph`
-- pytest
-- Ruff
-- GitHub Actions
+- Google Gemini for production LLM + embeddings
+- pytest + Ruff + GitHub Actions
+- `uv` with committed `uv.lock`
 
-Docker foundation files exist from Phase 0, but **application Dockerization is frozen until Phase 9**. Phases 2–8 must not create per-phase application images. GitHub Actions may use an ephemeral PostgreSQL service only as test infrastructure.
+Application Dockerization is intentionally deferred to the final packaging phase. CI may use disposable PostgreSQL/pgvector infrastructure for tests.
 
-## Phase 1 Relational Schema
+## Core Architecture
 
-Alembic revision `cd73103ae9e0` is the application schema source of truth.
+The customer-facing agent is one Sales Orchestrator, not a multi-agent supervisor:
 
-Application tables:
+```text
+Browser / Customer Chat
+        |
+        v
+Flask blueprints + thin HTTP routes
+        |
+        v
+SalesOrchestrator.handle_message()
+        |
+        v
+LangGraph
+START
+  -> input_guard
+  -> load_context
+  -> understand_request
+  -> update_state
+  -> route_request
+       -> catalog_node
+       -> rag_node
+       -> business_gate
+       -> general_node
+  -> compose_response
+  -> persist_context
+  -> END
+        |
+        v
+PostgreSQL / pgvector
+```
 
-- `cars` — structured catalog records and source/data-quality metadata
-- `conversation_sessions` — structured session preferences, selected car, active visible snapshot, pending action
-- `chat_messages` — persisted session messages
-- `recommendation_snapshots` — versioned customer-visible recommendation lists
-- `recommendation_snapshot_items` — deterministic `position -> car_id` mapping
-- `test_drive_requests` — persisted booking records with session ownership and idempotency
-- `sales_leads` — persisted sales leads with idempotency
-- `knowledge_documents` — dealership-owned knowledge metadata/content; chunks/vectors come in Phase 3
+Data boundaries are deliberate:
 
-`RecommendationSnapshotItem` enforces unique visible positions and prevents the same car from occupying multiple positions in one snapshot. PostgreSQL also enforces that a session's `active_recommendation_snapshot_id` belongs to that same session.
+- **Relational DB:** cars, recorded prices/specs, conversation sessions, messages, visible recommendation snapshots, test drives, sales leads.
+- **RAG:** FAQ, financing, warranty, test-drive/dealership policy.
+- **LLM:** request understanding, routing support, conversational composition.
+- **Deterministic Python:** ordinals, explicit IDs, validation, state invalidation, action readiness, inserts, cancellation ownership, duplicate prevention.
 
-## Phase 2 Catalog Import
+Missing car facts are never invented.
 
-The authoritative dataset is `data/egypt_cars_final_import_ready.csv`:
+## Structured Catalog
 
-- 7,771 total catalog records
-- 1,930 NEW records
-- 5,841 USED records
+The authoritative import file is:
 
-Import or synchronize it after applying migrations:
+```text
+data/egypt_cars_final_import_ready.csv
+```
+
+Current verified dataset:
+
+- **7,771** total records
+- **1,930 NEW**
+- **5,841 USED**
+- no duplicate `(source, source_id)` rows in the verified import
+
+Import or synchronize:
 
 ```bash
 uv run flask --app run:app import-catalog
 ```
 
-The importer validates headers and row types, converts blank optional values to `NULL`, and uses `(source, source_id)` as its stable identity. Existing rows are updated in place, preserving their database IDs; unchanged rows are counted without being rewritten. Running the command repeatedly does not create duplicates.
+Customer-facing wording intentionally says **"حسب البيانات المتاحة في الكتالوج المسجل"**. The imported catalog is not presented as guaranteed live showroom inventory or a live market-price feed.
 
-If a NEW row has no source mileage, the importer defensively stores `mileage_km = 0` and records both `mileage_source_was_missing` and `mileage_normalization` in `data_quality_metadata`. USED mileage is never defaulted. The official dataset currently has zero mileage for every NEW record.
+### Visible recommendation rule
 
-## Phase 2 Catalog and Recommendation Architecture
+If the customer sees positions `1..N`, ordinals resolve against exactly those displayed items. Hidden database variants do not consume positions.
 
-- `CatalogRepository` owns deterministic ORM queries. It defaults to active records, supports condition, brand, model, year range, price range, body type, transmission, fuel type, and maximum mileage filters, and caps each query at 100 rows.
-- Sorting is explicitly allowlisted as `price_asc`, `price_desc`, `year_desc`, or `mileage_asc`; stable ID tie-breakers make repeated results deterministic. `limit` and `offset` provide bounded pagination.
-- `CatalogService` provides structured search, recorded car details, fact-only comparison, and transparent recommendation ranking (newest year, then lowest recorded price, then database ID).
-- `RecommendationService` creates one transaction-safe snapshot only for the exact list intended to be visible. It persists contiguous `position -> car_id` items in displayed order, supersedes the prior active snapshot, and updates the session pointer only after all items are written.
-- Controlled English, Arabic, and numeric ordinals resolve only against the session's active snapshot. The database query is never rerun to infer a visible position, hidden variants consume no positions, and historical snapshots are not a fallback.
-- Visible comparison resolves positions once against the same active snapshot and compares those exact recorded cars. Missing specifications remain `None`; no facts are inferred.
-- `ConversationStateService` treats `ConversationSession.preferences` as current structured state. Compatible changes preserve the selected car and visible snapshot. A condition, body type, budget, year, or USED-mileage constraint that excludes persisted state invalidates the active snapshot and clears the selected car only when that selected car is incompatible.
+Examples:
 
-The catalog represents recorded data, not guaranteed live showroom availability or real-time market pricing.
+```text
+قارن أول اتنين  -> visible #1 vs visible #2
+التانية         -> visible #2
+```
 
-Test-drive and lead execution, customer chat, authentication, and the admin dashboard are intentionally not implemented in Phase 2.
+The active recommendation snapshot is persisted in PostgreSQL and is authoritative until superseded or invalidated. Historical lists are not silently reused.
 
-## Phase 3 Managed RAG
+## Managed RAG
 
-Phase 3 uses **PostgreSQL pgvector** as the persistent vector store. Chroma is not used. Alembic revision `4f6a8c2d91b7` creates the extension safely in the `extensions` schema when needed and adds the Phase 3 schema without rewriting revision `cd73103ae9e0`.
+RAG uses PostgreSQL pgvector. The approved seed contains eight stable dealership knowledge documents. Production embeddings use:
 
-`KnowledgeDocument` remains the managed source record and now tracks `content_version`, `index_status`, `indexed_version`, `indexed_at`, `index_error`, and `embedding_model`. `KnowledgeChunk` stores deterministic chunk order, document version, content hash, source text, model name, and a real `vector(768)` embedding. Its document foreign key cascades on deletion, and an HNSW cosine index supports database-native nearest-neighbor retrieval. RLS is enabled and direct `anon` / `authenticated` table privileges are revoked, matching the backend-controlled access pattern.
+```text
+model: gemini-embedding-2
+dimension: 768
+```
 
-The indexing lifecycle is explicit:
-
-1. Document content is committed as `pending`.
-2. The deterministic chunker produces non-empty chunks of at most 1,000 characters with up to 120 characters of word-aware overlap, preserving paragraph boundaries where practical.
-3. Embeddings are generated outside the database transaction and validated as exactly 768 finite numbers.
-4. Current chunks are atomically replaced and the document becomes `indexed` only after every chunk is persisted.
-5. A content update increments `content_version`; failed or pending versions cannot retrieve older chunks because retrieval requires `indexed_version = content_version` and matching chunk versions.
-
-Metadata-only title/category changes do not regenerate embeddings because the embedded input is chunk content only. Reindexing the same version replaces chunks without duplication. Delete relies on the database cascade, and inactive documents are excluded from normal retrieval.
-
-The production provider uses the official Google Gen AI SDK with environment-driven provider, model, API key, and dimension. The default model is `gemini-embedding-2` with a requested output dimension of 768. Credentials are checked only when an embedding operation runs, so health checks and migrations do not require an API key. Automated tests use a deterministic offline token-hash provider and never call an external API.
-
-`RAGService.retrieve()` embeds a query and executes cosine similarity in PostgreSQL. It returns structured document/chunk identifiers, title, category, chunk position, content, and `similarity = 1 - cosine_distance`; it does not compose a customer-facing answer. Retrieval supports normalized category filtering, an optional minimum similarity, and bounded `top_k` (default 4, maximum 20) with deterministic tie-breaking.
-
-Operational commands:
+Useful commands:
 
 ```bash
 uv run flask --app run:app seed-knowledge
-uv run flask --app run:app reindex-knowledge --document-id <UUID>
 uv run flask --app run:app reindex-knowledge --all
 uv run flask --app run:app reindex-knowledge --all --failed-only
-uv run flask --app run:app rag-search "query text" --category faq --top-k 4
+uv run flask --app run:app rag-search "الضمان مدته كام؟"
 ```
 
-Live Supabase verification on 2026-09-12 confirmed extension `vector` 0.8.2 in `extensions`, `vector(768)`, the HNSW cosine index, RLS, constraints, and migration head `4f6a8c2d91b7`. A temporary technical document passed real Gemini create → retrieve → update → retrieve-current-only → delete → no-retrieval verification.
+A document is retrievable only when the indexed version matches the current content version. Managed create/update/delete/reindex prevents stale old content from being returned as current knowledge.
 
-Approved AutoDrive Knowledge Base v1 is defined by `data/knowledge_seed.json` with eight stable document IDs. Run `seed-knowledge` to synchronize and (re)index the approved content through the managed RAG service. A production environment is RAG-ready only when those documents are `indexed` at their current version and their current chunks exist.
+Live regression verification confirmed supported warranty retrieval and safe rejection of unsupported insurance information after restoring the production index to 8 documents / 8 current chunks.
 
-## Phase 4 LangGraph Sales Orchestrator
+## Real Business Actions
 
-Phase 4 provides one customer-facing sales orchestrator built with a real LangGraph `StateGraph`; it is not a multi-agent supervisor. PostgreSQL remains the only persistent memory store. The graph executes:
+### Test Drive
+
+A booking requires all of:
+
+- resolved active car
+- customer name
+- Egyptian mobile number
+- date
+- time
+
+Missing fields are collected over multiple turns. The system never inserts early and never claims success without a committed database request ID.
+
+The car can be resolved from the exact visible recommendation position, the persisted selected car, or an explicitly marked active catalog ID used by the customer website (for example `العربية ID 123`). Explicit IDs are deterministically parsed and validated before action readiness.
+
+Idempotency keys prevent accidental duplicate inserts from repeated execution attempts.
+
+### Cancellation
+
+Cancellation only operates on active test-drive requests belonging to the same conversation session. One matching active request can be cancelled directly; multiple active requests require disambiguation by request ID.
+
+### Sales Lead
+
+Sales leads are real PostgreSQL rows with real lead IDs. Required contact data is collected before insertion. A valid explicit/selected car may be associated; otherwise a lead can remain unbound to a car.
+
+## Phase 6 — Premium Customer Website
+
+Phase 6 adds the real Flask browser experience on top of the existing services and graph. It is not a mocked frontend.
+
+Customer routes:
 
 ```text
-START -> input_guard -> load_context -> understand_request -> update_state
-      -> route_request -> catalog_node | rag_node | business_gate | general_node
-      -> compose_response -> persist_context -> END
+GET  /                     Home / landing page
+GET  /cars                 Structured catalog browsing
+GET  /cars/<car_id>        Recorded car details
+GET  /chat                 Customer AI chat
+POST /api/chat/messages    Send one message to the Sales Orchestrator
+POST /api/chat/session     Start a new isolated browser conversation
 ```
 
-`load_context` creates or loads an isolated `ConversationSession`, current structured preferences, selected car, the exact active visible snapshot, pending action, and bounded recent messages. Current relational state outranks message history. Each valid completed turn persists one user and one assistant `ChatMessage`; LangGraph checkpoint memory is deliberately not used.
+### Browser/session behavior
 
-The production `GeminiAgentLLM` uses schema-constrained structured output for intent and explicit preference extraction. Its default model is the high-quota `gemini-3.5-flash-lite` (with `AGENT_LLM_MODEL` environment override available for `gemini-3.6-flash` or other Gemini models); configuration is environment-driven, and the Gemini credential is checked only when an LLM call runs. CI uses `DeterministicAgentLLM`, so automated tests have no network dependency. Deterministic Python rejects invented IDs/references and delegates catalog-filter validation and preference merging/invalidation to the existing Phase 2 services.
+- A signed Flask session stores the conversation UUID.
+- Refreshing `/chat` reloads persisted message history from PostgreSQL.
+- The HTTP route does **not** write duplicate chat messages; the graph remains responsible for turn persistence.
+- A new chat creates a new conversation session instead of reusing stale state.
+- Selected car, pending business action, and the active visible recommendation list are rendered from persisted state.
+- Catalog recommendation cards preserve the exact visible positions used by later ordinals.
+- Car-detail CTAs pass an explicitly marked catalog ID into the conversation so test-drive requests resolve the exact displayed car without fabricating or guessing a position.
 
-Conditional routes are grounded in existing services:
+### Frontend behavior
 
-- catalog search calls `RecommendationService.recommend_and_snapshot()` and renders the exact persisted visible positions;
-- details, selection, and comparison resolve the active snapshot without rerunning a catalog search;
-- preference changes call `ConversationStateService.update_preferences()` so compatible selection is retained and incompatible state is invalidated centrally;
-- knowledge questions call `RAGService`, while deterministic topic/content grounding prevents a nearest-but-unsupported result (for example warranty content for an insurance question) from becoming an answer;
-- business intents route through `business_gate`; Phase 5 now executes those actions through deterministic services instead of the original Phase 4 deferred stub;
-- general conversation may use Gemini for a short response, with a deterministic fallback if composition fails.
+The premium RTL UI includes:
 
-Structured catalog, approved-knowledge, and business-success responses use deterministic renderers so model output cannot add car facts, showroom availability, market-price claims, dealership policy, booking IDs, or lead IDs. Input, LLM, RAG, catalog, persistence, and database failures return controlled customer-safe responses without exposing tracebacks or internal prompts.
+- responsive Home, Catalog, Car Details, and Chat pages
+- real DB-backed catalog filters/pagination
+- recommendation cards
+- selected-car and pending-action status
+- loading / typing state
+- request timeout handling
+- controlled customer-safe errors
+- escaped server-rendered and JavaScript-rendered chat text
 
-Developer invocation:
-
-```bash
-uv run flask --app run:app agent-chat "عايز SUV مستعملة"
-uv run flask --app run:app agent-chat --session-id <UUID> "هات تفاصيل التانية"
-uv run flask --app run:app agent-llm-smoke --model "gemini-3.5-flash-lite" --all-scenarios
-```
-
-Phase 5 implements real test-drive, cancellation, and sales-lead actions on top of this graph. Phase 6 adds the customer chat UI.
-
-## Database Access and Security
-
-The application access path is:
-
-```text
-Flask -> SQLAlchemy -> Psycopg -> Supabase PostgreSQL
-```
-
-The browser does not access Supabase tables directly.
-
-Phase 1 enables RLS on application tables in `public` and revokes direct `anon` / `authenticated` table privileges when those roles exist. No broad Data API policies are created because the Flask backend is the database access layer.
-
-The previous prototype schema was moved out of `public` into `legacy_archive` during the final Phase 1 live reset. This preserves legacy catalog data as a backup/reference while keeping the final application's `public` schema clean.
+Internal traceback, provider secrets, and raw exception text are not returned to the customer UI.
 
 ## Local Setup
+
+Create `.env` from `.env.example` and configure at least:
+
+```text
+SECRET_KEY=...
+DATABASE_URL=...
+GEMINI_API_KEY=...
+```
+
+Install exactly the locked dependencies:
 
 ```bash
 uv sync --locked
 ```
 
-Create `.env` from `.env.example` and provide:
+Apply migrations:
 
-- `SECRET_KEY`
-- `DATABASE_URL`
-- optional Flask development settings
-- optional `AGENT_LLM_PROVIDER`, `AGENT_LLM_MODEL`, and agent limits/temperature
+```bash
+uv run flask --app run:app db upgrade
+```
+
+Seed/rebuild the approved knowledge index when required:
+
+```bash
+uv run flask --app run:app seed-knowledge
+```
 
 Run locally:
 
@@ -180,95 +230,88 @@ Run locally:
 uv run flask --app run:app run --debug
 ```
 
-## Health Checks
+Then open:
 
 ```text
-GET /health
-GET /health/db
+http://127.0.0.1:5000/
 ```
 
-`/health` checks the Flask process only. `/health/db` executes a lightweight `SELECT 1` through SQLAlchemy and returns a controlled `503` if the database is unavailable.
-
-## Migrations
-
-Alembic / Flask-Migrate is the only application schema migration source of truth.
-
-Normal application startup/upgrade uses:
+## CLI Agent Smoke
 
 ```bash
-uv run flask --app run:app db upgrade
+uv run flask --app run:app agent-chat "عايز SUV مستعملة"
+uv run flask --app run:app agent-chat --session-id <UUID> "قارن أول اتنين"
+uv run flask --app run:app agent-llm-smoke --model "gemini-3.5-flash-lite" --all-scenarios
 ```
 
-Migration lifecycle verification (`upgrade -> downgrade -> upgrade`) must run **only against a disposable local/test database or CI database**. Never run `db downgrade` against the live Supabase project as a routine verification step because destructive downgrades can remove derived data such as RAG vector chunks. If a deliberate schema reset recreates the RAG index tables, run `seed-knowledge` afterward and verify the documents/chunks are current before serving RAG traffic.
+## Tests & CI
 
-Do not use `db.create_all()` as an application migration strategy. It is used only inside isolated SQLite unit-test fixtures.
-
-## Tests and Quality
+Run locally:
 
 ```bash
 uv run ruff check .
 uv run pytest -q
 ```
 
-The test suite includes:
+GitHub Actions uses a disposable PostgreSQL 17 + pgvector service. The pipeline runs:
 
-- isolated SQLite model/constraint tests
-- importer validation, NEW-mileage provenance, update-in-place, rollback, and idempotency tests
-- complete structured-filter, sorting, pagination, details, recommendation, and comparison tests
-- exact visible-order, controlled ordinal, stale-state invalidation, selected-car, and session-isolation tests
-- PostgreSQL 17 migration lifecycle tests on disposable CI PostgreSQL
-- PostgreSQL production-type persistence tests
-- PostgreSQL empty-database import proving 7,771 / 1,930 / 5,841 and a 7,771-row unchanged second run
-- PostgreSQL transaction-safe snapshot lifecycle and same-session active snapshot enforcement
-- deterministic chunker, embedding validation, and controlled provider/database failure tests
-- managed knowledge create/update/no-op/deactivate/reindex/delete unit tests
-- real PostgreSQL 17 + pgvector schema, vector persistence, HNSW, cosine-ordering, category, active/current-version, cascade, and CRUD/retrieval lifecycle tests
-- actual multi-node StateGraph routing, guarded input, structured understanding, persistent session context, preference merge/invalidation, exact visible ordinals, comparison order, RAG grounding, unsupported-insurance rejection, business routing, failure fallbacks, and message persistence
-- Phase 5 multi-turn test-drive creation, visible-ordinal resolution, pending-field collection, replay/duplicate protection, session-owned cancellation, sales-lead creation, and controlled business-service failure tests
-- Phase 0 health-check regressions
+1. dependency sync
+2. Ruff
+3. Alembic `upgrade -> downgrade -> upgrade` against the disposable CI database
+4. unit + PostgreSQL integration tests
 
-GitHub Actions uses an ephemeral PostgreSQL 17 service with pgvector. It does not use the live Supabase database and does not build application Docker images.
+Phase 6 regression coverage includes:
 
-Live Supabase catalog verification on 2026-09-12 confirmed 7,771 total active records, 1,930 NEW, 5,841 USED, zero duplicate `(source, source_id)` groups, zero NEW `NULL` mileages, and 1,930 NEW zero mileages. Representative condition, brand, body type, mileage, price-range, and ascending/descending price searches were also verified. The corrected Peugeot 2008 model-year 2026 record is present.
+- Home, catalog filtering, and car details
+- browser session creation/reuse
+- separate-client session isolation
+- graph invocation through the HTTP endpoint
+- exact-once chat persistence and history after refresh
+- visible recommendation payloads
+- explicit car-ID resolution from a detail-page test-drive CTA
+- no premature test-drive insert while fields are missing
+- invalid/blank request handling
+- controlled dependency failure without leaking traceback/provider details
 
-## Phase 5 Real Business Actions
+The current Phase 6 implementation commit is not considered fully **LIVE VERIFIED** until the final manual browser E2E is executed against the configured live development environment.
 
-Phase 5 replaces deferred actions with real PostgreSQL-backed business workflows integrated into the LangGraph Sales Orchestrator:
+## Safe Migration Rule
 
-- **Test-Drive Booking Workflow (`test_drive` intent)**:
-  - Multi-turn collection of required fields: car choice (selected car or ordinal from the active visible snapshot), customer name, Egyptian phone number (`01[0125]\d{8}`), preferred date, and preferred time.
-  - State persistence in `ConversationSession.pending_action` keeps uncommitted data safely between conversation turns.
-  - Real database write to `test_drive_requests` with status `NEW`, session ownership, and deterministic idempotency key to prevent accidental duplicate inserts.
-  - Replayed final messages do not create a second request after the original pending action has completed.
-  - Clears session pending action upon successful creation.
+Normal operation uses only:
 
-- **Test-Drive Cancellation Workflow (`cancel_test_drive` intent)**:
-  - Session-owned query against active requests (`status IN ('NEW', 'CONFIRMED')`).
-  - Auto-cancellation when exactly one active request exists for the session.
-  - Disambiguation prompt showing active IDs when multiple exist, followed by targeted ID cancellation.
-  - Controlled response when no active request exists.
-  - Database status transitioned to `CANCELLED` and `cancelled_at` timestamp recorded.
+```bash
+uv run flask --app run:app db upgrade
+```
 
-- **Sales Lead Workflow (`sales_lead` intent)**:
-  - Collects customer name and validated phone number.
-  - Associates a valid explicitly referenced visible car or the current selected car when present; otherwise the lead may remain unbound to a car.
-  - Real database write to `sales_leads` with status `NEW` and deterministic idempotency.
+Do **not** run routine `db downgrade` verification against live Supabase. The CI migration lifecycle runs only on a disposable database. A destructive live downgrade can remove derived RAG chunks/index state; after any deliberate reset, `seed-knowledge` and retrieval verification are required before serving RAG traffic again.
 
-- **Pending-Action Hardening**:
-  - Bare-name parsing is allowed only while the workflow is waiting for a name and rejects common acknowledgement/request words so conversational replies such as `تمام يا باشا شكرا` cannot silently become a customer name.
-  - Clear catalog/RAG/business intents continue to route normally; only explicit current-message fields are merged into pending business state.
+Do not use `db.create_all()` as the application migration strategy.
 
-- **Deterministic Business Rendering & Failures**:
-  - Responses are rendered deterministically via `app.agent.business_rendering.render_business_action()` without LLM hallucinations of booking IDs, dates, or contact confirmation.
-  - Test-drive/sales-lead service failures are wrapped into the controlled business-workflow error path, rolled back, and rendered without traceback or false success claims.
+## Phase 6 Live Browser E2E Checklist
 
-## Roadmap
+Before marking Phase 6 closed, verify through the real browser UI:
 
-- **Phase 2:** COMPLETE — catalog import, deterministic recommendation state, visible-list selection/comparison
-- **Phase 3:** COMPLETE — managed RAG + pgvector + knowledge CRUD/reindex
-- **Phase 4:** COMPLETE — LangGraph Sales Orchestrator with persistent context and conditional catalog/RAG/general/business routes
-- **Phase 5:** COMPLETE — Test-drive booking/cancellation and sales-lead business actions
-- **Phase 6:** Customer Flask chat UI
-- **Phase 7:** Admin dashboard
-- **Phase 8:** Hardening, integration tests, live LLM/graph E2E
-- **Phase 9:** Final Dockerization, README/demo polish, submission
+1. Home loads and links to the DB-backed catalog.
+2. Catalog filters and one Car Details page load recorded data.
+3. Chat: `عايز SUV مستعملة` returns a visible recommendation list.
+4. `قارن أول اتنين` compares exactly visible #1 and #2.
+5. A warranty question routes through RAG.
+6. Test-drive booking collects missing fields and creates one real DB row/ID.
+7. Cancellation updates that same session-owned request.
+8. Sales Lead creates one real DB row/ID.
+9. Refresh preserves chat history and context.
+10. New Chat starts an isolated conversation.
+11. Unsupported insurance information is rejected safely.
+
+## Next Required Work
+
+After Phase 6 live browser verification, the next required phase is the Admin Dashboard:
+
+- overview metrics
+- cars management/view
+- test drives
+- sales leads
+- RAG knowledge list/add/edit/delete/reindex
+- demo proof that an admin knowledge edit changes subsequent retrieval without a code change
+
+External vehicle web research remains optional and is not required by the core graph or demo.
