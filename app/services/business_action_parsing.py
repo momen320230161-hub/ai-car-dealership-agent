@@ -174,7 +174,8 @@ def explicit_time(message: str) -> time | None:
     for match in pattern.finditer(normalized):
         # Bare one/two-digit numbers are times only with an explicit clock marker or daypart.
         token = match.group(0).strip()
-        has_clock_marker = any(marker in token for marker in ("الساعة", "الساعه", "ساعة", "ساعه", "at"))
+        clock_markers = ("الساعة", "الساعه", "ساعة", "ساعه", "at")
+        has_clock_marker = any(marker in token for marker in clock_markers)
         daypart = match.group(3)
         has_colon = ":" in token
         if not (has_clock_marker or daypart or has_colon):
@@ -227,7 +228,8 @@ def explicit_customer_name(
     )
     for term in sorted(_DATE_WORDS, key=len, reverse=True):
         remainder = re.sub(re.escape(term), " ", remainder, flags=re.IGNORECASE)
-    remainder = re.sub(r"\b(?:رقمي|موبايلي|الموبايل|phone|email|ايميلي|إيميلي)\b", " ", remainder, flags=re.IGNORECASE)
+    contact_markers = r"\b(?:رقمي|موبايلي|الموبايل|phone|email|ايميلي|إيميلي)\b"
+    remainder = re.sub(contact_markers, " ", remainder, flags=re.IGNORECASE)
     remainder = re.sub(r"[^A-Za-z\u0600-\u06ff\s]", " ", remainder)
     candidate = _clean_name(remainder)
     tokens = candidate.split() if candidate else []
