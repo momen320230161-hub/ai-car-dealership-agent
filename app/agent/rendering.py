@@ -12,6 +12,13 @@ def render_catalog(result: dict[str, Any] | None) -> str:
     if kind == "clarification":
         message = str(result.get("message") or "").strip()
         return message or "محتاج أعرف شوية تفضيلات أكتر قبل ما أرشحلك عربيات."
+    if kind == "fallback_condition":
+        car_name = str(result.get("car_name") or "").strip()
+        cond_text = str(result.get("available_condition_text") or "").strip()
+        return (
+            f"لقيت {car_name} حسب الكتالوج المسجل، لكنها متاحة كسيارة {cond_text}. "
+            "هل تحب أعرض التفاصيل؟"
+        )
     if kind == "recommendations":
         lines = ["حسب البيانات المتاحة عندي في الكتالوج المسجل:"]
         for item in result.get("cars", []):

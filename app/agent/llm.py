@@ -160,6 +160,17 @@ class DeterministicAgentLLM:
             updates["condition"] = "new"
         if "suv" in lower:
             updates["body_type"] = "SUV"
+        model_match = re.search(r"\b(x6|tiggo\s*4|s07|h6)\b", lower)
+        if model_match:
+            raw_model = model_match.group(1).upper()
+            if raw_model == "X6":
+                updates["model"] = "X6"
+            elif "tiggo" in lower:
+                updates["model"] = "Tiggo 4"
+            elif raw_model == "S07":
+                updates["model"] = "S07"
+            elif raw_model == "H6":
+                updates["model"] = "H6"
         budget = re.search(r"(?:تحت|أقل من|اقل من|under)\s*([0-9][0-9,]*)", lower)
         if budget:
             updates["max_price"] = float(budget.group(1).replace(",", ""))

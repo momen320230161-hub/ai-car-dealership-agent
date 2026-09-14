@@ -104,7 +104,7 @@ def _explicit_alias(
 ) -> str | None:
     normalized = _normalized(message)
     for canonical, aliases in aliases_by_canonical.items():
-        for alias in aliases:
+        for alias in (canonical, *aliases):
             alias_normalized = _normalized(alias)
             if re.search(rf"(?<!\w){re.escape(alias_normalized)}(?!\w)", normalized):
                 return canonical
@@ -129,6 +129,15 @@ def explicit_fuel_type_from_message(message: str) -> str | None:
 def explicitly_requests_recommendation(message: str) -> bool:
     normalized = _normalized(message)
     return any(marker in normalized for marker in _RECOMMENDATION_MARKERS)
+
+
+def _condition_text(condition: str) -> str:
+    normalized = condition.strip().casefold()
+    if normalized == "used":
+        return "مستعملة"
+    if normalized == "new":
+        return "جديدة"
+    return condition
 
 
 def qualify_catalog_search(
@@ -165,9 +174,11 @@ def qualify_catalog_search(
             if not condition:
                 suffix = " ولو تحب أرشحلك، تحبها جديدة ولا مستعملة؟"
                 missing.append("condition")
+            cond_str = f" {_condition_text(condition)}" if condition else ""
+            verb = "سجلت" if condition else "فهمت"
             return CatalogQualification(
                 False,
-                f"تمام، فهمت إنك بتدور على {brand}. في موديل معين في دماغك، "
+                f"تمام، {verb} إنك بتدور على {brand}{cond_str}. في موديل معين في دماغك "
                 f"ولا تحب أرشحلك من الموجود في الكتالوج؟{suffix}",
                 tuple(missing),
             )

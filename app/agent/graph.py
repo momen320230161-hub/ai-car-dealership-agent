@@ -351,7 +351,31 @@ class SalesOrchestrator:
                     limit=self.recommendation_limit,
                 )
                 if snapshot is None:
-                    update["catalog_result"] = {"type": "no_results"}
+                    prefs = state.get("preferences", {})
+                    if prefs.get("model") and prefs.get("condition"):
+                        fallback_prefs = dict(prefs)
+                        fallback_prefs.pop("condition", None)
+                        fallback_cars = self.catalog.recommend(
+                            fallback_prefs, limit=self.recommendation_limit
+                        )
+                        if fallback_cars:
+                            found_car = fallback_cars[0]
+                            if found_car.condition == "used":
+                                cond_label = "مستعملة"
+                            elif found_car.condition == "new":
+                                cond_label = "جديدة"
+                            else:
+                                cond_label = str(found_car.condition)
+                            car_name = f"{found_car.brand} {found_car.model}".strip()
+                            update["catalog_result"] = {
+                                "type": "fallback_condition",
+                                "car_name": car_name,
+                                "available_condition_text": cond_label,
+                            }
+                        else:
+                            update["catalog_result"] = {"type": "no_results"}
+                    else:
+                        update["catalog_result"] = {"type": "no_results"}
                 else:
                     context = self.context.load(session_id)
                     update.update(self._context_update(context))
