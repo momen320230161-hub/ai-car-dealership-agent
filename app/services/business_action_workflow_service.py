@@ -14,8 +14,8 @@ from sqlalchemy.orm import Session
 from app.models.conversation import ConversationSession
 from app.services.business_action_parsing import cairo_today, parse_business_fields
 from app.services.recommendation_service import RecommendationService
-from app.services.sales_lead_service import SalesLeadService
-from app.services.test_drive_service import TestDriveService
+from app.services.sales_lead_service import SalesLeadService, SalesLeadServiceError
+from app.services.test_drive_service import TestDriveService, TestDriveServiceError
 
 BUSINESS_INTENTS = {"test_drive", "cancel_test_drive", "sales_lead"}
 _TEST_DRIVE_REQUIRED = ("car_id", "customer_name", "phone", "preferred_date", "preferred_time")
@@ -127,6 +127,11 @@ class BusinessActionWorkflowService:
         except (BusinessActionWorkflowError, ValueError, TypeError):
             self.session.rollback()
             raise
+        except (TestDriveServiceError, SalesLeadServiceError) as exc:
+            self.session.rollback()
+            raise BusinessActionWorkflowError(
+                "Pending business action could not be prepared"
+            ) from exc
         except SQLAlchemyError as exc:
             self.session.rollback()
             raise BusinessActionWorkflowError(
@@ -201,6 +206,9 @@ class BusinessActionWorkflowService:
 
             self._clear_pending_if_same_attempt(session_id, attempt_id)
             return result
+        except (TestDriveServiceError, SalesLeadServiceError) as exc:
+            self.session.rollback()
+            raise BusinessActionWorkflowError("Business action could not be executed") from exc
         except (KeyError, TypeError, ValueError) as exc:
             self.session.rollback()
             raise BusinessActionWorkflowError("Ready business action data is invalid") from exc

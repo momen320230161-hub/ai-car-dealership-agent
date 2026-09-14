@@ -48,6 +48,38 @@ _DATE_WORDS = tuple(_WEEKDAYS) + (
     "بعد بكرة",
     "بعد بكره",
 )
+_BARE_NAME_BLOCKLIST = {
+    "تمام",
+    "شكرا",
+    "شكراً",
+    "شكرًا",
+    "ماشي",
+    "حاضر",
+    "اوكي",
+    "أوكي",
+    "باشا",
+    "خلاص",
+    "كويس",
+    "جميل",
+    "مرسي",
+    "ميرسي",
+    "سلام",
+    "باي",
+    "ممكن",
+    "عايز",
+    "عايزة",
+    "محتاج",
+    "محتاجة",
+    "ساعدني",
+    "سؤال",
+    "حاجة",
+    "حاجه",
+    "ok",
+    "okay",
+    "thanks",
+    "thank",
+    "please",
+}
 _CLOCK_PREFIX = r"(?:(?:الساعة|الساعه|ساعة|ساعه)\s*|at\s+)"
 
 
@@ -244,6 +276,9 @@ def explicit_customer_name(
     remainder = re.sub(r"[^A-Za-z\u0600-\u06ff\s]", " ", remainder)
     candidate = _clean_name(remainder)
     tokens = candidate.split() if candidate else []
+    folded_tokens = {token.casefold() for token in tokens}
+    if folded_tokens & _BARE_NAME_BLOCKLIST:
+        return None
     if 2 <= len(tokens) <= 4 and all(len(token) >= 2 for token in tokens):
         return candidate
     return None
