@@ -226,7 +226,7 @@ class DeterministicAgentLLM:
             intent = "test_drive"
         elif any(word in lower for word in ("قارن", "compare")):
             intent = "car_compare"
-        elif any(word in lower for word in ("اختار", "اختيار", "select")):
+        elif any(word in lower for word in ("اختار", "اختيار", "select", "عجبتني", "عاجباني", "حبيتها")):
             intent = "car_selection"
         elif any(
             word in lower

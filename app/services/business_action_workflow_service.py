@@ -254,6 +254,58 @@ class BusinessActionWorkflowService:
         message: str = "",
         required: bool,
     ) -> None:
+        message_lower = message.casefold()
+        has_explicit_ordinal = any(
+            term in message_lower
+            for term in (
+                "الأولى",
+                "الاولى",
+                "الأولاني",
+                "الاولاني",
+                "التانية",
+                "التانيه", "الثاني",
+                "الثانية",
+                "التالتة",
+                "التالته",
+                "الثالثة",
+                "first",
+                "second",
+                "third",
+            )
+        )
+
+        # 1. If explicit ordinal phrase is provided, attempt to resolve against active snapshot
+        if car_reference is not None and (has_explicit_ordinal or fields.get("car_id") is None):
+            try:
+                item = self.recommendations.resolve_visible_item(conversation.id, car_reference)
+                fields["car_id"] = item.car_id
+                conversation.selected_car_id = item.car_id
+                return
+            except Exception:
+                pass
+
+        # 2. If fields already contains a valid active car_id, preserve it
+        if fields.get("car_id") is not None:
+            try:
+                explicit_car_id = int(fields["car_id"])
+                car = self.session.get(Car, explicit_car_id)
+                if car is not None and car.active:
+                    fields["car_id"] = car.id
+                    conversation.selected_car_id = car.id
+                    return
+            except (TypeError, ValueError):
+                pass
+            fields.pop("car_id", None)
+
+        # 3. If conversation session has a selected_car_id, use it
+        if conversation.selected_car_id is not None:
+            car = self.session.get(Car, conversation.selected_car_id)
+            if car is not None and car.active:
+                fields["car_id"] = car.id
+                return
+            conversation.selected_car_id = None
+
+        # 4. Fallback to car_reference if available
         if car_reference is not None:
             try:
                 item = self.recommendations.resolve_visible_item(conversation.id, car_reference)
@@ -262,34 +314,17 @@ class BusinessActionWorkflowService:
                 return
             except Exception:
                 pass
-        if fields.get("car_id") is not None:
-            try:
-                explicit_car_id = int(fields["car_id"])
-            except (TypeError, ValueError):
-                fields.pop("car_id", None)
-                explicit_car_id = None
-            if explicit_car_id:
-                car = self.session.get(Car, explicit_car_id)
-                if car is not None and car.active:
-                    fields["car_id"] = car.id
-                    conversation.selected_car_id = car.id
-                    return
-                fields.pop("car_id", None)
-        if conversation.selected_car_id is not None:
-            fields["car_id"] = conversation.selected_car_id
-            return
 
-        # Check active recommendation snapshot if available
+        # 5. Check active recommendation snapshot if available
         snapshot = self.recommendations.get_active_snapshot(conversation.id)
         if snapshot and snapshot.items:
-            # 1. If snapshot has only 1 car, auto-select it
+            # If snapshot has only 1 car, auto-select it
             if len(snapshot.items) == 1:
                 fields["car_id"] = snapshot.items[0].car_id
                 conversation.selected_car_id = snapshot.items[0].car_id
                 return
 
-            # 2. Match brand or model in customer message against active snapshot items
-            message_lower = message.casefold()
+            # Match brand or model in customer message against active snapshot items
             for item in snapshot.items:
                 car = self.session.get(Car, item.car_id)
                 if car and (

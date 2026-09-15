@@ -14,16 +14,23 @@
   const errorBox = document.getElementById("chat-error");
   const recommendationSection = document.getElementById("active-recommendations");
   const recommendationGrid = document.getElementById("recommendation-grid");
-  const selectedLabel = document.getElementById("selected-car-label");
+  const selectedContainer = document.getElementById("selected-car-container");
   const pendingLabel = document.getElementById("pending-action-label");
+  const pendingHint = document.getElementById("pending-action-hint");
   const newChatButton = document.getElementById("new-chat-button");
   const mobileToggle = document.getElementById("mobile-side-toggle");
   const sidebar = document.getElementById("chat-sidebar");
 
+  const ordinalArabic = { 1: "الأولى", 2: "التانية", 3: "التالتة" };
   const pendingLabels = {
-    test_drive: "تجربة قيادة",
-    cancel_test_drive: "إلغاء تجربة قيادة",
-    sales_lead: "تواصل مبيعات",
+    test_drive: "حجز تجربة قيادة (Test Drive)",
+    cancel_test_drive: "إلغاء حجز تجربة قيادة",
+    sales_lead: "طلب تواصل مبيعات",
+  };
+  const pendingHints = {
+    test_drive: "اكتب باقي البيانات المطلوبة (الاسم، الموبايل، اليوم والوقت) لإتمام التسجيل.",
+    cancel_test_drive: "اكتب رقم الطلب المُراد إلغاؤه.",
+    sales_lead: "اكتب الاسم ورقم الموبايل ليصلك اتصال من فريق المبيعات.",
   };
 
   function scrollBottom() {
@@ -33,17 +40,19 @@
   function setBusy(busy) {
     sendButton.disabled = busy;
     input.disabled = busy;
-    typingRow.classList.toggle("hidden", !busy);
+    if (typingRow) typingRow.classList.toggle("hidden", !busy);
     if (busy) scrollBottom();
   }
 
   function showError(message) {
+    if (!errorBox) return;
     errorBox.textContent = message;
     errorBox.classList.remove("hidden");
     scrollBottom();
   }
 
   function clearError() {
+    if (!errorBox) return;
     errorBox.textContent = "";
     errorBox.classList.add("hidden");
   }
@@ -53,7 +62,7 @@
     row.className = `msg-row ${role === "user" ? "user" : "assistant"}`;
     if (role !== "user") {
       const avatar = document.createElement("div");
-      avatar.className = "avatar small";
+      avatar.className = "avatar-badge";
       avatar.textContent = "A";
       row.appendChild(avatar);
     }
@@ -74,7 +83,14 @@
     return `${new Intl.NumberFormat("en-US", { maximumFractionDigits: 0 }).format(numeric)} ج.م`;
   }
 
+  function formatCondition(cond) {
+    if (cond === "new") return "جديدة";
+    if (cond === "used") return "مستعملة";
+    return cond || "";
+  }
+
   function renderRecommendations(items) {
+    if (!recommendationGrid || !recommendationSection) return;
     recommendationGrid.replaceChildren();
     if (!Array.isArray(items) || items.length === 0) {
       recommendationSection.classList.add("hidden");
@@ -82,38 +98,108 @@
     }
     for (const item of items) {
       const car = item && typeof item.car === "object" ? item.car : {};
-      const card = document.createElement("a");
-      card.className = "recommendation-card";
-      if (item.car_id) card.href = `/cars/${encodeURIComponent(item.car_id)}`;
+      const position = item.position || 1;
 
-      const position = document.createElement("span");
-      position.className = "recommendation-position";
-      position.textContent = `#${item.position ?? "—"}`;
+      const card = document.createElement("div");
+      card.className = "rec-card flex flex-col justify-between";
 
-      const info = document.createElement("div");
-      const title = document.createElement("strong");
+      const topArea = document.createElement("div");
+      
+      const placeholderBg = document.createElement("div");
+      placeholderBg.className = "vehicle-placeholder-bg";
+      placeholderBg.innerHTML = `
+        <svg class="w-12 h-12 text-[#94A3B8] opacity-75" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M8 17a2 2 0 100 4 2 2 0 000-4zm8 0a2 2 0 100 4 2 2 0 000-4zM3 9l2-4h10l2 4M3 9h18v7a1 1 0 01-1 1H4a1 1 0 01-1-1V9z"/>
+        </svg>
+        <span class="absolute top-2 right-2 bg-[#0F1B33] text-white text-[10px] font-bold px-2 py-0.5 rounded-full">
+          #${position}
+        </span>
+      `;
+      topArea.appendChild(placeholderBg);
+
+      const title = document.createElement("h3");
+      title.className = "font-bold text-sm text-[#0F1B33] leading-tight";
       title.textContent = [car.brand, car.model].filter(Boolean).join(" ") || "سيارة مسجلة";
-      const meta = document.createElement("small");
-      const condition = car.condition === "new" ? "جديدة" : car.condition === "used" ? "مستعملة" : null;
-      meta.textContent = [car.year, condition, car.body_type].filter(Boolean).join(" · ");
-      info.append(title, meta);
+      topArea.appendChild(title);
 
-      const price = document.createElement("b");
-      price.textContent = formatPrice(car.price_egp);
-      card.append(position, info, price);
+      const specs = document.createElement("div");
+      specs.className = "flex items-center gap-1.5 text-[11px] text-[#64748B] mt-1";
+      const conditionStr = formatCondition(car.condition);
+      const specItems = [car.year, conditionStr, car.body_type].filter(Boolean);
+      specs.textContent = specItems.join(" · ");
+      topArea.appendChild(specs);
+
+      if (car.price_egp) {
+        const price = document.createElement("div");
+        price.className = "text-sm font-bold text-[#2F5BD3] mt-2";
+        price.textContent = formatPrice(car.price_egp);
+        topArea.appendChild(price);
+      }
+
+      card.appendChild(topArea);
+
+      // Actions
+      const actions = document.createElement("div");
+      actions.className = "flex items-center gap-1.5 mt-3 pt-3 border-t border-[#D9E2EF]";
+      
+      const detailBtn = document.createElement("button");
+      detailBtn.type = "button";
+      detailBtn.className = "flex-1 py-1 px-2 bg-[#F1F5F9] hover:bg-[#E2E8F0] text-[#0F1B33] text-[11px] font-medium rounded text-center transition-colors";
+      detailBtn.textContent = "التفاصيل";
+      detailBtn.dataset.action = "details";
+      detailBtn.dataset.position = position;
+
+      const selectBtn = document.createElement("button");
+      selectBtn.type = "button";
+      selectBtn.className = "flex-1 py-1 px-2 bg-[#2F5BD3] hover:bg-[#2563EB] text-white text-[11px] font-medium rounded text-center transition-colors";
+      selectBtn.textContent = "اختر هذه";
+      selectBtn.dataset.action = "select";
+      selectBtn.dataset.position = position;
+
+      actions.append(detailBtn, selectBtn);
+      card.appendChild(actions);
+
       recommendationGrid.appendChild(card);
     }
     recommendationSection.classList.remove("hidden");
   }
 
+  function renderSelectedCar(selected) {
+    if (!selectedContainer) return;
+    if (selected && selected.brand) {
+      selectedContainer.innerHTML = `
+        <div class="flex flex-col gap-1">
+          <span class="text-base font-bold text-[#0F1B33]">
+            ${selected.brand} ${selected.model || ""}
+          </span>
+          <div class="flex items-center gap-2 text-xs text-[#64748B] mt-1">
+            ${selected.year ? `<span class="bg-[#F1F5F9] px-2 py-0.5 rounded font-medium">${selected.year}</span>` : ""}
+            ${selected.condition ? `<span class="bg-[#F1F5F9] px-2 py-0.5 rounded font-medium">${formatCondition(selected.condition)}</span>` : ""}
+          </div>
+          ${selected.price_egp ? `<span class="text-sm font-bold text-[#2F5BD3] mt-2">${formatPrice(selected.price_egp)}</span>` : ""}
+        </div>
+      `;
+    } else {
+      selectedContainer.innerHTML = `
+        <div class="py-2 text-center text-xs text-[#64748B]">
+          لم يتم تحديد سيارة بعد.<br>تصفح الاختيارات واذكر اسم العربية أو رقمها لتحديدها.
+        </div>
+      `;
+    }
+  }
+
   function renderState(state) {
     if (!state || typeof state !== "object") return;
-    const selected = state.selected_car;
-    selectedLabel.textContent = selected
-      ? [selected.brand, selected.model].filter(Boolean).join(" ") || `#${selected.id}`
-      : "لا يوجد";
-    pendingLabel.textContent = pendingLabels[state.pending_action_type] || "لا يوجد";
-    if (Array.isArray(state.visible_recommendations)) renderRecommendations(state.visible_recommendations);
+    renderSelectedCar(state.selected_car);
+    if (pendingLabel) {
+      pendingLabel.textContent = pendingLabels[state.pending_action_type] || "لا يوجد طلب جارٍ تنفيذ بياناته";
+    }
+    if (pendingHint) {
+      pendingHint.textContent = pendingHints[state.pending_action_type] || "يمكنك طلب حجز تجربة قيادة أو طلب تواصل المبيعات في أي وقت.";
+    }
+    if (Array.isArray(state.visible_recommendations)) {
+      renderRecommendations(state.visible_recommendations);
+    }
   }
 
   async function parseJson(response) {
@@ -141,9 +227,15 @@
         signal: controller.signal,
       });
       const payload = await parseJson(response);
-      if (payload && typeof payload.response === "string" && payload.response.trim()) addMessage("assistant", payload.response);
-      if (payload && payload.state) renderState(payload.state);
-      if (payload && Array.isArray(payload.visible_recommendations) && payload.visible_recommendations.length) renderRecommendations(payload.visible_recommendations);
+      if (payload && typeof payload.response === "string" && payload.response.trim()) {
+        addMessage("assistant", payload.response);
+      }
+      if (payload && payload.state) {
+        renderState(payload.state);
+      }
+      if (payload && Array.isArray(payload.visible_recommendations) && payload.visible_recommendations.length) {
+        renderRecommendations(payload.visible_recommendations);
+      }
       if (!response.ok) {
         showError(payload && typeof payload.message === "string" ? payload.message : "حصلت مشكلة مؤقتة. جرّب تاني بعد لحظات.");
       }
@@ -157,38 +249,72 @@
     }
   }
 
-  form.addEventListener("submit", (event) => { event.preventDefault(); if (!sendButton.disabled) submitMessage(); });
-  input.addEventListener("keydown", (event) => {
-    if (event.key === "Enter" && !event.shiftKey) { event.preventDefault(); if (!sendButton.disabled) submitMessage(); }
+  // Handle Event Listeners
+  form.addEventListener("submit", (event) => {
+    event.preventDefault();
+    if (!sendButton.disabled) submitMessage();
   });
+
+  input.addEventListener("keydown", (event) => {
+    if (event.key === "Enter" && !event.shiftKey) {
+      event.preventDefault();
+      if (!sendButton.disabled) submitMessage();
+    }
+  });
+
   input.addEventListener("input", () => {
     input.style.height = "auto";
-    input.style.height = `${Math.min(input.scrollHeight, 132)}px`;
+    input.style.height = `${Math.min(input.scrollHeight, 120)}px`;
     clearError();
   });
+
   document.querySelectorAll("[data-prompt]").forEach((button) => {
-    button.addEventListener("click", () => { if (!sendButton.disabled) submitMessage(button.dataset.prompt || ""); });
+    button.addEventListener("click", () => {
+      if (!sendButton.disabled) submitMessage(button.dataset.prompt || "");
+    });
   });
 
-  newChatButton.addEventListener("click", async () => {
-    if (sendButton.disabled) return;
-    clearError();
-    setBusy(true);
-    try {
-      const response = await fetch(sessionUrl, { method: "POST", headers: { Accept: "application/json" } });
-      const payload = await parseJson(response);
-      if (!response.ok || !payload || !payload.ok) throw new Error("session reset failed");
-      messageList.replaceChildren();
-      renderRecommendations([]);
-      renderState(payload.state);
-      addMessage("assistant", "بدأنا محادثة جديدة. قولّي بتدور على عربية بإيه، وأنا أساعدك حسب البيانات المتاحة.");
-      sidebar.classList.remove("open");
-    } catch {
-      showError("تعذر بدء محادثة جديدة دلوقتي. جرّب تاني بعد لحظات.");
-    } finally { setBusy(false); }
+  // Action Buttons inside Recommendation Cards (Delegated)
+  document.addEventListener("click", (event) => {
+    const target = event.target.closest("[data-action]");
+    if (!target || sendButton.disabled) return;
+    const action = target.dataset.action;
+    const pos = Number(target.dataset.position || 1);
+    const ordName = ordinalArabic[pos] || `رقم ${pos}`;
+    if (action === "details") {
+      submitMessage(`عايز تفاصيل العربية ${ordName}`);
+    } else if (action === "select") {
+      submitMessage(`العربية ${ordName} عجبتني`);
+    } else if (action === "compare") {
+      submitMessage("قارن أول اتنين");
+    }
   });
 
-  if (mobileToggle) mobileToggle.addEventListener("click", () => sidebar.classList.toggle("open"));
+  if (newChatButton) {
+    newChatButton.addEventListener("click", async () => {
+      if (sendButton.disabled) return;
+      clearError();
+      setBusy(true);
+      try {
+        const response = await fetch(sessionUrl, { method: "POST", headers: { Accept: "application/json" } });
+        const payload = await parseJson(response);
+        if (!response.ok || !payload || !payload.ok) throw new Error("session reset failed");
+        messageList.replaceChildren();
+        renderRecommendations([]);
+        renderState(payload.state);
+        addMessage("assistant", "بدأنا محادثة جديدة. قولّي بتدور على عربية بإيه، وأنا أساعدك حسب البيانات المتاحة.");
+        if (sidebar) sidebar.classList.remove("open");
+      } catch {
+        showError("تعذر بدء محادثة جديدة دلوقتي. جرّب تاني بعد لحظات.");
+      } finally {
+        setBusy(false);
+      }
+    });
+  }
+
+  if (mobileToggle) {
+    mobileToggle.addEventListener("click", () => sidebar.classList.toggle("open"));
+  }
 
   const query = new URLSearchParams(window.location.search).get("q");
   if (query && query.trim()) {
@@ -196,5 +322,6 @@
     window.history.replaceState({}, "", cleanUrl);
     window.setTimeout(() => submitMessage(query), 180);
   }
+
   scrollBottom();
 })();

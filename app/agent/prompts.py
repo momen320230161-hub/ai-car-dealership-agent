@@ -14,6 +14,7 @@ or implied by common Egyptian Arabic phrasing in the current message:
   positions, or database success.
 - A visible ordinal is a phrase such as first, second, الأول, or التانية.
 - Business intents are classification only: no action is executed.
+- Use car_selection when the user expresses selection or strong interest in a car (e.g., "التانية عجبتني", "عاجباني دي", "اختار الأولى", "عايز دي"). Set car_reference to the ordinal position.
 - Use car_details when the user asks for details or specifications of a car
   (e.g., تفاصيلها, مواصفاتها, العربية دي, الأولى).
 - Use car_compare when the user asks to compare cars (e.g., قارن, compare, قارن أول اتنين).

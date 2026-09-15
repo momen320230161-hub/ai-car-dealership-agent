@@ -1,0 +1,149 @@
+@import "tailwindcss";
+
+@theme {
+  --color-navy-900: #0F1B33;
+  --color-navy-800: #111A2D;
+  --color-navy-700: #1A2744;
+  --color-primary-blue: #2F5BD3;
+  --color-primary-hover: #2563EB;
+  --color-bg-light: #F4F7FB;
+  --color-card-bg: #FFFFFF;
+  --color-border-subtle: #D9E2EF;
+  --color-text-muted: #64748B;
+}
+
+/* Base Body */
+body.chat-body {
+  background-color: var(--color-bg-light);
+  color: var(--color-navy-900);
+  font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  min-height: 100vh;
+  margin: 0;
+}
+
+/* Custom Scrollbar */
+.chat-window::-webkit-scrollbar {
+  width: 5px;
+}
+.chat-window::-webkit-scrollbar-track {
+  background: transparent;
+}
+.chat-window::-webkit-scrollbar-thumb {
+  background: #CBD5E1;
+  border-radius: 9999px;
+}
+
+/* RTL Helpers */
+[dir="rtl"] .message-stack {
+  text-align: right;
+}
+
+/* Message Formatting */
+.msg-row.user {
+  display: flex;
+  justify-content: flex-end;
+  margin-bottom: 1rem;
+}
+
+.msg-row.assistant {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.75rem;
+  margin-bottom: 1rem;
+}
+
+.avatar-badge {
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  background-color: var(--color-navy-900);
+  color: #FFFFFF;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 700;
+  font-size: 0.875rem;
+  flex-shrink: 0;
+}
+
+.msg.user-msg {
+  background-color: var(--color-primary-blue);
+  color: #FFFFFF;
+  padding: 0.875rem 1.25rem;
+  border-radius: 1.25rem;
+  border-bottom-left-radius: 0.25rem;
+  max-width: 34rem;
+  font-size: 0.9375rem;
+  line-height: 1.6;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05);
+  word-wrap: break-word;
+  white-space: pre-wrap;
+}
+
+.msg.bot {
+  background-color: #FFFFFF;
+  border: 1px solid var(--color-border-subtle);
+  color: var(--color-navy-900);
+  padding: 0.875rem 1.25rem;
+  border-radius: 1.25rem;
+  border-bottom-right-radius: 0.25rem;
+  max-width: 38rem;
+  font-size: 0.9375rem;
+  line-height: 1.6;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.03);
+  word-wrap: break-word;
+  white-space: pre-wrap;
+}
+
+/* Typing Indicator Animation */
+.typing-dots span {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background-color: var(--color-primary-blue);
+  display: inline-block;
+  animation: typingWave 1.4s infinite ease-in-out both;
+}
+.typing-dots span:nth-child(1) { animation-delay: -0.32s; }
+.typing-dots span:nth-child(2) { animation-delay: -0.16s; }
+
+@keyframes typingWave {
+  0%, 80%, 100% { transform: scale(0.6); opacity: 0.4; }
+  40% { transform: scale(1); opacity: 1; }
+}
+
+/* Active Recommendations Card Container */
+.rec-card {
+  background-color: #FFFFFF;
+  border: 1px solid var(--color-border-subtle);
+  border-radius: 1rem;
+  padding: 1.25rem;
+  transition: all 0.2s ease-in-out;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+}
+.rec-card:hover {
+  border-color: var(--color-primary-blue);
+  box-shadow: 0 4px 12px rgba(47, 91, 211, 0.08);
+}
+.rec-card.selected {
+  border-color: var(--color-primary-blue);
+  background-color: #F0F5FF;
+  ring: 2px;
+  ring-color: var(--color-primary-blue);
+}
+
+/* Placeholder Vehicle Vector Illustration */
+.vehicle-placeholder-bg {
+  background: linear-gradient(135deg, #F8FAFC 0%, #EDF2F7 100%);
+  border-radius: 0.75rem;
+  height: 110px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #94A3B8;
+  margin-bottom: 0.75rem;
+  position: relative;
+  overflow: hidden;
+}

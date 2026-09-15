@@ -1,0 +1,12 @@
+{
+  "name": "ai-car-dealership-agent",
+  "version": "1.0.0",
+  "private": true,
+  "scripts": {
+    "build:css": "npx @tailwindcss/cli -i ./frontend/input.css -o ./app/static/css/app.css --optimize"
+  },
+  "devDependencies": {
+    "@tailwindcss/cli": "^4.3.3",
+    "tailwindcss": "^4.3.3"
+  }
+}

@@ -56,12 +56,19 @@ class ConversationStateService:
 
             selected_car_cleared = False
             if conversation.selected_car_id is not None:
-                selected = self.catalog_repository.get(
-                    conversation.selected_car_id, active_only=False
+                has_pending_car = (
+                    conversation.pending_action
+                    and isinstance(conversation.pending_action, dict)
+                    and conversation.pending_action.get("fields", {}).get("car_id")
+                    == conversation.selected_car_id
                 )
-                if selected is None or not self.car_matches_preferences(selected, filters):
-                    conversation.selected_car_id = None
-                    selected_car_cleared = True
+                if not has_pending_car:
+                    selected = self.catalog_repository.get(
+                        conversation.selected_car_id, active_only=False
+                    )
+                    if selected is None or not self.car_matches_preferences(selected, filters):
+                        conversation.selected_car_id = None
+                        selected_car_cleared = True
 
             snapshot_invalidated = False
             if conversation.active_recommendation_snapshot_id is not None:

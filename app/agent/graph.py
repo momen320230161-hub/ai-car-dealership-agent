@@ -24,6 +24,7 @@ from app.agent.schemas import sanitize_understanding
 from app.agent.state import AgentState
 from app.models.conversation import ConversationSession
 from app.rag.embeddings import EmbeddingProvider
+from app.services.business_action_parsing import parse_business_fields
 from app.services.business_action_workflow_service import (
     BusinessActionWorkflowError,
     BusinessActionWorkflowService,
@@ -305,6 +306,16 @@ class SalesOrchestrator:
             "sales_lead",
         }
 
+        is_pending_followup = False
+        if has_pending_business:
+            intent_type = str(pending_action.get("type") or "")
+            parsed = parse_business_fields(
+                state.get("normalized_message", ""),
+                allow_bare_name=(intent_type in {"test_drive", "sales_lead"}),
+            )
+            if parsed.as_json_fields():
+                is_pending_followup = True
+
         if "understanding_failed" in state.get("errors", []) or "state_update_failed" in state.get(
             "errors", []
         ):
@@ -312,7 +323,8 @@ class SalesOrchestrator:
         elif intent in {"test_drive", "cancel_test_drive", "sales_lead"}:
             route = "business_gate"
         elif has_pending_business and (
-            intent in {"general", "car_details", "car_selection"}
+            is_pending_followup
+            or intent in {"general", "car_details", "car_selection"}
             or (intent == "catalog_search" and not state.get("extracted_preferences"))
         ):
             route = "business_gate"

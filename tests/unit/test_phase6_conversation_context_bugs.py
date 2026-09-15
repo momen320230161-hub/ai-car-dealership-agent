@@ -204,3 +204,77 @@ def test_visible_references_resolve_against_active_snapshot_only(
     assert "المقارنة حسب البيانات المتاحة" in r2.response
     assert "Chery" in r2.response
     assert "Soueast" in r2.response
+
+
+def test_selection_with_altanya_eajabatni_persists_selected_car_for_subsequent_booking(
+    db_session,
+) -> None:
+    """Bug 2 & Bug 1: 'التانية عجبتني' sets selected_car_id, then 'احجزلي العربية دي' uses it."""
+    car1 = _car("car-101", brand="Chery", model="Tiggo 4", price="930000")
+    car2 = _car("car-102", brand="Soueast", model="S07", price="1350000")
+    car3 = _car("car-103", brand="Haval", model="H6", price="1490000")
+    session = ConversationSession()
+    db_session.add_all([car1, car2, car3, session])
+    db_session.commit()
+
+    RecommendationService(db_session).create_visible_snapshot(
+        session.id, [car1.id, car2.id, car3.id]
+    )
+
+    orchestrator = _orchestrator(db_session)
+
+    # Turn 1: "التانية عجبتني"
+    r1 = orchestrator.handle_message(session.id, "التانية عجبتني")
+    assert r1.selected_car_id == car2.id
+
+    db_session.expire_all()
+    s_loaded = db_session.get(ConversationSession, session.id)
+    assert s_loaded.selected_car_id == car2.id
+
+    # Turn 2: "احجزلي العربية دي"
+    r2 = orchestrator.handle_message(session.id, "احجزلي العربية دي")
+    assert r2.route == "business_gate"
+    assert "اسمك" in r2.response
+
+    db_session.expire_all()
+    s_loaded2 = db_session.get(ConversationSession, session.id)
+    assert s_loaded2.pending_action is not None
+    assert s_loaded2.pending_action["fields"]["car_id"] == car2.id
+
+
+def test_pending_action_retains_car_when_followup_message_contains_numeric_date_and_time(
+    db_session,
+) -> None:
+    """Bug 1: Messages containing numbers like 'السبت الساعة 5' must not lose car_id."""
+    car = _car("car-201", brand="Soueast", model="S07", price="1350000")
+    session = ConversationSession()
+    db_session.add_all([car, session])
+    db_session.commit()
+
+    orchestrator = _orchestrator(db_session)
+
+    # Turn 1: Start booking
+    r1 = orchestrator.handle_message(session.id, f"احجزلي تست درايف للعربية ID {car.id}")
+    assert r1.route == "business_gate"
+
+    # Turn 2: Name
+    r2 = orchestrator.handle_message(session.id, "أحمد علي")
+    assert r2.route == "business_gate"
+
+    # Turn 3: Phone
+    r3 = orchestrator.handle_message(session.id, "01099887766")
+    assert r3.route == "business_gate"
+
+    # Turn 4: "السبت الساعة 5" (Numeric 5)
+    r4 = orchestrator.handle_message(session.id, "السبت الساعة 5")
+    assert r4.route == "business_gate"
+    assert "تم تسجيل طلب تجربة القيادة برقم" in r4.response
+
+    created = db_session.scalar(
+        select(TestDriveRequest).where(TestDriveRequest.session_id == session.id)
+    )
+    assert created is not None
+    assert created.car_id == car.id
+    assert created.customer_name == "أحمد علي"
+    assert created.phone == "01099887766"
+
