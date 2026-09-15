@@ -1,10 +1,128 @@
 {% extends 'base.html' %}
 {% from 'components/car_card.html' import car_card %}
 {% block title %}الكتالوج — AutoDrive Egypt{% endblock %}
+
 {% block content %}
-<section class="page-hero"><div class="container"><span class="kicker"><i></i> Catalog</span><h1>الكتالوج المسجل</h1><p>استعرض السيارات حسب البيانات المتاحة لدينا. التوفر الفعلي والسعر النهائي يحتاجان تأكيدًا مستقلًا.</p></div></section>
-<section class="section catalog-section"><div class="container catalog-layout">
-<aside class="filters"><div class="filter-header"><div><small>FILTERS</small><h2>فلترة النتائج</h2></div><a href="{{ url_for('site.cars') }}">مسح</a></div>{% if filter_error %}<div class="form-alert">{{ filter_error }}</div>{% endif %}<form method="get" action="{{ url_for('site.cars') }}"><div class="filter-group"><label for="condition">الحالة</label><select id="condition" name="condition"><option value="">الكل</option><option value="new" {{ 'selected' if filter_values.condition == 'new' else '' }}>جديدة</option><option value="used" {{ 'selected' if filter_values.condition == 'used' else '' }}>مستعملة</option></select></div><div class="filter-group"><label for="brand">الماركة</label><select id="brand" name="brand"><option value="">كل الماركات</option>{% for brand in facets.brands %}<option value="{{ brand }}" {{ 'selected' if filter_values.brand == brand else '' }}>{{ brand }}</option>{% endfor %}</select></div><div class="filter-group"><label for="body_type">نوع الجسم</label><select id="body_type" name="body_type"><option value="">كل الأنواع</option>{% for body_type in facets.body_types %}<option value="{{ body_type }}" {{ 'selected' if filter_values.body_type == body_type else '' }}>{{ body_type }}</option>{% endfor %}</select></div><div class="filter-group"><label for="max_price">أقصى سعر</label><input id="max_price" name="max_price" inputmode="numeric" value="{{ filter_values.max_price }}" placeholder="مثال: 1500000"></div><div class="filter-group"><label for="sort">الترتيب</label><select id="sort" name="sort">{% for value, label in sort_options.items() %}<option value="{{ value }}" {{ 'selected' if sort_by == value else '' }}>{{ label }}</option>{% endfor %}</select></div><button class="btn btn-primary full-width" type="submit">تطبيق الفلاتر</button></form><a class="assistant-filter-cta" href="{{ url_for('chat.chat_page') }}"><span>✨</span><div><strong>مش عارف تختار؟</strong><small>خلّي المساعد يرشحلك</small></div><b>←</b></a></aside>
-<section class="catalog-results"><div class="catalog-top"><div><strong>{{ '{:,}'.format(catalog_page.total) }}</strong><span>نتيجة حسب الفلاتر الحالية</span></div><span class="page-indicator">صفحة {{ catalog_page.page }} من {{ catalog_page.total_pages }}</span></div>{% if catalog_page.cars %}<div class="car-grid">{% for car in catalog_page.cars %}{{ car_card(car) }}{% endfor %}</div>{% else %}<div class="empty-state large-empty"><span>🚘</span><strong>مفيش نتائج مطابقة</strong><p>جرّب توسّع الفلاتر أو اسأل المساعد الذكي بلغة طبيعية.</p><a class="btn btn-primary" href="{{ url_for('chat.chat_page') }}">اسأل المساعد</a></div>{% endif %}{% if catalog_page.total_pages > 1 %}<nav class="pagination" aria-label="صفحات الكتالوج">{% if catalog_page.has_previous %}<a class="btn btn-light" href="{{ url_for('site.cars', page=catalog_page.page-1, condition=filter_values.condition or None, brand=filter_values.brand or None, body_type=filter_values.body_type or None, max_price=filter_values.max_price or None, sort=sort_by) }}">السابق</a>{% else %}<span></span>{% endif %}<span>{{ catalog_page.page }} / {{ catalog_page.total_pages }}</span>{% if catalog_page.has_next %}<a class="btn btn-light" href="{{ url_for('site.cars', page=catalog_page.page+1, condition=filter_values.condition or None, brand=filter_values.brand or None, body_type=filter_values.body_type or None, max_price=filter_values.max_price or None, sort=sort_by) }}">التالي</a>{% endif %}</nav>{% endif %}</section>
-</div></section>
+<section class="page-hero">
+  <div class="container">
+    <span class="kicker"><i></i> Catalog</span>
+    <h1>الكتالوج المسجل</h1>
+    <p>استعرض السيارات حسب البيانات المتاحة لدينا. التوفر الفعلي والسعر النهائي يحتاجان تأكيدًا مستقلًا.</p>
+  </div>
+</section>
+
+<section class="section catalog-section">
+  <div class="container catalog-layout">
+    <aside class="filters">
+      <div class="filter-header">
+        <div>
+          <small>FILTERS</small>
+          <h2>فلترة النتائج</h2>
+        </div>
+        <a href="{{ url_for('site.cars') }}">مسح</a>
+      </div>
+
+      {% if filter_error %}
+        <div class="form-alert">{{ filter_error }}</div>
+      {% endif %}
+
+      <form method="get" action="{{ url_for('site.cars') }}">
+        <div class="filter-group">
+          <label for="condition">الحالة</label>
+          <select id="condition" name="condition">
+            <option value="">الكل</option>
+            <option value="new" {{ 'selected' if filter_values.condition == 'new' else '' }}>جديدة</option>
+            <option value="used" {{ 'selected' if filter_values.condition == 'used' else '' }}>مستعملة</option>
+          </select>
+        </div>
+
+        <div class="filter-group">
+          <label for="brand">الماركة</label>
+          <select id="brand" name="brand">
+            <option value="">كل الماركات</option>
+            {% for brand in facets.brands %}
+              <option value="{{ brand }}" {{ 'selected' if filter_values.brand == brand else '' }}>{{ brand }}</option>
+            {% endfor %}
+          </select>
+        </div>
+
+        <div class="filter-group">
+          <label for="body_type">نوع الجسم</label>
+          <select id="body_type" name="body_type">
+            <option value="">كل الأنواع</option>
+            {% for body_type in facets.body_types %}
+              <option value="{{ body_type }}" {{ 'selected' if filter_values.body_type == body_type else '' }}>{{ body_type }}</option>
+            {% endfor %}
+          </select>
+        </div>
+
+        <div class="filter-group">
+          <label for="max_price">أقصى سعر</label>
+          <input id="max_price" name="max_price" inputmode="numeric" value="{{ filter_values.max_price }}" placeholder="مثال: 1500000">
+        </div>
+
+        <div class="filter-group">
+          <label for="sort">الترتيب</label>
+          <select id="sort" name="sort">
+            {% for value, label in sort_options.items() %}
+              <option value="{{ value }}" {{ 'selected' if sort_by == value else '' }}>{{ label }}</option>
+            {% endfor %}
+          </select>
+        </div>
+
+        <button class="btn btn-primary full-width" type="submit">تطبيق الفلاتر</button>
+      </form>
+
+      <a class="assistant-filter-cta" href="{{ url_for('chat.chat_page') }}">
+        <span aria-hidden="true">AI</span>
+        <div>
+          <strong>مش عارف تختار؟</strong>
+          <small>خلّي المساعد يرشحلك حسب احتياجك</small>
+        </div>
+        <b aria-hidden="true">←</b>
+      </a>
+    </aside>
+
+    <section class="catalog-results">
+      <div class="catalog-top">
+        <div>
+          <strong>{{ '{:,}'.format(catalog_page.total) }}</strong>
+          <span>نتيجة حسب الفلاتر الحالية</span>
+        </div>
+        <span class="page-indicator">صفحة {{ catalog_page.page }} من {{ catalog_page.total_pages }}</span>
+      </div>
+
+      {% if catalog_page.cars %}
+        <div class="car-grid">
+          {% for car in catalog_page.cars %}
+            {{ car_card(car) }}
+          {% endfor %}
+        </div>
+      {% else %}
+        <div class="empty-state large-empty">
+          <span aria-hidden="true">—</span>
+          <strong>مفيش نتائج مطابقة</strong>
+          <p>جرّب توسّع الفلاتر أو اسأل المساعد الذكي بلغة طبيعية.</p>
+          <a class="btn btn-primary" href="{{ url_for('chat.chat_page') }}">اسأل المساعد</a>
+        </div>
+      {% endif %}
+
+      {% if catalog_page.total_pages > 1 %}
+        <nav class="pagination" aria-label="صفحات الكتالوج">
+          {% if catalog_page.has_previous %}
+            <a class="btn btn-light" href="{{ url_for('site.cars', page=catalog_page.page-1, condition=filter_values.condition or None, brand=filter_values.brand or None, body_type=filter_values.body_type or None, max_price=filter_values.max_price or None, sort=sort_by) }}">السابق</a>
+          {% else %}
+            <span></span>
+          {% endif %}
+
+          <span>{{ catalog_page.page }} / {{ catalog_page.total_pages }}</span>
+
+          {% if catalog_page.has_next %}
+            <a class="btn btn-light" href="{{ url_for('site.cars', page=catalog_page.page+1, condition=filter_values.condition or None, brand=filter_values.brand or None, body_type=filter_values.body_type or None, max_price=filter_values.max_price or None, sort=sort_by) }}">التالي</a>
+          {% endif %}
+        </nav>
+      {% endif %}
+    </section>
+  </div>
+</section>
 {% endblock %}
