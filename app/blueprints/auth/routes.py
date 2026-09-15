@@ -6,6 +6,7 @@ from urllib.parse import urlparse
 
 from flask import current_app, flash, redirect, render_template, request, session, url_for
 from flask_login import current_user, login_required, login_user, logout_user
+from sqlalchemy.exc import SQLAlchemyError
 
 from app.blueprints.auth import bp
 from app.extensions import db
@@ -131,8 +132,15 @@ def callback():
         current_app.logger.exception("Auth callback exchange failed")
         flash("حدثت مشكلة أثناء إثبات الهوية. يرجى إعادة المحاولة.", "error")
         return redirect(url_for("auth.login_page"))
+    except SQLAlchemyError:
+        db.session.rollback()
+        current_app.logger.exception("Auth callback database synchronization failed")
+        flash(
+            "تم تسجيل الدخول مع Google لكن قاعدة البيانات المحلية غير محدثة. شغّل migrations ثم حاول مرة أخرى.",
+            "error",
+        )
+        return redirect(url_for("auth.login_page"))
 
-    # Keep no pre-auth browser state after successful identity verification.
     session.clear()
     login_user(user, remember=True)
     return redirect(next_page or url_for("chat.chat_page"))
