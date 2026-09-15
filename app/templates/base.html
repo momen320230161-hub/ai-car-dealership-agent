@@ -6,7 +6,7 @@
   <meta name="theme-color" content="#111a2d">
   <title>{% block title %}AutoDrive Egypt{% endblock %}</title>
   <meta name="description" content="AutoDrive Egypt AI Car Dealership">
-  {% if request.endpoint == 'chat.chat_page' %}
+  {% if request.endpoint == 'chat.chat_page' or request.blueprint == 'auth' %}
     <link rel="stylesheet" href="{{ url_for('static', filename='css/app.css') }}">
   {% else %}
     <link rel="stylesheet" href="{{ url_for('static', filename='css/site.css') }}">
@@ -69,7 +69,11 @@
       </nav>
       <div class="nav-actions">
         <a class="btn btn-light desktop-only" href="{{ url_for('site.cars') }}">تصفح الكتالوج</a>
-        <a class="btn btn-primary" href="{{ url_for('chat.chat_page') }}">ابدأ محادثة</a>
+        {% if current_user.is_authenticated %}
+          <a class="btn btn-primary" href="{{ url_for('chat.chat_page') }}">محادثاتي</a>
+        {% else %}
+          <a class="btn btn-primary" href="{{ url_for('auth.login_page') }}">تسجيل الدخول</a>
+        {% endif %}
       </div>
     </div>
   </header>
@@ -98,7 +102,7 @@
   </footer>
   {% endblock %}
 
-  {% if request.endpoint != 'chat.chat_page' %}
+  {% if request.endpoint != 'chat.chat_page' and request.blueprint != 'auth' %}
   <a class="floating-chat" href="{{ url_for('chat.chat_page') }}" aria-label="فتح المساعد الذكي">
     <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
       <path d="M21 15a4 4 0 0 1-4 4H8l-5 3V7a4 4 0 0 1 4-4h10a4 4 0 0 1 4 4z"/>
