@@ -104,7 +104,7 @@
       card.className = "rec-card flex flex-col justify-between";
 
       const topArea = document.createElement("div");
-      
+
       const placeholderBg = document.createElement("div");
       placeholderBg.className = "vehicle-placeholder-bg";
       placeholderBg.innerHTML = `
@@ -138,10 +138,9 @@
 
       card.appendChild(topArea);
 
-      // Actions
       const actions = document.createElement("div");
       actions.className = "flex items-center gap-1.5 mt-3 pt-3 border-t border-[#D9E2EF]";
-      
+
       const detailBtn = document.createElement("button");
       detailBtn.type = "button";
       detailBtn.className = "flex-1 py-1 px-2 bg-[#F1F5F9] hover:bg-[#E2E8F0] text-[#0F1B33] text-[11px] font-medium rounded text-center transition-colors";
@@ -249,7 +248,6 @@
     }
   }
 
-  // Handle Event Listeners
   form.addEventListener("submit", (event) => {
     event.preventDefault();
     if (!sendButton.disabled) submitMessage();
@@ -274,7 +272,6 @@
     });
   });
 
-  // Action Buttons inside Recommendation Cards (Delegated)
   document.addEventListener("click", (event) => {
     const target = event.target.closest("[data-action]");
     if (!target || sendButton.disabled) return;
@@ -316,11 +313,16 @@
     mobileToggle.addEventListener("click", () => sidebar.classList.toggle("open"));
   }
 
+  // A `q` query parameter may be used to prefill the composer, but it must
+  // never trigger a request automatically. Auto-submitting here caused the
+  // typing indicator to appear on page load/new-chat without explicit user input.
   const query = new URLSearchParams(window.location.search).get("q");
   if (query && query.trim()) {
+    input.value = query.trim();
+    input.style.height = "auto";
+    input.style.height = `${Math.min(input.scrollHeight, 120)}px`;
     const cleanUrl = `${window.location.pathname}${window.location.hash || ""}`;
     window.history.replaceState({}, "", cleanUrl);
-    window.setTimeout(() => submitMessage(query), 180);
   }
 
   scrollBottom();
