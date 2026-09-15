@@ -1,53 +1,122 @@
-{% extends 'base.html' %}
-{% block title %}تسجيل الدخول — AutoDrive Egypt{% endblock %}
-{% block body_class %}auth-body{% endblock %}
-{% block head %}
-<link rel="stylesheet" href="{{ url_for('static', filename='css/auth.css') }}">
-{% endblock %}
+<!doctype html>
+<html lang="ar" dir="rtl">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#0f172a">
+  <title>تسجيل الدخول — AutoDrive Egypt</title>
+  <meta name="description" content="تسجيل الدخول إلى AutoDrive Egypt عبر Google">
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/auth.css', v='3') }}">
+</head>
+<body class="auth-shell">
+  <main class="auth-layout">
+    <section class="auth-visual" aria-label="AutoDrive Egypt">
+      <a class="auth-logo" href="{{ url_for('site.home') }}" aria-label="العودة إلى AutoDrive Egypt">
+        <span class="auth-logo-mark" aria-hidden="true">
+          <svg viewBox="0 0 32 32" role="img">
+            <path d="M6 19h20l-3-6.2A4 4 0 0 0 19.4 10h-6.8A4 4 0 0 0 9 12.8L6 19Z" fill="currentColor"/>
+            <path d="M8 18h16a3 3 0 0 1 3 3v2H5v-2a3 3 0 0 1 3-3Z" fill="currentColor" opacity=".72"/>
+            <circle cx="10" cy="23" r="2.5" fill="currentColor"/>
+            <circle cx="22" cy="23" r="2.5" fill="currentColor"/>
+          </svg>
+        </span>
+        <span class="auth-logo-copy">
+          <strong>AutoDrive Egypt</strong>
+          <small>AI Car Dealership</small>
+        </span>
+      </a>
 
-{% block content %}
-<section class="auth-page">
-  <div class="auth-card">
-    <div class="auth-brand">
-      <div class="auth-mark">A</div>
-      <div>
-        <h1>AutoDrive Egypt</h1>
-        <p>سجّل دخولك علشان تحفظ محادثاتك وتكملها من أي وقت</p>
-      </div>
-    </div>
+      <div class="auth-visual-copy">
+        <span class="auth-kicker">مساعد مبيعات ذكي للسيارات</span>
+        <h1>كل محادثاتك واختياراتك<br>محفوظة لحسابك.</h1>
+        <p>سجّل دخولك بحساب Google علشان تكمّل من نفس المكان، ترجع للمحادثات السابقة، وتحافظ على اختياراتك وطلباتك بشكل منفصل وآمن.</p>
 
-    {% with messages = get_flashed_messages(with_categories=true) %}
-      {% if messages %}
-        <div>
-          {% for category, message in messages %}
-            <div class="auth-alert {{ 'error' if category == 'error' else 'info' }}">{{ message }}</div>
-          {% endfor %}
+        <div class="auth-benefits" aria-label="مزايا الحساب">
+          <div class="auth-benefit">
+            <span class="benefit-icon" aria-hidden="true">✓</span>
+            <span>سجل محادثات خاص بيك</span>
+          </div>
+          <div class="auth-benefit">
+            <span class="benefit-icon" aria-hidden="true">✓</span>
+            <span>اختيارات وتفضيلات محفوظة</span>
+          </div>
+          <div class="auth-benefit">
+            <span class="benefit-icon" aria-hidden="true">✓</span>
+            <span>دخول آمن عبر Google وSupabase Auth</span>
+          </div>
         </div>
-      {% endif %}
-    {% endwith %}
-
-    {% if auth_configured is defined and not auth_configured %}
-      <div class="auth-config-warning">
-        إعدادات Supabase Auth غير مكتملة محلياً. راجع قيم SUPABASE_URL وSUPABASE_PUBLISHABLE_KEY في ملف البيئة ثم أعد تشغيل التطبيق.
       </div>
-    {% endif %}
 
-    <div class="auth-info">
-      <strong>تسجيل دخول آمن</strong>
-      <p>حساب Google هيستخدم فقط لإثبات هويتك. كل مستخدم له محادثاته وسجلّه الخاص داخل AutoDrive Egypt.</p>
-    </div>
+      <p class="auth-visual-note">بيانات الكتالوج المعروضة هي حسب البيانات المسجلة وليست تأكيدًا لمخزون حي أو سعر سوق لحظي.</p>
+    </section>
 
-    <a class="google-login-btn" href="{{ url_for('auth.google_login') }}" aria-label="المتابعة باستخدام Google">
-      <svg viewBox="0 0 24 24" aria-hidden="true">
-        <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/>
-        <path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/>
-        <path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.06H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.94l2.85-2.22.81-.63z"/>
-        <path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.06l3.66 2.84c.87-2.6 3.3-4.52 6.16-4.52z"/>
-      </svg>
-      المتابعة باستخدام Google
-    </a>
+    <section class="auth-panel">
+      <div class="auth-card">
+        <div class="auth-mobile-brand" aria-hidden="true">
+          <span class="auth-logo-mark small">
+            <svg viewBox="0 0 32 32">
+              <path d="M6 19h20l-3-6.2A4 4 0 0 0 19.4 10h-6.8A4 4 0 0 0 9 12.8L6 19Z" fill="currentColor"/>
+              <path d="M8 18h16a3 3 0 0 1 3 3v2H5v-2a3 3 0 0 1 3-3Z" fill="currentColor" opacity=".72"/>
+              <circle cx="10" cy="23" r="2.5" fill="currentColor"/>
+              <circle cx="22" cy="23" r="2.5" fill="currentColor"/>
+            </svg>
+          </span>
+          <strong>AutoDrive Egypt</strong>
+        </div>
 
-    <div class="auth-footer">يتم إثبات الهوية عبر Supabase Auth وGoogle OAuth</div>
-  </div>
-</section>
-{% endblock %}
+        <div class="auth-card-heading">
+          <span class="auth-eyebrow">مرحبًا بيك</span>
+          <h2>سجّل الدخول وابدأ محادثتك</h2>
+          <p>استخدم حساب Google. مش محتاج تعمل باسورد جديد عندنا.</p>
+        </div>
+
+        {% with messages = get_flashed_messages(with_categories=true) %}
+          {% if messages %}
+            <div class="auth-alerts" role="status" aria-live="polite">
+              {% for category, message in messages %}
+                <div class="auth-alert {{ 'error' if category == 'error' else 'info' }}">{{ message }}</div>
+              {% endfor %}
+            </div>
+          {% endif %}
+        {% endwith %}
+
+        {% if auth_configured is defined and not auth_configured %}
+          <div class="auth-config-warning" role="alert">
+            إعدادات Supabase Auth غير مكتملة محليًا. راجع <code>SUPABASE_URL</code> و<code>SUPABASE_PUBLISHABLE_KEY</code> ثم أعد تشغيل التطبيق.
+          </div>
+        {% endif %}
+
+        <a class="google-login-btn{% if auth_configured is defined and not auth_configured %} disabled{% endif %}"
+           href="{{ url_for('auth.google_login') }}"
+           aria-label="المتابعة باستخدام Google"
+           {% if auth_configured is defined and not auth_configured %}aria-disabled="true"{% endif %}>
+          <span class="google-icon" aria-hidden="true">
+            <svg viewBox="0 0 24 24">
+              <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/>
+              <path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/>
+              <path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.06H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.94l2.85-2.22.81-.63z"/>
+              <path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.06l3.66 2.84c.87-2.6 3.3-4.52 6.16-4.52z"/>
+            </svg>
+          </span>
+          <span>المتابعة باستخدام Google</span>
+          <span class="button-arrow" aria-hidden="true">←</span>
+        </a>
+
+        <div class="auth-security-note">
+          <svg viewBox="0 0 24 24" aria-hidden="true">
+            <path d="M12 3 5 6v5c0 4.6 2.9 8.7 7 10 4.1-1.3 7-5.4 7-10V6l-7-3Z" fill="none" stroke="currentColor" stroke-width="1.8"/>
+            <path d="m9.5 12 1.7 1.7 3.5-3.7" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>
+          </svg>
+          <span>إثبات الهوية يتم عبر Google وSupabase. AutoDrive لا يخزن كلمة مرور Google الخاصة بك.</span>
+        </div>
+
+        <div class="auth-card-footer">
+          <a href="{{ url_for('site.home') }}">العودة للرئيسية</a>
+          <span>•</span>
+          <a href="{{ url_for('site.cars') }}">تصفح السيارات</a>
+        </div>
+      </div>
+    </section>
+  </main>
+</body>
+</html>
