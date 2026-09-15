@@ -19,6 +19,27 @@ def render_catalog(result: dict[str, Any] | None) -> str:
             f"لقيت {car_name} حسب الكتالوج المسجل، لكنها متاحة كسيارة {cond_text}. "
             "هل تحب أعرض التفاصيل؟"
         )
+    if kind == "relaxed_suggestion":
+        original_price = result.get("original_max_price")
+        cheapest_price = result.get("cheapest_price")
+        cars = result.get("cars", [])
+        lines = [
+            f"ملقتش عربيات مطابقة تماماً تحت {_money(original_price)} جنيه، "
+            f"لكن لقيت أقرب خيارات متاحة بتبدأ من {_money(cheapest_price)} جنيه:"
+        ]
+        for idx, item in enumerate(cars, start=1):
+            car = item.get("car", item) if isinstance(item, dict) else item
+            facts = [
+                f"{idx}. {_name(car)}",
+                str(car.get("year")) if car.get("year") is not None else "سنة غير معروفة",
+            ]
+            condition = _condition_label(car.get("condition"))
+            if condition is not None:
+                facts.append(condition)
+            facts.append(f"{_money(car.get('price_egp'))} جنيه")
+            lines.append(" — ".join(facts))
+        lines.append("تحب أعرضلك تفاصيل واحدة منهم ولا نغير الشروط؟")
+        return "\n".join(lines)
     if kind == "recommendations":
         lines = ["حسب البيانات المتاحة عندي في الكتالوج المسجل:"]
         for item in result.get("cars", []):

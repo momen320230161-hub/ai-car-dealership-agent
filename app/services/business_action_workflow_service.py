@@ -69,6 +69,10 @@ class BusinessActionWorkflowService:
             pending = existing if same_attempt else self._new_pending(intent)
             fields = dict(pending.get("fields") or {})
 
+            # Pre-fill customer_name from conversation preferences if available
+            if not fields.get("customer_name") and conversation.preferences.get("customer_name"):
+                fields["customer_name"] = conversation.preferences["customer_name"]
+
             allow_bare_name = (
                 intent in {"test_drive", "sales_lead"}
                 and same_attempt
@@ -79,13 +83,22 @@ class BusinessActionWorkflowService:
                 allow_bare_name=allow_bare_name,
                 today=self.today_provider(),
             )
-            fields.update(parsed.as_json_fields())
+            parsed_fields = parsed.as_json_fields()
+            fields.update(parsed_fields)
+
+            # Save customer_name into preferences for future turns
+            if fields.get("customer_name"):
+                prefs = dict(conversation.preferences or {})
+                if prefs.get("customer_name") != fields["customer_name"]:
+                    prefs["customer_name"] = fields["customer_name"]
+                    conversation.preferences = prefs
 
             if intent == "test_drive":
                 self._resolve_action_car(
                     conversation,
                     fields,
                     car_reference=car_reference,
+                    message=message,
                     required=True,
                 )
                 plan = self._prepare_required_action(
@@ -99,6 +112,7 @@ class BusinessActionWorkflowService:
                     conversation,
                     fields,
                     car_reference=car_reference,
+                    message=message,
                     required=False,
                 )
                 plan = self._prepare_required_action(
@@ -237,26 +251,64 @@ class BusinessActionWorkflowService:
         fields: dict[str, Any],
         *,
         car_reference: str | int | None,
+        message: str = "",
         required: bool,
     ) -> None:
         if car_reference is not None:
-            item = self.recommendations.resolve_visible_item(conversation.id, car_reference)
-            fields["car_id"] = item.car_id
-            return
+            try:
+                item = self.recommendations.resolve_visible_item(conversation.id, car_reference)
+                fields["car_id"] = item.car_id
+                conversation.selected_car_id = item.car_id
+                return
+            except Exception:
+                pass
         if fields.get("car_id") is not None:
             try:
                 explicit_car_id = int(fields["car_id"])
             except (TypeError, ValueError):
                 fields.pop("car_id", None)
-                return
-            car = self.session.get(Car, explicit_car_id)
-            if car is None or not car.active:
+                explicit_car_id = None
+            if explicit_car_id:
+                car = self.session.get(Car, explicit_car_id)
+                if car is not None and car.active:
+                    fields["car_id"] = car.id
+                    conversation.selected_car_id = car.id
+                    return
                 fields.pop("car_id", None)
-                return
-            fields["car_id"] = car.id
-            return
         if conversation.selected_car_id is not None:
             fields["car_id"] = conversation.selected_car_id
+            return
+
+        # Check active recommendation snapshot if available
+        snapshot = self.recommendations.get_active_snapshot(conversation.id)
+        if snapshot and snapshot.items:
+            # 1. If snapshot has only 1 car, auto-select it
+            if len(snapshot.items) == 1:
+                fields["car_id"] = snapshot.items[0].car_id
+                conversation.selected_car_id = snapshot.items[0].car_id
+                return
+
+            # 2. Match brand or model in customer message against active snapshot items
+            message_lower = message.casefold()
+            for item in snapshot.items:
+                car = self.session.get(Car, item.car_id)
+                if car and (
+                    car.brand.casefold() in message_lower
+                    or car.model.casefold() in message_lower
+                    or (car.brand == "Chery" and "شيري" in message_lower)
+                    or (
+                        car.brand == "BYD"
+                        and ("بيوايدي" in message_lower or "بي واي دي" in message_lower)
+                    )
+                    or (car.brand == "Nissan" and "نيسان" in message_lower)
+                    or (car.brand == "Renault" and "رينو" in message_lower)
+                    or (car.brand == "BMW" and "بي ام" in message_lower)
+                    or (car.brand == "Mercedes-Benz" and "مرسيدس" in message_lower)
+                ):
+                    fields["car_id"] = item.car_id
+                    conversation.selected_car_id = item.car_id
+                    return
+
         if not required:
             return
 

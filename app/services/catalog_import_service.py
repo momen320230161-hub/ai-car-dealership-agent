@@ -208,8 +208,8 @@ class CatalogImportService:
         if not text:
             return None
         try:
-            parsed = int(text)
-        except ValueError as exc:
+            parsed = int(float(text))
+        except (ValueError, TypeError) as exc:
             raise ValueError(f"{name} must be an integer") from exc
         if parsed < minimum:
             raise ValueError(f"{name} must be at least {minimum}")

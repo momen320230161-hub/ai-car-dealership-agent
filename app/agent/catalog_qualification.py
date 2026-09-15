@@ -39,6 +39,25 @@ _BRAND_ALIASES: dict[str, tuple[str, ...]] = {
     "Jeep": ("جيب",),
 }
 
+_MODEL_ALIASES: dict[str, tuple[str, ...]] = {
+    "X6": ("اكس 6", "إكس 6", "اكس٦", "إكس٦"),
+    "X5": ("اكس 5", "إكس 5", "اكس٥", "إكس٥"),
+    "X3": ("اكس 3", "إكس 3", "اكس٣", "إكس٣"),
+    "X2": ("اكس 2", "إكس 2", "اكس٢", "إكس٢"),
+    "X1": ("اكس 1", "إكس 1", "اكس١", "إكس١"),
+    "Tiggo 4": ("تيجو 4", "تيجو ٤", "تيجو4"),
+    "Tiggo 7": ("تيجو 7", "تيجو ٧", "تيجو7"),
+    "Tiggo 8": ("تيجو 8", "تيجو ٨", "تيجو8"),
+    "S07": ("اس 07", "إس 07", "اس07", "اس ٠٧"),
+    "H6": ("اتش 6", "إتش 6", "اتش6", "اتش ٦"),
+    "Tucson": ("توسان", "توسون"),
+    "Sportage": ("سبورتاج",),
+    "Qashqai": ("قشقاي", "كاشكاي"),
+    "C-Class": ("سي كلاس", "سي-كلاس"),
+    "E-Class": ("اي كلاس", "إي كلاس", "اي-كلاس"),
+    "S-Class": ("اس كلاس", "إس كلاس", "اس-كلاس"),
+}
+
 _BODY_TYPE_ALIASES: dict[str, tuple[str, ...]] = {
     "SUV": ("اس يو في", "إس يو في", "اس يو فى", "إس يو فى"),
     "Sedan": ("سيدان",),
@@ -69,6 +88,18 @@ _RECOMMENDATION_MARKERS = (
     "اختار لي",
     "وريني",
     "ورّيني",
+    "اعرضلي",
+    "اعرض لي",
+    "اعرض",
+    "الموجود",
+    "اللي عندك",
+    "ال عندك",
+    "غيرهم",
+    "غير دول",
+    "تاني",
+    "تانيه",
+    "ثانية",
+    "مزيد",
     "recommend",
     "suggest",
     "show me",
@@ -114,6 +145,11 @@ def _explicit_alias(
 def explicit_brand_from_message(message: str) -> str | None:
     """Resolve only explicit, allowlisted Arabic brand aliases to catalog names."""
     return _explicit_alias(message, _BRAND_ALIASES)
+
+
+def explicit_model_from_message(message: str) -> str | None:
+    """Resolve explicit Arabic model wording to canonical catalog values."""
+    return _explicit_alias(message, _MODEL_ALIASES)
 
 
 def explicit_body_type_from_message(message: str) -> str | None:

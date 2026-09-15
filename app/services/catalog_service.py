@@ -95,6 +95,7 @@ class CatalogService:
         preferences: CatalogFilters | Mapping[str, Any] | None,
         *,
         limit: int = 3,
+        exclude_car_ids: Sequence[int] | None = None,
     ) -> list[Car]:
         """Return a deterministic, intent-aware, customer-diverse visible shortlist."""
         filters = (
@@ -118,6 +119,10 @@ class CatalogService:
             active_only=True,
         )
 
+        if exclude_car_ids:
+            excluded_set = set(exclude_car_ids)
+            candidates = [car for car in candidates if car.id not in excluded_set]
+
         visible: list[Car] = []
         variants: list[Car] = []
         seen_models: set[tuple[str, str]] = set()
@@ -136,6 +141,52 @@ class CatalogService:
             if len(visible) == limit:
                 break
         return visible
+
+    def recommend_with_relaxation(
+        self,
+        preferences: CatalogFilters | Mapping[str, Any] | None,
+        *,
+        limit: int = 3,
+    ) -> dict[str, Any]:
+        """Attempt exact recommendation, then near-budget or condition relaxation.
+
+        If exact search yields 0 results, attempts price relaxation or condition fallback.
+        """
+        filters = (
+            preferences
+            if isinstance(preferences, CatalogFilters)
+            else CatalogFilters.from_mapping(preferences)
+        )
+        exact_cars = self.recommend(filters, limit=limit)
+        if exact_cars:
+            return {"type": "exact", "cars": exact_cars}
+
+        if filters.max_price is not None:
+            relaxed_dict = filters.as_dict()
+            original_price = float(relaxed_dict["max_price"])
+            relaxed_dict["max_price"] = original_price * 1.20
+            budget_cars = self.recommend(relaxed_dict, limit=limit)
+            if budget_cars:
+                return {
+                    "type": "price_relaxation",
+                    "cars": budget_cars,
+                    "original_max_price": original_price,
+                    "cheapest_price": float(budget_cars[0].price_egp),
+                }
+
+        if filters.condition is not None:
+            relaxed_dict = filters.as_dict()
+            current_cond = relaxed_dict.pop("condition")
+            cond_cars = self.recommend(relaxed_dict, limit=limit)
+            if cond_cars:
+                return {
+                    "type": "condition_relaxation",
+                    "cars": cond_cars,
+                    "requested_condition": current_cond,
+                    "available_condition": cond_cars[0].condition,
+                }
+
+        return {"type": "no_results", "cars": []}
 
     def compare_cars(self, car_ids: Sequence[int]) -> dict[str, Any]:
         if len(car_ids) < 2:

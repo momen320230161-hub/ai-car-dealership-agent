@@ -106,6 +106,18 @@ class RecommendationService:
             self.session.rollback()
             raise
 
+    def get_seen_car_ids(self, session_id: uuid.UUID) -> set[int]:
+        """Return all car IDs previously displayed in recommendation snapshots for this session."""
+        statement = (
+            select(RecommendationSnapshotItem.car_id)
+            .join(
+                RecommendationSnapshot,
+                RecommendationSnapshot.id == RecommendationSnapshotItem.snapshot_id,
+            )
+            .where(RecommendationSnapshot.session_id == session_id)
+        )
+        return set(self.session.scalars(statement).all())
+
     def recommend_and_snapshot(
         self,
         session_id: uuid.UUID,
@@ -114,6 +126,23 @@ class RecommendationService:
         limit: int = 3,
     ) -> RecommendationSnapshot | None:
         cars = self.catalog_service.recommend(preferences, limit=limit)
+        if not cars:
+            return None
+        return self.create_visible_snapshot(session_id, cars, preferences)
+
+    def recommend_next_batch_and_snapshot(
+        self,
+        session_id: uuid.UUID,
+        preferences: CatalogFilters | Mapping[str, Any] | None,
+        *,
+        limit: int = 3,
+    ) -> RecommendationSnapshot | None:
+        """Fetch the next batch of recommended cars excluding previously displayed vehicles."""
+        seen_ids = self.get_seen_car_ids(session_id)
+        cars = self.catalog_service.recommend(preferences, limit=limit, exclude_car_ids=seen_ids)
+        if not cars and seen_ids:
+            # If all matching cars have been displayed, loop back to standard recommend
+            cars = self.catalog_service.recommend(preferences, limit=limit)
         if not cars:
             return None
         return self.create_visible_snapshot(session_id, cars, preferences)

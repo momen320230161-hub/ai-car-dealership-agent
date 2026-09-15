@@ -11,6 +11,7 @@ from app.agent.catalog_qualification import (
     explicit_body_type_from_message,
     explicit_brand_from_message,
     explicit_fuel_type_from_message,
+    explicit_model_from_message,
 )
 
 Intent = Literal[
@@ -223,62 +224,96 @@ def sanitize_understanding(
 
     updates = understanding.preference_updates.model_dump(exclude_none=True)
     message_folded = normalized.casefold()
-    if "مستعمل" in message_folded or "used" in message_folded:
+
+    # Refine canonical values via allowlisted aliases when explicitly present,
+    # but TRUST Gemini's structured extraction rather than throwing it away.
+    if any(
+        term in message_folded for term in ("مستعمل", "used", "استعمال", "استعمال خفيف", "كسر زيرو")
+    ):
         updates["condition"] = "used"
-    elif "جديد" in message_folded or "new" in message_folded:
+    elif any(term in message_folded for term in ("جديد", "جديدة", "new", "زيرو")):
         updates["condition"] = "new"
-    elif "condition" in updates:
-        updates.pop("condition")
 
     explicit_brand = explicit_brand_from_message(message)
     if explicit_brand is not None:
         updates["brand"] = explicit_brand
-    elif "brand" in updates and str(updates["brand"]).casefold() not in message_folded:
-        updates.pop("brand")
 
-    if "model" in updates and str(updates["model"]).casefold() not in message_folded:
-        updates.pop("model")
+    explicit_model = explicit_model_from_message(message)
+    if explicit_model is not None:
+        updates["model"] = explicit_model
 
     explicit_body_type = explicit_body_type_from_message(message)
     if explicit_body_type is not None:
         updates["body_type"] = explicit_body_type
-    elif "body_type" in updates and str(updates["body_type"]).casefold() not in message_folded:
-        updates.pop("body_type")
-
-    if "transmission" in updates:
-        value = str(updates["transmission"]).casefold()
-        automatic = value == "automatic" and any(
-            term in message_folded for term in ("automatic", "اوتوماتيك", "أوتوماتيك")
-        )
-        manual = value == "manual" and any(
-            term in message_folded for term in ("manual", "مانيوال", "يدوي")
-        )
-        if not (value in message_folded or automatic or manual):
-            updates.pop("transmission")
 
     explicit_fuel_type = explicit_fuel_type_from_message(message)
     if explicit_fuel_type is not None:
         updates["fuel_type"] = explicit_fuel_type
-    elif "fuel_type" in updates:
-        value = str(updates["fuel_type"]).casefold()
-        if value not in message_folded:
-            updates.pop("fuel_type")
+
+    explicit_budget = explicit_budget_ceiling(message)
+    if explicit_budget is not None:
+        updates["max_price"] = explicit_budget
 
     money_amounts = explicit_money_amounts(message)
-    for name in ("min_year", "max_year", "min_price", "max_price", "max_mileage"):
-        if name in updates:
-            compact_value = str(int(updates[name]))
-            digits = re.sub(r"[^0-9]", "", normalized)
-            explicit_money = name in {"min_price", "max_price"} and any(
-                abs(float(updates[name]) - amount) < 1 for amount in money_amounts
-            )
-            if compact_value not in digits and not explicit_money:
+    digits = re.sub(r"[^0-9]", "", normalized)
+    has_money_words = any(
+        w in message_folded
+        for w in (
+            "مليون",
+            "الف",
+            "ألف",
+            "ميزانية",
+            "ميزانيه",
+            "معايا",
+            "سعر",
+            "تحت",
+            "حد",
+            "k",
+        )
+    )
+    for name in ("min_price", "max_price"):
+        if name in updates and updates[name] is not None:
+            explicit_money = any(abs(float(updates[name]) - amount) < 1 for amount in money_amounts)
+            if not digits and not explicit_money and not has_money_words:
                 updates.pop(name)
 
-    if understanding.intent == "catalog_search" and "max_price" not in updates:
-        explicit_budget = explicit_budget_ceiling(message)
-        if explicit_budget is not None:
-            updates["max_price"] = explicit_budget
+    # Filter reset handling (customer requests clearing price ceiling or resetting search)
+    budget_reset = (
+        re.search(
+            r"(?:شيل|إلغاء|الغاء|بدون|من غير)\s*(?:السعر|الميزانية|الميزانيه|حد أقصى|حد اقصى|سعر)",
+            message_folded,
+        )
+        or "من غير حد أقصى" in message_folded
+        or "بدون حد أقصى" in message_folded
+    )
+    if budget_reset:
+        updates["max_price"] = None
+        updates["min_price"] = None
+
+    global_reset = (
+        re.search(
+            r"(?:شيل|إلغاء|الغاء|بدون|من غير)\s*(?:الفلتر|الفلاتر|التفضيلات|كل الشروط)",
+            message_folded,
+        )
+        or "من الأول" in message_folded
+        or "من الاول" in message_folded
+        or "تصفير التفضيلات" in message_folded
+    )
+    if global_reset:
+        for key in (
+            "brand",
+            "model",
+            "condition",
+            "body_type",
+            "transmission",
+            "fuel_type",
+            "min_year",
+            "max_year",
+            "min_price",
+            "max_price",
+            "max_mileage",
+        ):
+            updates[key] = None
 
     data["preference_updates"] = updates
     return RequestUnderstanding.model_validate(data)

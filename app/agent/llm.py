@@ -250,7 +250,33 @@ class DeterministicAgentLLM:
             )
         ):
             intent = "knowledge_question"
-        elif updates or any(word in lower for word in ("عربية", "سيارة", "وريني", "عايز")):
+        elif updates or any(
+            word in lower
+            for word in (
+                "عربية",
+                "سيارة",
+                "وريني",
+                "اعرضلي",
+                "اعرض",
+                "عايز",
+                "معايا",
+                "مليون",
+                "جنيه",
+                "الف",
+                "ألف",
+                "شيل",
+                "تصفير",
+                "بدون",
+                "جديدة",
+                "مستعملة",
+                "مستعمل",
+                "استعمال",
+                "سيدان",
+                "تاني",
+                "تانيه",
+                "غيرهم",
+            )
+        ):
             intent = "catalog_search"
         else:
             intent = "general"

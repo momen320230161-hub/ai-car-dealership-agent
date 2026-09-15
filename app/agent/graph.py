@@ -22,6 +22,7 @@ from app.agent.rendering import (
 )
 from app.agent.schemas import sanitize_understanding
 from app.agent.state import AgentState
+from app.models.conversation import ConversationSession
 from app.rag.embeddings import EmbeddingProvider
 from app.services.business_action_workflow_service import (
     BusinessActionWorkflowError,
@@ -263,7 +264,7 @@ class SalesOrchestrator:
                 {
                     "intent": understanding.intent,
                     "extracted_preferences": understanding.preference_updates.model_dump(
-                        exclude_none=True
+                        exclude_unset=True
                     ),
                     "car_reference": understanding.car_reference,
                     "comparison_references": understanding.comparison_references,
@@ -335,45 +336,71 @@ class SalesOrchestrator:
             session_id = uuid.UUID(state["session_id"])
             intent: CatalogIntent = state.get("intent", "catalog_search")  # type: ignore[assignment]
             if intent == "catalog_search":
+                message_text = state.get("normalized_message", "").casefold()
+                is_pagination = any(
+                    term in message_text
+                    for term in ("تاني", "تانيه", "ثانية", "غيرهم", "غير دول", "مزيد", "صفحة تانية")
+                )
                 qualification = qualify_catalog_search(
                     state.get("preferences", {}), state.get("normalized_message", "")
                 )
-                if not qualification.ready:
+                if not qualification.ready and not is_pagination:
                     update["catalog_result"] = {
                         "type": "clarification",
                         "message": qualification.message,
                         "missing": list(qualification.missing),
                     }
                     return update
-                snapshot = self.recommendations.recommend_and_snapshot(
-                    session_id,
-                    state.get("preferences", {}),
-                    limit=self.recommendation_limit,
-                )
+
+                if is_pagination:
+                    snapshot = self.recommendations.recommend_next_batch_and_snapshot(
+                        session_id,
+                        state.get("preferences", {}),
+                        limit=self.recommendation_limit,
+                    )
+                else:
+                    snapshot = self.recommendations.recommend_and_snapshot(
+                        session_id,
+                        state.get("preferences", {}),
+                        limit=self.recommendation_limit,
+                    )
                 if snapshot is None:
                     prefs = state.get("preferences", {})
-                    if prefs.get("model") and prefs.get("condition"):
-                        fallback_prefs = dict(prefs)
-                        fallback_prefs.pop("condition", None)
-                        fallback_cars = self.catalog.recommend(
-                            fallback_prefs, limit=self.recommendation_limit
+                    relaxed = self.catalog.recommend_with_relaxation(
+                        prefs, limit=self.recommendation_limit
+                    )
+                    if relaxed["type"] == "price_relaxation":
+                        cars = relaxed["cars"]
+                        snapshot = self.recommendations.create_visible_snapshot(
+                            session_id, cars, prefs
                         )
-                        if fallback_cars:
-                            found_car = fallback_cars[0]
-                            if found_car.condition == "used":
-                                cond_label = "مستعملة"
-                            elif found_car.condition == "new":
-                                cond_label = "جديدة"
-                            else:
-                                cond_label = str(found_car.condition)
-                            car_name = f"{found_car.brand} {found_car.model}".strip()
-                            update["catalog_result"] = {
-                                "type": "fallback_condition",
-                                "car_name": car_name,
-                                "available_condition_text": cond_label,
-                            }
+                        context = self.context.load(session_id)
+                        update.update(self._context_update(context))
+                        update["catalog_result"] = {
+                            "type": "relaxed_suggestion",
+                            "reason": "price",
+                            "cars": [
+                                self.catalog.serialize_details(c) if hasattr(c, "brand") else c
+                                for c in cars
+                            ],
+                            "original_max_price": relaxed["original_max_price"],
+                            "cheapest_price": relaxed["cheapest_price"],
+                            "snapshot_id": snapshot.id,
+                        }
+                    elif relaxed["type"] == "condition_relaxation":
+                        found_car = relaxed["cars"][0]
+                        if found_car.condition == "used":
+                            cond_label = "مستعملة"
+                        elif found_car.condition == "new":
+                            cond_label = "جديدة"
                         else:
-                            update["catalog_result"] = {"type": "no_results"}
+                            cond_label = str(found_car.condition)
+                        car_name = f"{found_car.brand} {found_car.model}".strip()
+                        update["catalog_result"] = {
+                            "type": "fallback_condition",
+                            "car_name": car_name,
+                            "available_condition_text": cond_label,
+                        }
                     else:
                         update["catalog_result"] = {"type": "no_results"}
                 else:
@@ -394,6 +421,20 @@ class SalesOrchestrator:
                 car = self.catalog.get_car_details(car_id)
                 if car is None:
                     raise VisibleRecommendationError("The requested car is unavailable")
+                if position is not None:
+                    try:
+                        self.recommendations.select_visible_car(session_id, position)
+                    except Exception:
+                        pass
+                else:
+                    try:
+                        session_obj = self.session.get(ConversationSession, session_id)
+                        if session_obj:
+                            session_obj.selected_car_id = car_id
+                            self.session.commit()
+                    except Exception:
+                        self.session.rollback()
+                update["selected_car_id"] = car_id
                 update["catalog_result"] = {
                     "type": "car_details",
                     "car": self._json_safe(car),
@@ -559,7 +600,10 @@ class SalesOrchestrator:
                 state.get("knowledge_supported", False), state.get("grounded_knowledge")
             )
         elif state.get("route") == "business_gate":
-            response = render_business_action(state.get("action_status"))
+            response = render_business_action(
+                state.get("action_status"),
+                user_message=state.get("normalized_message"),
+            )
         else:
             try:
                 response = self.llm.compose_general(

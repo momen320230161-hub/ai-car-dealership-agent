@@ -15,7 +15,11 @@ _FIELD_LABELS = {
 }
 
 
-def render_business_action(status: Mapping[str, Any] | None) -> str:
+def render_business_action(
+    status: Mapping[str, Any] | None,
+    *,
+    user_message: str | None = None,
+) -> str:
     """Render only verified action state; never imply success without a real row ID."""
     if not status:
         return "مقدرتش أحدد حالة الطلب حاليًا. حاول مرة تانية."
@@ -36,7 +40,23 @@ def render_business_action(status: Mapping[str, Any] | None) -> str:
                     f"قولي رقم الطلب اللي عايز تلغيه من: {ids}."
                 )
         labels = [_FIELD_LABELS.get(field, field) for field in missing]
-        return f"محتاج منك بس: {_join_arabic(labels)}."
+        joined = _join_arabic(labels)
+
+        msg_lower = (user_message or "").casefold()
+        why_terms = ("ليه", "لماذا", "اشمعنى", "ازاي", "إزاي", "عشان", "why")
+        if any(term in msg_lower for term in why_terms):
+            if intent == "test_drive":
+                return (
+                    "عشان نقدر ننسق معاك موعد تجربة القيادة ومسؤول المبيعات "
+                    f"يتواصل معاك لتأكيد الحجز. محتاجين منك بس: {joined}."
+                )
+            if intent == "sales_lead":
+                return (
+                    "عشان مسؤول المبيعات يقدر يتواصل معاك ويتابع معاك التفاصيل. "
+                    f"محتاجين منك بس: {joined}."
+                )
+
+        return f"محتاج منك بس: {joined}."
 
     if action_status == "no_active_request":
         return "مفيش طلب تجربة قيادة نشط مرتبط بالمحادثة دي أقدر ألغيه."
