@@ -10,14 +10,16 @@ AutoDrive Egypt is a Flask + LangGraph AI Sales & Customer Service technical-ass
 - **Phase 3 — Managed RAG + PostgreSQL pgvector: COMPLETE / LIVE VERIFIED**
 - **Phase 4 — LangGraph Sales Orchestrator: COMPLETE / LIVE VERIFIED**
 - **Phase 5 — Test-drive & sales-lead business actions: COMPLETE / LIVE VERIFIED**
-- **Phase 6 — Premium customer website & browser chat: IMPLEMENTED / CI TESTED; live browser E2E pending**
+- **Phase 6 — Premium customer website & browser chat: COMPLETE / LIVE VERIFIED**
+- **Phase 6.5 — Supabase Authentication & User-Owned Conversations: IMPLEMENTED / TESTED**
 
-Phase 7 is the Admin Dashboard, including cars, test drives, leads, overview metrics, and RAG knowledge CRUD/reindex controls.
+Phase 7 remains the next main phase: Admin Dashboard (cars, test drives, leads, overview metrics, and RAG knowledge CRUD/reindex controls).
 
 ## Required Stack
 
 - Python 3.12
 - Flask Application Factory
+- Supabase Auth (Google OAuth identity provider) + Flask-Login (application session management)
 - Flask Templates + HTML/CSS/JavaScript
 - SQLAlchemy 2.x / Flask-SQLAlchemy
 - Flask-Migrate / Alembic

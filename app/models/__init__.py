@@ -8,6 +8,7 @@ from app.models.lead import SalesLead
 from app.models.message import ChatMessage
 from app.models.recommendation import RecommendationSnapshot, RecommendationSnapshotItem
 from app.models.test_drive import TestDriveRequest
+from app.models.user import UserProfile
 
 __all__ = [
     "Base",
@@ -16,6 +17,7 @@ __all__ = [
     "GUID",
     "PortableJSON",
     "Car",
+    "UserProfile",
     "ConversationSession",
     "ChatMessage",
     "RecommendationSnapshot",

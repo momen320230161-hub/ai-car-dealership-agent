@@ -42,15 +42,37 @@ class ConversationContextService:
         self.recommendations = RecommendationService(session)
         self.catalog = CatalogService(session)
 
-    def load_or_create(self, session_id: uuid.UUID | str | None) -> ConversationContext:
-        resolved = self._parse_session_id(session_id)
+    def load_or_create(
+        self,
+        session_id: uuid.UUID | str | None,
+        user_id: uuid.UUID | str | None = None,
+    ) -> ConversationContext:
+        resolved_session = self._parse_session_id(session_id)
+        resolved_user = self._parse_session_id(user_id)
         try:
-            conversation = self.session.get(ConversationSession, resolved) if resolved else None
-            if conversation is None:
-                conversation = ConversationSession(id=resolved or uuid.uuid4())
+            conversation = (
+                self.session.get(ConversationSession, resolved_session)
+                if resolved_session
+                else None
+            )
+            if conversation is not None:
+                if resolved_user is not None and conversation.user_id != resolved_user:
+                    # User B attempting to access User A's conversation session.
+                    # Create a new session for User B instead of leaking User A's data.
+                    conversation = ConversationSession(
+                        id=uuid.uuid4(),
+                        user_id=resolved_user,
+                    )
+                    self.session.add(conversation)
+                    self.session.commit()
+            else:
+                conversation = ConversationSession(
+                    id=resolved_session or uuid.uuid4(),
+                    user_id=resolved_user,
+                )
                 self.session.add(conversation)
                 self.session.commit()
-            return self.load(conversation.id)
+            return self.load(conversation.id, user_id=resolved_user)
         except ConversationContextError:
             self.session.rollback()
             raise
@@ -58,11 +80,18 @@ class ConversationContextService:
             self.session.rollback()
             raise ConversationContextError("Conversation session could not be loaded") from exc
 
-    def load(self, session_id: uuid.UUID) -> ConversationContext:
+    def load(
+        self,
+        session_id: uuid.UUID,
+        user_id: uuid.UUID | str | None = None,
+    ) -> ConversationContext:
+        resolved_user = self._parse_session_id(user_id)
         try:
             conversation = self.session.get(ConversationSession, session_id)
             if conversation is None:
                 raise ConversationContextError("Conversation session was not found")
+            if resolved_user is not None and conversation.user_id != resolved_user:
+                raise ConversationContextError("Access to this conversation session is forbidden")
             snapshot = self.recommendations.get_active_snapshot(session_id)
             snapshot_data = None
             if snapshot is not None:
@@ -140,6 +169,45 @@ class ConversationContextService:
         except SQLAlchemyError as exc:
             self.session.rollback()
             raise ConversationContextError("Conversation messages could not be persisted") from exc
+
+    def get_user_conversations(
+        self,
+        user_id: uuid.UUID | str,
+        limit: int = 20,
+    ) -> list[dict[str, Any]]:
+        resolved_user = self._parse_session_id(user_id)
+        if resolved_user is None:
+            return []
+        sessions = list(
+            self.session.scalars(
+                select(ConversationSession)
+                .where(ConversationSession.user_id == resolved_user)
+                .order_by(ConversationSession.updated_at.desc())
+                .limit(limit)
+            )
+        )
+        results = []
+        for s in sessions:
+            first_msg = self.session.scalar(
+                select(ChatMessage.content)
+                .where(ChatMessage.session_id == s.id, ChatMessage.role == "user")
+                .order_by(ChatMessage.created_at.asc())
+                .limit(1)
+            )
+            title = (
+                (first_msg[:40] + "...")
+                if first_msg and len(first_msg) > 40
+                else (first_msg or "محادثة جديدة")
+            )
+            results.append(
+                {
+                    "id": str(s.id),
+                    "title": title,
+                    "created_at": s.created_at.isoformat(),
+                    "updated_at": s.updated_at.isoformat(),
+                }
+            )
+        return results
 
     @staticmethod
     def _parse_session_id(value: uuid.UUID | str | None) -> uuid.UUID | None:

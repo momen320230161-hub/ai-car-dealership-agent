@@ -45,6 +45,11 @@ body.chat-body {
   margin-bottom: 1rem;
 }
 
+/* Utility Overrides */
+.hidden {
+  display: none !important;
+}
+
 .msg-row.assistant {
   display: flex;
   align-items: flex-start;

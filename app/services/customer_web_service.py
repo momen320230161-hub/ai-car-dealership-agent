@@ -105,11 +105,19 @@ class CustomerWebService:
     def car_details(self, car_id: int) -> Car | None:
         return self.catalog.get_car(car_id)
 
-    def ensure_conversation(self, session_id: uuid.UUID | str | None) -> ConversationContext:
-        return self.context.load_or_create(session_id)
+    def ensure_conversation(
+        self,
+        session_id: uuid.UUID | str | None,
+        user_id: uuid.UUID | str | None = None,
+    ) -> ConversationContext:
+        return self.context.load_or_create(session_id, user_id=user_id)
 
-    def chat_state(self, session_id: uuid.UUID | str) -> CustomerChatState:
-        context = self.context.load_or_create(session_id)
+    def chat_state(
+        self,
+        session_id: uuid.UUID | str,
+        user_id: uuid.UUID | str | None = None,
+    ) -> CustomerChatState:
+        context = self.context.load_or_create(session_id, user_id=user_id)
         messages = list(
             self.session.scalars(
                 select(ChatMessage)
@@ -144,3 +152,10 @@ class CustomerWebService:
             pending_action_type=pending_type,
             visible_recommendations=list(active_items),
         )
+
+    def user_conversations(
+        self,
+        user_id: uuid.UUID | str,
+        limit: int = 20,
+    ) -> list[dict[str, Any]]:
+        return self.context.get_user_conversations(user_id, limit=limit)

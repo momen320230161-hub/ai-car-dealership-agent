@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import uuid
 from typing import Any
 
 import click
@@ -9,7 +10,7 @@ from flask import Flask
 from sqlalchemy import event
 
 from app.config import Config
-from app.extensions import db, migrate
+from app.extensions import db, login_manager, migrate
 
 
 def create_app(config_overrides: dict[str, Any] | None = None) -> Flask:
@@ -29,11 +30,28 @@ def create_app(config_overrides: dict[str, Any] | None = None) -> Flask:
     migrate.init_app(app, db, compare_type=True)
     _configure_postgres_search_path(app)
 
+    login_manager.init_app(app)
+    login_manager.login_view = "auth.login_page"
+    login_manager.login_message = "يرجى تسجيل الدخول أولاً للوصول هذه الصفحة."
+
+    @login_manager.user_loader
+    def load_user(user_id_str: str) -> models.UserProfile | None:
+        try:
+            user_id = uuid.UUID(user_id_str)
+        except (ValueError, TypeError):
+            return None
+        user = db.session.get(models.UserProfile, user_id)
+        if user and user.active:
+            return user
+        return None
+
+    from app.blueprints.auth import bp as auth_bp
     from app.blueprints.chat import bp as chat_bp
     from app.blueprints.health import bp as health_bp
     from app.blueprints.site import bp as site_bp
 
     app.register_blueprint(site_bp)
+    app.register_blueprint(auth_bp)
     app.register_blueprint(chat_bp)
     app.register_blueprint(health_bp)
     _register_cli(app)
@@ -379,3 +397,18 @@ def _register_cli(app: Flask) -> None:
             raise click.ClickException(
                 f"Live smoke test encountered an unexpected error: {exc}"
             ) from exc
+
+    @app.cli.command("set-user-role")
+    @click.argument("email")
+    @click.argument("role")
+    def set_user_role(email: str, role: str) -> None:
+        """Assign or update role for an existing UserProfile."""
+        from app.services.auth_service import AuthService
+
+        try:
+            user = AuthService(db.session).set_user_role(email, role)
+            click.echo(
+                f"Successfully set role {user.role!r} for user {user.email!r} (ID: {user.id})"
+            )
+        except ValueError as exc:
+            raise click.ClickException(str(exc)) from exc

@@ -6,7 +6,9 @@
 {% block content %}
 <section class="min-h-[calc(100vh-70px)] bg-[#F4F7FB] text-[#0F1B33] flex flex-col" id="chat-app" 
          data-send-url="{{ url_for('chat.send_message') }}" 
-         data-session-url="{{ url_for('chat.new_session') }}" 
+         data-session-url="{{ url_for('chat.new_session') }}"
+         data-history-url="{{ url_for('chat.get_history') }}"
+         data-switch-base-url="/api/chat/switch_session/"
          data-max-message-length="{{ config.AGENT_MAX_MESSAGE_LENGTH }}">
 
   <!-- Main Grid Layout -->
@@ -15,6 +17,38 @@
     <!-- Sidebar Info Panel (Desktop 1 Col / Mobile Drawer) -->
     <aside class="lg:col-span-1 flex flex-col gap-4" id="chat-sidebar">
       
+      <!-- User Profile & Logout -->
+      <div class="bg-white border border-[#D9E2EF] rounded-2xl p-5 shadow-xs flex flex-col gap-3">
+        <div class="flex items-center justify-between">
+          <div class="flex items-center gap-3">
+            {% if current_user.avatar_url %}
+              <img src="{{ current_user.avatar_url }}" alt="User Avatar" class="w-9 h-9 rounded-full object-cover border border-[#D9E2EF]" />
+            {% else %}
+              <div class="w-9 h-9 rounded-full bg-[#2F5BD3] text-white font-bold flex items-center justify-center text-sm">
+                {{ (current_user.display_name or current_user.email or 'U')[0]|upper }}
+              </div>
+            {% endif %}
+            <div class="flex flex-col text-right">
+              <span class="text-xs font-bold text-[#0F1B33] truncate max-w-[140px]">
+                {{ current_user.display_name or current_user.email }}
+              </span>
+              <span class="text-[10px] text-[#64748B]">
+                {% if current_user.role == 'admin' %}
+                  <span class="inline-block px-1.5 py-0.2 rounded bg-amber-50 text-amber-700 font-semibold">Admin</span>
+                {% else %}
+                  عميل موثق
+                {% endif %}
+              </span>
+            </div>
+          </div>
+          <form action="{{ url_for('auth.logout') }}" method="POST">
+            <button type="submit" class="text-xs text-rose-600 hover:underline font-medium px-2 py-1 rounded bg-rose-50 border border-rose-100">
+              خروج
+            </button>
+          </form>
+        </div>
+      </div>
+
       <!-- Session Actions & New Chat -->
       <div class="bg-white border border-[#D9E2EF] rounded-2xl p-5 shadow-xs flex flex-col gap-3">
         <div class="flex items-center justify-between">
@@ -26,9 +60,29 @@
             محادثة جديدة ↺
           </button>
         </div>
-        <p class="text-xs text-[#64748B] leading-relaxed">
-          يتم حفظ تفضيلات البحث والسيارة المختارة تلقائياً لتستكمل المحادثة في أي وقت.
-        </p>
+      </div>
+
+      <!-- Recent Conversations History -->
+      <div class="bg-white border border-[#D9E2EF] rounded-2xl p-5 shadow-xs flex flex-col gap-3">
+        <div class="flex items-center justify-between border-b border-[#D9E2EF] pb-3">
+          <span class="text-xs font-bold uppercase tracking-wider text-[#64748B]">محادثاتك السابقة</span>
+          <svg class="w-4 h-4 text-[#2F5BD3]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/>
+          </svg>
+        </div>
+        <div class="flex flex-col gap-1.5 max-h-48 overflow-y-auto pr-1" id="history-list">
+          {% if user_history %}
+            {% for item in user_history %}
+              <button class="w-full text-right p-2 text-xs rounded-xl hover:bg-[#F1F5F9] transition-colors border border-transparent flex flex-col gap-0.5 {% if item.id == chat_state.session_id|string %}bg-blue-50 border-[#2F5BD3] font-semibold text-[#2F5BD3]{% else %}text-[#0F1B33]{% endif %}" 
+                      type="button" 
+                      data-history-id="{{ item.id }}">
+                <span class="truncate w-full">{{ item.title }}</span>
+              </button>
+            {% endfor %}
+          {% else %}
+            <span class="text-xs text-[#64748B] py-2 text-center">لا توجد محادثات سابقة</span>
+          {% endif %}
+        </div>
       </div>
 
       <!-- Selected Car Card -->

@@ -16,6 +16,7 @@ if TYPE_CHECKING:
     from app.models.message import ChatMessage
     from app.models.recommendation import RecommendationSnapshot
     from app.models.test_drive import TestDriveRequest
+    from app.models.user import UserProfile
 
 
 class ConversationSession(Base, TimestampMixin):
@@ -24,6 +25,15 @@ class ConversationSession(Base, TimestampMixin):
     __tablename__ = "conversation_sessions"
 
     id: Mapped[uuid.UUID] = mapped_column(GUID, primary_key=True, default=uuid.uuid4)
+    user_id: Mapped[uuid.UUID | None] = mapped_column(
+        GUID,
+        ForeignKey(
+            "user_profiles.id",
+            ondelete="CASCADE",
+            name="fk_conversation_sessions_user_id_user_profiles",
+        ),
+        nullable=True,
+    )
     preferences: Mapped[dict[str, Any]] = mapped_column(
         PortableJSON,
         default=dict,
@@ -57,6 +67,7 @@ class ConversationSession(Base, TimestampMixin):
         nullable=False,
     )
 
+    user: Mapped[UserProfile | None] = relationship("UserProfile", back_populates="conversations")
     selected_car: Mapped[Car | None] = relationship("Car", foreign_keys=[selected_car_id])
     active_recommendation_snapshot: Mapped[RecommendationSnapshot | None] = relationship(
         "RecommendationSnapshot",
@@ -93,6 +104,7 @@ class ConversationSession(Base, TimestampMixin):
             name="conversation_session_status_check",
         ),
         Index("ix_conversation_sessions_status", "status"),
+        Index("ix_conversation_sessions_user_id", "user_id"),
         Index("ix_conversation_sessions_selected_car_id", "selected_car_id"),
         Index(
             "ix_conversation_sessions_active_recommendation_snapshot_id",

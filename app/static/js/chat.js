@@ -4,6 +4,8 @@
 
   const sendUrl = app.dataset.sendUrl;
   const sessionUrl = app.dataset.sessionUrl;
+  const historyUrl = app.dataset.historyUrl;
+  const switchBaseUrl = app.dataset.switchBaseUrl || "/api/chat/switch_session/";
   const maxMessageLength = Number(app.dataset.maxMessageLength || 4000);
   const form = document.getElementById("chat-form");
   const input = document.getElementById("chat-input");
@@ -18,6 +20,7 @@
   const pendingLabel = document.getElementById("pending-action-label");
   const pendingHint = document.getElementById("pending-action-hint");
   const newChatButton = document.getElementById("new-chat-button");
+  const historyList = document.getElementById("history-list");
   const mobileToggle = document.getElementById("mobile-side-toggle");
   const sidebar = document.getElementById("chat-sidebar");
 
@@ -237,6 +240,8 @@
       }
       if (!response.ok) {
         showError(payload && typeof payload.message === "string" ? payload.message : "حصلت مشكلة مؤقتة. جرّب تاني بعد لحظات.");
+      } else {
+        refreshHistory();
       }
     } catch (error) {
       showError(error && error.name === "AbortError" ? "الرد أخد وقت أطول من المتوقع. تقدر تعيد المحاولة." : "تعذر الاتصال بالخدمة. جرّب تاني بعد لحظات.");
@@ -266,6 +271,64 @@
     clearError();
   });
 
+  async function refreshHistory() {
+    if (!historyUrl || !historyList) return;
+    try {
+      const response = await fetch(historyUrl, { headers: { Accept: "application/json" } });
+      const payload = await parseJson(response);
+      if (!response.ok || !payload || !payload.ok || !Array.isArray(payload.conversations)) return;
+      historyList.replaceChildren();
+      if (payload.conversations.length === 0) {
+        const empty = document.createElement("span");
+        empty.className = "text-xs text-[#64748B] py-2 text-center";
+        empty.textContent = "لا توجد محادثات سابقة";
+        historyList.appendChild(empty);
+        return;
+      }
+      for (const item of payload.conversations) {
+        const btn = document.createElement("button");
+        btn.type = "button";
+        btn.className = "w-full text-right p-2 text-xs rounded-xl hover:bg-[#F1F5F9] transition-colors border border-transparent flex flex-col gap-0.5 text-[#0F1B33]";
+        btn.dataset.historyId = item.id;
+        const titleSpan = document.createElement("span");
+        titleSpan.className = "truncate w-full";
+        titleSpan.textContent = item.title;
+        btn.appendChild(titleSpan);
+        historyList.appendChild(btn);
+      }
+    } catch {}
+  }
+
+  async function switchToSession(sessionId) {
+    if (!sessionId || sendButton.disabled) return;
+    clearError();
+    setBusy(true);
+    try {
+      const response = await fetch(`${switchBaseUrl}${sessionId}`, {
+        method: "POST",
+        headers: { Accept: "application/json" },
+      });
+      const payload = await parseJson(response);
+      if (!response.ok || !payload || !payload.ok) throw new Error("switch failed");
+      messageList.replaceChildren();
+      if (Array.isArray(payload.messages) && payload.messages.length) {
+        for (const msg of payload.messages) {
+          addMessage(msg.role, msg.content);
+        }
+      } else {
+        addMessage("assistant", "يا هلا بيك في المحادثة المختارة!");
+      }
+      renderRecommendations([]);
+      renderState(payload.state);
+      refreshHistory();
+      if (sidebar) sidebar.classList.remove("open");
+    } catch {
+      showError("تعذر الانتقال للمحادثة. جرّب تاني بعد لحظات.");
+    } finally {
+      setBusy(false);
+    }
+  }
+
   document.querySelectorAll("[data-prompt]").forEach((button) => {
     button.addEventListener("click", () => {
       if (!sendButton.disabled) submitMessage(button.dataset.prompt || "");
@@ -273,6 +336,13 @@
   });
 
   document.addEventListener("click", (event) => {
+    const historyBtn = event.target.closest("[data-history-id]");
+    if (historyBtn && !sendButton.disabled) {
+      const historyId = historyBtn.dataset.historyId;
+      if (historyId) switchToSession(historyId);
+      return;
+    }
+
     const target = event.target.closest("[data-action]");
     if (!target || sendButton.disabled) return;
     const action = target.dataset.action;
@@ -300,6 +370,7 @@
         renderRecommendations([]);
         renderState(payload.state);
         addMessage("assistant", "بدأنا محادثة جديدة. قولّي بتدور على عربية بإيه، وأنا أساعدك حسب البيانات المتاحة.");
+        refreshHistory();
         if (sidebar) sidebar.classList.remove("open");
       } catch {
         showError("تعذر بدء محادثة جديدة دلوقتي. جرّب تاني بعد لحظات.");

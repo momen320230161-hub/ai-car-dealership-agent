@@ -143,9 +143,28 @@ def test_detail_booking_cta_resolves_explicit_catalog_car(app, client, db_sessio
 
 
 def test_new_chat_and_separate_clients_are_session_isolated(app, db_session) -> None:
+    import uuid
+
+    from app.models.user import UserProfile
+
     _configure_deterministic_runtime(app)
+    user1 = UserProfile(
+        id=uuid.UUID("66666666-6666-4666-a666-666666666666"), email="u1@test.com", active=True
+    )
+    user2 = UserProfile(
+        id=uuid.UUID("77777777-7777-4777-a777-777777777777"), email="u2@test.com", active=True
+    )
+    db_session.add_all([user1, user2])
+    db_session.commit()
+
     first_client = app.test_client()
+    with first_client.session_transaction() as sess:
+        sess["_user_id"] = str(user1.id)
+
     second_client = app.test_client()
+    with second_client.session_transaction() as sess:
+        sess["_user_id"] = str(user2.id)
+
     assert first_client.get("/chat").status_code == 200
     assert second_client.get("/chat").status_code == 200
     assert db_session.query(ConversationSession).count() == 2

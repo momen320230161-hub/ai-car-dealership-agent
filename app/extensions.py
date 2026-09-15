@@ -3,6 +3,7 @@
 Extensions are created once here and bound to the application inside the app factory.
 """
 
+from flask_login import LoginManager
 from flask_migrate import Migrate
 from flask_sqlalchemy import SQLAlchemy
 from sqlalchemy import MetaData
@@ -25,3 +26,4 @@ class Base(DeclarativeBase):
 
 db = SQLAlchemy(model_class=Base)
 migrate = Migrate()
+login_manager = LoginManager()

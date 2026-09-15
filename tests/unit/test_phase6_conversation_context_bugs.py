@@ -277,4 +277,3 @@ def test_pending_action_retains_car_when_followup_message_contains_numeric_date_
     assert created.car_id == car.id
     assert created.customer_name == "أحمد علي"
     assert created.phone == "01099887766"
-

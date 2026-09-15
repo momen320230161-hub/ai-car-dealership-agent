@@ -1,6 +1,5 @@
-"""Shared pytest fixtures."""
-
 import os
+import uuid
 from collections.abc import Generator
 
 import pytest
@@ -11,6 +10,7 @@ from sqlalchemy.engine import Engine
 
 from app import create_app
 from app.extensions import db
+from app.models.user import UserProfile
 
 
 @event.listens_for(Engine, "connect")
@@ -33,12 +33,32 @@ def app() -> Flask:
             "SQLALCHEMY_ENGINE_OPTIONS": {},
         }
     )
+@pytest.fixture()
+def unauthed_client(app: Flask) -> FlaskClient:
+    """Unauthenticated test client for testing login redirects."""
+    return app.test_client()
 
 
 @pytest.fixture()
-def client(app: Flask) -> FlaskClient:
-    """Test client for HTTP endpoint verification."""
-    return app.test_client()
+def client(app: Flask, db_session) -> FlaskClient:
+    """Test client for HTTP endpoint verification with default authenticated user session."""
+    user = db_session.get(UserProfile, uuid.UUID("00000000-0000-4000-a000-000000000000"))
+    if user is None:
+        user = UserProfile(
+            id=uuid.UUID("00000000-0000-4000-a000-000000000000"),
+            email="test_default@example.com",
+            display_name="Test Default User",
+            role="customer",
+            active=True,
+        )
+        db_session.add(user)
+        db_session.commit()
+
+    test_client = app.test_client()
+    with test_client.session_transaction() as sess:
+        sess["_user_id"] = str(user.id)
+        sess["_fresh"] = True
+    return test_client
 
 
 @pytest.fixture()
