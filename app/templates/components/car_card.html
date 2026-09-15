@@ -10,25 +10,31 @@
       <circle cx="22" cy="23" r="2.5" fill="currentColor"/>
     </svg>
   </a>
+
   <div class="car-card-body">
     <div class="car-title-row">
       <div>
         <h3>{{ car.brand }} {{ car.model }}</h3>
-        <div class="car-sub">{{ car.body_type or 'نوع الهيكل غير مسجل' }} · {{ car.transmission or 'الأوتوماتيك' }}</div>
+        <div class="car-sub">
+          {{ car.body_type or 'نوع الهيكل غير مسجل' }}
+          {% if car.transmission %} · {{ car.transmission }}{% endif %}
+        </div>
       </div>
       <span class="car-year">{{ car.year }}</span>
     </div>
+
     <div class="chips">
       {% if car.mileage_km is not none %}
-        <span class="chip">🛣️ {{ '{:,}'.format(car.mileage_km) }} كم</span>
+        <span class="chip">{{ '{:,}'.format(car.mileage_km) }} كم</span>
       {% endif %}
       {% if car.fuel_type %}
-        <span class="chip">⛽ {{ car.fuel_type }}</span>
+        <span class="chip">{{ car.fuel_type }}</span>
       {% endif %}
       {% if car.engine_capacity_cc %}
-        <span class="chip">⚡ {{ car.engine_capacity_cc }} cc</span>
+        <span class="chip">{{ car.engine_capacity_cc }} cc</span>
       {% endif %}
     </div>
+
     <div class="price-line">
       <div>
         <strong>{{ car.price_egp|egp }}</strong>
