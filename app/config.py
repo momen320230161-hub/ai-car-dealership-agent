@@ -37,7 +37,7 @@ class Config:
 
     FLASK_ENV = os.getenv("FLASK_ENV", "production")
     DEBUG = _env_bool("FLASK_DEBUG")
-    SECRET_KEY = os.getenv("SECRET_KEY")
+    SECRET_KEY = os.getenv("SECRET_KEY") or os.getenv("FLASK_SECRET_KEY")
     SQLALCHEMY_DATABASE_URI = normalize_database_url(os.getenv("DATABASE_URL"))
     SQLALCHEMY_TRACK_MODIFICATIONS = False
     SQLALCHEMY_ENGINE_OPTIONS = {
@@ -50,6 +50,13 @@ class Config:
     PERMANENT_SESSION_LIFETIME = timedelta(
         days=max(1, int(os.getenv("SESSION_LIFETIME_DAYS", "7")))
     )
+
+    # Supabase Auth is used only as the identity provider. Application data still
+    # goes through SQLAlchemy/PostgreSQL.
+    SUPABASE_URL = os.getenv("SUPABASE_URL")
+    SUPABASE_PUBLISHABLE_KEY = os.getenv("SUPABASE_PUBLISHABLE_KEY")
+    SUPABASE_ANON_KEY = os.getenv("SUPABASE_ANON_KEY")
+
     EMBEDDING_PROVIDER = os.getenv("EMBEDDING_PROVIDER", "gemini")
     EMBEDDING_MODEL = os.getenv(
         "EMBEDDING_MODEL", os.getenv("GEMINI_EMBEDDING_MODEL", "gemini-embedding-2")
