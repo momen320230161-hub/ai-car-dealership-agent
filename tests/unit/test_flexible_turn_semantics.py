@@ -4,10 +4,7 @@ from __future__ import annotations
 
 from decimal import Decimal
 
-from app.agent.catalog_qualification import (
-    explicit_brand_from_message,
-    qualify_catalog_search,
-)
+from app.agent.catalog_qualification import explicit_brand_from_message
 from app.agent.conversational_orchestrator import ConversationalSalesOrchestrator
 from app.agent.schemas import PreferenceUpdates, RequestUnderstanding
 from app.agent.turn_semantics import analyze_turn
@@ -80,13 +77,14 @@ def test_budget_increase_without_amount_does_not_change_budget() -> None:
     assert semantics.force_catalog_search is False
 
 
-def test_budget_plus_explicit_request_is_enough_for_initial_search() -> None:
-    qualification = qualify_catalog_search(
-        {"max_price": 800_000},
-        "مش مهم والله اعرضلي اللي عندك بالسعر ده",
+def test_budget_plus_explicit_purchase_request_forces_flexible_search() -> None:
+    semantics = analyze_turn(
+        "عايز اشتري عربية ومعايا 2 مليون",
+        {},
+        {"max_price": 2_000_000},
     )
 
-    assert qualification.ready is True
+    assert semantics.force_catalog_search is True
 
 
 def test_arabic_definite_article_resolves_brand_alias() -> None:

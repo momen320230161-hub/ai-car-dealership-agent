@@ -55,7 +55,7 @@ def test_completed_test_drive_contact_is_reused_for_sales_lead(db_session) -> No
     drive_plan = workflow.prepare_action(
         conversation.id,
         "test_drive",
-        "اسمي عمر أحمد ورقمي 01012345678 وعايز السبت الساعة 5",
+        "اسمي عمر أحمد ورقمي 01012345678 وعايز السبت الساعة 5 مساء",
     )
     assert drive_plan["status"] == "ready"
     drive_result = workflow.execute_action(conversation.id, drive_plan)
@@ -95,7 +95,7 @@ def test_explicit_new_phone_overrides_remembered_phone(db_session) -> None:
     drive_plan = workflow.prepare_action(
         conversation.id,
         "test_drive",
-        "اسمي عمر أحمد ورقمي 01012345678 والسبت الساعة 5",
+        "اسمي عمر أحمد ورقمي 01012345678 والسبت الساعة 5 مساء",
     )
     workflow.execute_action(conversation.id, drive_plan)
 
@@ -236,7 +236,7 @@ def test_cross_action_reuse_creates_only_one_lead(db_session) -> None:
     drive = workflow.prepare_action(
         conversation.id,
         "test_drive",
-        "اسمي محمد جمال ورقمي 01012345678 والسبت الساعة 5",
+        "اسمي محمد جمال ورقمي 01012345678 والسبت الساعة 5 مساء",
     )
     workflow.execute_action(conversation.id, drive)
     lead = workflow.prepare_action(conversation.id, "sales_lead", "المبيعات تكلمني")

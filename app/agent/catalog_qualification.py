@@ -105,23 +105,6 @@ _RECOMMENDATION_MARKERS = (
     "show me",
     "options",
 )
-_PURCHASE_MARKERS = (
-    "عايز عربية",
-    "عاوز عربية",
-    "عايز اشتري",
-    "عاوز اشتري",
-    "نفسي اركب",
-    "محتاج عربية",
-    "buy a car",
-)
-_DONT_CARE_MARKERS = (
-    "مش فارق",
-    "مش مهم",
-    "أي حاجة",
-    "اي حاجة",
-    "whatever",
-    "anything",
-)
 
 
 class CatalogQualification:
@@ -154,9 +137,9 @@ def _explicit_alias(
     for canonical, aliases in aliases_by_canonical.items():
         for alias in (canonical, *aliases):
             alias_normalized = _normalized(alias)
-            # Egyptian Arabic commonly adds the definite article directly to a brand
-            # ("الرينو", "النيسان"). Treat that as the same explicit alias.
-            optional_article = r"(?:ال)?" if re.search(r"[\u0600-\u06ff]", alias_normalized) else ""
+            optional_article = (
+                r"(?:ال)?" if re.search(r"[\u0600-\u06ff]", alias_normalized) else ""
+            )
             if re.search(
                 rf"(?<!\w){optional_article}{re.escape(alias_normalized)}(?!\w)",
                 normalized,
@@ -203,27 +186,17 @@ def qualify_catalog_search(
     preferences: dict[str, object] | None,
     message: str,
 ) -> CatalogQualification:
-    """Ask only when a useful search cannot yet be made.
+    """Ask for high-value missing preferences before creating a broad shortlist.
 
-    The old prototype felt natural because it did not turn every missing field into
-    a form question. Preserve that behavior: a stated budget/brand/model plus a
-    request to see cars is enough for an initial search, while a truly vague
-    "عايز عربية" still gets one useful follow-up.
+    The production conversational layer may explicitly bypass this conservative
+    baseline when the current turn clearly asks for a useful flexible search.
     """
     prefs = {key: value for key, value in (preferences or {}).items() if value is not None}
     brand = str(prefs.get("brand") or "").strip()
     model = str(prefs.get("model") or "").strip()
     condition = str(prefs.get("condition") or "").strip()
     body_type = str(prefs.get("body_type") or "").strip()
-    normalized_message = _normalized(message)
     wants_recommendation = explicitly_requests_recommendation(message)
-    purchase_language = any(marker in normalized_message for marker in _PURCHASE_MARKERS)
-    explicitly_flexible = any(marker in normalized_message for marker in _DONT_CARE_MARKERS)
-
-    # Any concrete catalog constraint plus an explicit request to see/buy cars is
-    # sufficient for a useful first pass. Missing optional fields can remain open.
-    if prefs and (wants_recommendation or purchase_language or explicitly_flexible):
-        return CatalogQualification(True)
 
     if model:
         if not condition:
@@ -258,7 +231,6 @@ def qualify_catalog_search(
             )
         return CatalogQualification(True)
 
-    # A condition by itself is already a meaningful broad browse request.
     if condition and not body_type and set(prefs) == {"condition"}:
         return CatalogQualification(True)
 
