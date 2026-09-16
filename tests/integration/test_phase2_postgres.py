@@ -70,7 +70,10 @@ def test_official_catalog_import_counts_normalization_and_idempotency(pg_app):
         assert first.updated == first.unchanged == first.rejected == 0
         assert db.session.scalar(select(func.count()).select_from(Car)) == expected_rows
         assert db.session.scalar(select(func.count()).where(Car.condition == "new")) == expected_new
-        assert db.session.scalar(select(func.count()).where(Car.condition == "used")) == expected_used
+        assert (
+            db.session.scalar(select(func.count()).where(Car.condition == "used"))
+            == expected_used
+        )
         assert expected_new + expected_used == expected_rows
         assert (
             db.session.scalar(
