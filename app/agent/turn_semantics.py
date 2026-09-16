@@ -5,8 +5,6 @@ phrasing into safe state operations so the LLM can stay flexible without making
 persistent catalog filters behave like a form.
 """
 
-from __future__ import annotations
-
 import re
 
 
