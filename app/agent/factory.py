@@ -7,6 +7,7 @@ from typing import Any
 
 from sqlalchemy.orm import Session
 
+from app.agent.conversational_orchestrator import ConversationalSalesOrchestrator
 from app.agent.graph import SalesOrchestrator
 from app.agent.llm import build_agent_llm
 from app.rag.embeddings import build_embedding_provider
@@ -15,10 +16,10 @@ from app.rag.embeddings import build_embedding_provider
 def build_sales_orchestrator(session: Session, config: Mapping[str, Any]) -> SalesOrchestrator:
     """Build the production graph from application configuration.
 
-    Keeping dependency construction here prevents Flask routes from duplicating the
-    CLI wiring while preserving the orchestrator as the single customer-facing agent.
+    The production runtime uses the conversational hardening layer while retaining the
+    original SalesOrchestrator interface and deterministic services underneath it.
     """
-    return SalesOrchestrator(
+    return ConversationalSalesOrchestrator(
         session,
         build_agent_llm(config),
         build_embedding_provider(config),
