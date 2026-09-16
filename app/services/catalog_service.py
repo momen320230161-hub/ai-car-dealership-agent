@@ -81,6 +81,7 @@ class CatalogService:
         return self.repository.count(filters, active_only=True)
 
     def facet_values(self, field_name: str, *, limit: int = 100) -> list[str]:
+        """Return only values that actually exist in the active catalog."""
         return self.repository.facet_values(field_name, active_only=True, limit=limit)
 
     def get_car(self, car_id: int) -> Car | None:
@@ -171,7 +172,9 @@ class CatalogService:
                     "type": "price_relaxation",
                     "cars": budget_cars,
                     "original_max_price": original_price,
-                    "cheapest_price": float(budget_cars[0].price_egp),
+                    # recommendation order is intentionally price-desc near the budget
+                    # ceiling, so the first item is not necessarily the cheapest.
+                    "cheapest_price": min(float(car.price_egp) for car in budget_cars),
                 }
 
         if filters.condition is not None:
