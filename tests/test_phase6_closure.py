@@ -85,7 +85,7 @@ def test_visible_comparison_through_browser_api_uses_displayed_positions(
     assert f"2. {second['brand']} {second['model']}" in text
 
 
-def test_browser_business_flow_creates_cancels_and_creates_sales_lead(
+def test_browser_business_flow_creates_cancels_and_reuses_contact_for_sales_lead(
     app, client, db_session
 ) -> None:
     _configure_deterministic_runtime(app)
@@ -110,6 +110,7 @@ def test_browser_business_flow_creates_cancels_and_creates_sales_lead(
     booking = db_session.query(TestDriveRequest).one()
     assert booking.car_id == car.id
     assert booking.customer_name == "محمد جمال"
+    assert booking.phone == "01012345678"
     assert booking.status == "NEW"
     assert completed.get_json()["state"]["pending_action_type"] is None
 
@@ -119,16 +120,14 @@ def test_browser_business_flow_creates_cancels_and_creates_sales_lead(
     assert booking.status == "CANCELLED"
     assert booking.cancelled_at is not None
 
-    lead_start = client.post("/api/chat/messages", json={"message": "عايز حد من المبيعات يكلمني"})
-    assert lead_start.status_code == 200
-    assert lead_start.get_json()["state"]["pending_action_type"] == "sales_lead"
-    lead_complete = client.post(
+    # A later lead should reuse verified Test Drive contact data instead of asking again.
+    lead_response = client.post(
         "/api/chat/messages",
-        json={"message": "اسمي كريم محمود ورقمي 01099887766"},
+        json={"message": "عايز حد من المبيعات يكلمني"},
     )
-    assert lead_complete.status_code == 200
+    assert lead_response.status_code == 200
+    assert lead_response.get_json()["state"]["pending_action_type"] is None
     lead = db_session.query(SalesLead).one()
-    assert lead.customer_name == "كريم محمود"
-    assert lead.phone == "01099887766"
+    assert lead.customer_name == "محمد جمال"
+    assert lead.phone == "01012345678"
     assert lead.status == "NEW"
-    assert lead_complete.get_json()["state"]["pending_action_type"] is None

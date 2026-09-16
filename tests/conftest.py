@@ -31,8 +31,12 @@ def app() -> Flask:
             "SECRET_KEY": "test-secret-key",
             "SQLALCHEMY_DATABASE_URI": "sqlite+pysqlite:///:memory:",
             "SQLALCHEMY_ENGINE_OPTIONS": {},
+            "SUPABASE_URL": "https://test-project.supabase.co",
+            "SUPABASE_PUBLISHABLE_KEY": "test-publishable-key",
         }
     )
+
+
 @pytest.fixture()
 def unauthed_client(app: Flask) -> FlaskClient:
     """Unauthenticated test client for testing login redirects."""

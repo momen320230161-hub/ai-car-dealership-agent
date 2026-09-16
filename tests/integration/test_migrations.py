@@ -5,6 +5,7 @@ from sqlalchemy import text
 
 from app.extensions import db
 
+LATEST_REVISION = "5e8b9f1a2c3d"
 EXPECTED_TABLES = {
     "alembic_version",
     "cars",
@@ -16,6 +17,7 @@ EXPECTED_TABLES = {
     "recommendation_snapshots",
     "sales_leads",
     "test_drive_requests",
+    "user_profiles",
 }
 
 
@@ -33,7 +35,7 @@ def test_postgres_migration_lifecycle(pg_app):
         assert EXPECTED_TABLES.issubset(_public_tables())
 
         revision = db.session.execute(text("SELECT version_num FROM alembic_version")).scalar_one()
-        assert revision == "4f6a8c2d91b7"
+        assert revision == LATEST_REVISION
 
         rls_rows = db.session.execute(
             text(
@@ -57,6 +59,7 @@ def test_postgres_migration_lifecycle(pg_app):
         remaining = _public_tables()
         assert "cars" not in remaining
         assert "conversation_sessions" not in remaining
+        assert "user_profiles" not in remaining
 
         db.session.rollback()
         upgrade()

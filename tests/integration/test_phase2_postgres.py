@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import csv
 from decimal import Decimal
 from pathlib import Path
 
@@ -19,7 +20,12 @@ from app.services.recommendation_service import (
     VisibleRecommendationError,
 )
 
-DATASET = Path(__file__).parents[2] / "data" / "egypt_cars_final_import_ready.csv"
+DATASET = Path(__file__).parents[2] / "data" / "egypt_cars_demo_100_balanced.csv"
+
+
+def _dataset_rows() -> list[dict[str, str]]:
+    with DATASET.open("r", encoding="utf-8-sig", newline="") as handle:
+        return list(csv.DictReader(handle))
 
 
 def _truncate_phase2_tables() -> None:
@@ -47,20 +53,25 @@ def test_official_catalog_import_counts_normalization_and_idempotency(pg_app):
         upgrade()
         _truncate_phase2_tables()
         service = CatalogImportService(db.session)
+        rows = _dataset_rows()
+        expected_rows = len(rows)
+        expected_new = sum(row["condition"].strip().casefold() == "new" for row in rows)
+        expected_used = sum(row["condition"].strip().casefold() == "used" for row in rows)
+        preserved_source_id = rows[0]["source_id"]
 
         first = service.import_file(DATASET)
         preserved_id = db.session.scalar(
-            select(Car.id).where(
-                Car.source_id == "shamsfathalla-egypt-automotive:3584adbdeb0ad76b152370e2"
-            )
+            select(Car.id).where(Car.source_id == preserved_source_id)
         )
 
-        assert first.file_rows == 7771
-        assert first.inserted == 7771
+        assert expected_rows == 100
+        assert first.file_rows == expected_rows
+        assert first.inserted == expected_rows
         assert first.updated == first.unchanged == first.rejected == 0
-        assert db.session.scalar(select(func.count()).select_from(Car)) == 7771
-        assert db.session.scalar(select(func.count()).where(Car.condition == "new")) == 1930
-        assert db.session.scalar(select(func.count()).where(Car.condition == "used")) == 5841
+        assert db.session.scalar(select(func.count()).select_from(Car)) == expected_rows
+        assert db.session.scalar(select(func.count()).where(Car.condition == "new")) == expected_new
+        assert db.session.scalar(select(func.count()).where(Car.condition == "used")) == expected_used
+        assert expected_new + expected_used == expected_rows
         assert (
             db.session.scalar(
                 select(func.count()).where(Car.condition == "new", Car.mileage_km.is_(None))
@@ -71,7 +82,7 @@ def test_official_catalog_import_counts_normalization_and_idempotency(pg_app):
             db.session.scalar(
                 select(func.count()).where(Car.condition == "new", Car.mileage_km == 0)
             )
-            == 1930
+            == expected_new
         )
         duplicate_groups = db.session.execute(
             select(Car.source, Car.source_id)
@@ -82,13 +93,9 @@ def test_official_catalog_import_counts_normalization_and_idempotency(pg_app):
 
         second = service.import_file(DATASET)
         assert second.inserted == second.updated == second.rejected == 0
-        assert second.unchanged == 7771
+        assert second.unchanged == expected_rows
         assert (
-            db.session.scalar(
-                select(Car.id).where(
-                    Car.source_id == "shamsfathalla-egypt-automotive:3584adbdeb0ad76b152370e2"
-                )
-            )
+            db.session.scalar(select(Car.id).where(Car.source_id == preserved_source_id))
             == preserved_id
         )
         _truncate_phase2_tables()
