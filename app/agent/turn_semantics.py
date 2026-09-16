@@ -7,8 +7,8 @@ persistent catalog filters behave like a form.
 
 from __future__ import annotations
 
+import collections.abc
 import re
-from collections.abc import Mapping
 from dataclasses import dataclass
 from typing import Any
 
@@ -147,8 +147,8 @@ class TurnSemantics:
 
 def analyze_turn(
     message: str,
-    current_preferences: Mapping[str, Any] | None,
-    extracted_preferences: Mapping[str, Any] | None,
+    current_preferences: collections.abc.Mapping[str, Any] | None,
+    extracted_preferences: collections.abc.Mapping[str, Any] | None,
 ) -> TurnSemantics:
     """Interpret common Egyptian-Arabic search-control phrases conservatively."""
     text = _normalize(message)
