@@ -8,8 +8,6 @@ persistent catalog filters behave like a form.
 from __future__ import annotations
 
 import re
-from dataclasses import dataclass
-from typing import Any
 
 
 _NON_IDENTITY_FILTERS = (
@@ -118,20 +116,42 @@ _BUDGET_INCREASE_MARKERS = (
 )
 
 
-@dataclass(frozen=True, slots=True)
 class TurnSemantics:
     """Safe control-plane meaning derived from the current customer turn."""
 
-    mode: str = "refine"
-    clear_fields: tuple[str, ...] = ()
-    force_clear_fields: tuple[str, ...] = ()
-    soft_condition_order: tuple[str, ...] = ()
-    force_catalog_search: bool = False
-    pagination_requested: bool = False
-    more_results_question: bool = False
-    budget_change_unspecified: bool = False
+    __slots__ = (
+        "mode",
+        "clear_fields",
+        "force_clear_fields",
+        "soft_condition_order",
+        "force_catalog_search",
+        "pagination_requested",
+        "more_results_question",
+        "budget_change_unspecified",
+    )
 
-    def as_dict(self) -> dict[str, Any]:
+    def __init__(
+        self,
+        *,
+        mode: str = "refine",
+        clear_fields: tuple[str, ...] = (),
+        force_clear_fields: tuple[str, ...] = (),
+        soft_condition_order: tuple[str, ...] = (),
+        force_catalog_search: bool = False,
+        pagination_requested: bool = False,
+        more_results_question: bool = False,
+        budget_change_unspecified: bool = False,
+    ) -> None:
+        self.mode = mode
+        self.clear_fields = clear_fields
+        self.force_clear_fields = force_clear_fields
+        self.soft_condition_order = soft_condition_order
+        self.force_catalog_search = force_catalog_search
+        self.pagination_requested = pagination_requested
+        self.more_results_question = more_results_question
+        self.budget_change_unspecified = budget_change_unspecified
+
+    def as_dict(self) -> dict[str, object]:
         return {
             "mode": self.mode,
             "clear_fields": list(self.clear_fields),
@@ -146,8 +166,8 @@ class TurnSemantics:
 
 def analyze_turn(
     message: str,
-    current_preferences: dict[str, Any] | None,
-    extracted_preferences: dict[str, Any] | None,
+    current_preferences: dict[str, object] | None,
+    extracted_preferences: dict[str, object] | None,
 ) -> TurnSemantics:
     """Interpret common Egyptian-Arabic search-control phrases conservatively."""
     text = _normalize(message)
