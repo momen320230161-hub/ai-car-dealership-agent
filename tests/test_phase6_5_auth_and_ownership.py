@@ -245,12 +245,9 @@ class TestUserOwnershipAndIsolation:
         self, app: Flask, client: FlaskClient, db_session, sample_user_a, sample_user_b
     ):
         """Requirement 34: Security Negative Test.
-        1. Login as User A.
-        2. Create conversation A and add private messages & state.
-        3. Logout.
-        4. Login as User B.
-        5. Manually request A's conversation via switch_session API.
-        Expected: NO messages, NO state, NO selected car, NO recommendations. Returns controlled 404.
+
+        User B must not receive User A's messages, state, selected car, or recommendations
+        when manually requesting User A's conversation. The API must return controlled 404.
         """
         service = CustomerWebService(db_session)
         ctx_a = service.ensure_conversation(None, user_id=sample_user_a.id)
