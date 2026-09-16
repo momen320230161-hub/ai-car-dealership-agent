@@ -8,8 +8,9 @@ persistent catalog filters behave like a form.
 from __future__ import annotations
 
 import re
+from collections.abc import Mapping
 from dataclasses import dataclass
-from typing import Any, Mapping
+from typing import Any
 
 
 _NON_IDENTITY_FILTERS = (
@@ -195,7 +196,15 @@ def analyze_turn(
 
     body_words = any(
         term in text
-        for term in ("suv", "sedan", "سيدان", "هاتشباك", "هاتش باك", "كوبيه", "نوع العربية")
+        for term in (
+            "suv",
+            "sedan",
+            "سيدان",
+            "هاتشباك",
+            "هاتش باك",
+            "كوبيه",
+            "نوع العربية",
+        )
     )
     if generic_dont_care and body_words:
         clear.add("body_type")

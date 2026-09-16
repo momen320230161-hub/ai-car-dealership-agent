@@ -22,10 +22,10 @@ from app.agent.state import AgentState
 from app.agent.turn_semantics import analyze_turn
 from app.services.business_action_parsing import parse_business_fields
 from app.services.catalog_preference_state_service import CatalogPreferenceStateService
+from app.services.conversation_context_service import ConversationContextError
 from app.services.conversational_business_action_workflow_service import (
     ConversationalBusinessActionWorkflowService,
 )
-from app.services.conversation_context_service import ConversationContextError
 from app.services.customer_memory_service import CustomerMemoryService
 from app.services.recommendation_service import VisibleRecommendationError
 
@@ -567,8 +567,16 @@ class ConversationalSalesOrchestrator(SalesOrchestrator):
     def _diagnose_no_results(self, preferences: dict[str, Any]) -> dict[str, Any]:
         brand = str(preferences.get("brand") or "").strip() or None
         model = str(preferences.get("model") or "").strip() or None
-        identity = {key: value for key, value in (("brand", brand), ("model", model)) if value}
-        identity_cars = self.catalog.search(identity, sort_by="price_asc", limit=20) if identity else []
+        identity = {
+            key: value
+            for key, value in (("brand", brand), ("model", model))
+            if value
+        }
+        identity_cars = (
+            self.catalog.search(identity, sort_by="price_asc", limit=20)
+            if identity
+            else []
+        )
 
         if identity_cars:
             label = " ".join(value for value in (brand, model) if value)
