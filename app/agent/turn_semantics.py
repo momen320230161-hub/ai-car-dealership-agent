@@ -7,7 +7,6 @@ persistent catalog filters behave like a form.
 
 import re
 
-
 _NON_IDENTITY_FILTERS = (
     "condition",
     "body_type",
