@@ -136,7 +136,8 @@ def callback():
         db.session.rollback()
         current_app.logger.exception("Auth callback database synchronization failed")
         flash(
-            "تم تسجيل الدخول مع Google لكن قاعدة البيانات المحلية غير محدثة. شغّل migrations ثم حاول مرة أخرى.",
+            "تم تسجيل الدخول مع Google لكن قاعدة البيانات المحلية غير محدثة. "
+            "شغّل migrations ثم حاول مرة أخرى.",
             "error",
         )
         return redirect(url_for("auth.login_page"))
