@@ -140,7 +140,7 @@ def test_authenticated_user_contact_memory_crosses_chat_sessions(db_session) -> 
     assert memory.phone == "01099998888"
     assert memory.email == "memory-user@example.com"
     assert "authenticated_user_history" in memory.scope
-    assert memory.safe_context()["phone_last4"] == "8888"
+    assert memory.safe_context() == {"available_for_actions": True}
 
 
 def test_legacy_customer_fields_are_removed_from_catalog_preferences(db_session) -> None:
