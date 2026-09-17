@@ -116,6 +116,26 @@ _BUDGET_MARKERS = (
     "under",
     "up to",
 )
+_TEST_DRIVE_INFO_MARKERS = (
+    "نظام التست درايف",
+    "نظام test drive",
+    "سياسة التست درايف",
+    "سياسه التست درايف",
+    "متطلبات التست درايف",
+    "المطلوب للتست درايف",
+    "البيانات المطلوبة",
+    "البيانات المطلوبه",
+    "ايه المطلوب",
+    "إيه المطلوب",
+    "requirements",
+    "policy",
+)
+_TEST_DRIVE_ACTION_PATTERNS = (
+    r"(?:احجز|أحجز|عايز|عاوز|محتاج)\s+(?:لي\s+)?(?:تست\s*درايف|تجرب[ةه]\s*قياد[ةه]|test\s*drive)",
+    r"(?:ينفع|ممكن)\s+(?:ا?جي\s+)?(?:ا?جرب|أجرب)\s+(?:ا?سوق|أسوق|سواقة|سواقه)",
+    r"(?:عايز|عاوز|نفسي|محتاج)\s+(?:ا?جرب|أجرب)\s+(?:ا?سوق|أسوق)",
+    r"(?:ا?جي\s+)?(?:ا?جرب|أجرب)\s+(?:ا?سوق|أسوق)ها",
+)
 
 
 def explicit_visible_references(message: str) -> list[int]:
@@ -203,6 +223,14 @@ def explicit_budget_ceiling(message: str) -> float | None:
     return amounts[0] if amounts else None
 
 
+def explicitly_requests_test_drive(message: str) -> bool:
+    """Recognize direct driving/booking actions without swallowing policy questions."""
+    normalized = " ".join(message.translate(_ARABIC_DIGITS).casefold().split())
+    if any(marker in normalized for marker in _TEST_DRIVE_INFO_MARKERS):
+        return False
+    return any(re.search(pattern, normalized) for pattern in _TEST_DRIVE_ACTION_PATTERNS)
+
+
 def sanitize_understanding(
     understanding: RequestUnderstanding, message: str
 ) -> RequestUnderstanding:
@@ -218,6 +246,12 @@ def sanitize_understanding(
         reference_text = str(understanding.car_reference).translate(_ARABIC_DIGITS)
         if isinstance(understanding.car_reference, int) or reference_text not in normalized:
             data["car_reference"] = None
+
+    # High-value business-action fallback: direct requests to try/drive a car are actions,
+    # even if an LLM misclassifies them as dealership-policy questions. Informational test-drive
+    # questions remain knowledge queries and therefore cannot create a pending action.
+    if explicitly_requests_test_drive(message):
+        data["intent"] = "test_drive"
 
     # IDs are owned by deterministic parsing of the current message, not by the LLM.
     data["explicit_car_id"] = explicit_car_id_from_message(message)
