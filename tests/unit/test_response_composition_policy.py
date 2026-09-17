@@ -53,3 +53,15 @@ def test_clarification_policy_rejects_multi_questionnaire() -> None:
         plan,
     )
     assert composition_policy_allows("تحبها جديدة ولا مستعملة؟", plan)
+
+
+def test_advice_style_budget_turn_forces_catalog_search() -> None:
+    from app.agent.turn_semantics import analyze_turn
+
+    semantics = analyze_turn(
+        "لو انت مكاني ومعاك مليون ونص هتشتري ايه",
+        {},
+        {"max_price": 1_500_000},
+    )
+
+    assert semantics.force_catalog_search is True
