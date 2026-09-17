@@ -1,0 +1,41 @@
+{% extends "base.html" %}
+
+{% block title %}لوحة الإدارة | AutoDrive Egypt{% endblock %}
+{% block head %}
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/admin.css') }}">
+{% endblock %}
+
+{% block content %}
+<section class="admin-shell">
+  <div class="container">
+    <div class="admin-heading">
+      <div>
+        <p class="admin-eyebrow">AutoDrive Operations</p>
+        <h1>{% block admin_title %}لوحة الإدارة{% endblock %}</h1>
+        <p>{% block admin_subtitle %}متابعة الكتالوج والطلبات وإدارة قاعدة المعرفة.{% endblock %}</p>
+      </div>
+      <span class="admin-user">{{ current_user.display_name or current_user.email }}</span>
+    </div>
+
+    <nav class="admin-nav" aria-label="أقسام لوحة الإدارة">
+      <a class="{{ 'active' if request.endpoint == 'site.admin.dashboard' else '' }}" href="{{ url_for('site.admin.dashboard') }}">نظرة عامة</a>
+      <a class="{{ 'active' if request.endpoint == 'site.admin.cars' else '' }}" href="{{ url_for('site.admin.cars') }}">السيارات</a>
+      <a class="{{ 'active' if request.endpoint == 'site.admin.test_drives' else '' }}" href="{{ url_for('site.admin.test_drives') }}">Test Drives</a>
+      <a class="{{ 'active' if request.endpoint == 'site.admin.leads' else '' }}" href="{{ url_for('site.admin.leads') }}">Sales Leads</a>
+      <a class="{{ 'active' if request.endpoint and request.endpoint.startswith('site.admin.knowledge') else '' }}" href="{{ url_for('site.admin.knowledge_list') }}">RAG Knowledge</a>
+    </nav>
+
+    {% with messages = get_flashed_messages(with_categories=true) %}
+      {% if messages %}
+        <div class="admin-flashes">
+          {% for category, message in messages %}
+            <div class="admin-flash {{ category }}">{{ message }}</div>
+          {% endfor %}
+        </div>
+      {% endif %}
+    {% endwith %}
+
+    {% block admin_content %}{% endblock %}
+  </div>
+</section>
+{% endblock %}
