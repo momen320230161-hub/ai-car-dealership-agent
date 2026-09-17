@@ -21,6 +21,13 @@ def _configure_deterministic_runtime(app) -> None:
     )
 
 
+def _csrf_headers(client) -> dict[str, str]:
+    with client.session_transaction() as sess:
+        token = str(sess.get("_browser_csrf_token") or "test-browser-csrf")
+        sess["_browser_csrf_token"] = token
+    return {"X-CSRF-Token": token}
+
+
 def _car(
     source_id: str,
     *,
@@ -101,7 +108,11 @@ def test_chat_post_invokes_graph_and_persists_turn_exactly_once(app, client, db_
     _configure_deterministic_runtime(app)
     _seed_catalog(db_session)
     assert client.get("/chat").status_code == 200
-    response = client.post("/api/chat/messages", json={"message": "عايز SUV مستعملة"})
+    response = client.post(
+        "/api/chat/messages",
+        json={"message": "عايز SUV مستعملة"},
+        headers=_csrf_headers(client),
+    )
     payload = response.get_json()
     assert response.status_code == 200
     assert payload["ok"] is True and payload["route"] == "catalog"
@@ -130,6 +141,7 @@ def test_detail_booking_cta_resolves_explicit_catalog_car(app, client, db_sessio
     response = client.post(
         "/api/chat/messages",
         json={"message": f"عايز احجز تجربة قيادة للعربية ID {cars[0].id}"},
+        headers=_csrf_headers(client),
     )
     payload = response.get_json()
 
@@ -169,7 +181,7 @@ def test_new_chat_and_separate_clients_are_session_isolated(app, db_session) -> 
     assert second_client.get("/chat").status_code == 200
     assert db_session.query(ConversationSession).count() == 2
     before_ids = {row.id for row in db_session.query(ConversationSession).all()}
-    reset = first_client.post("/api/chat/session")
+    reset = first_client.post("/api/chat/session", headers=_csrf_headers(first_client))
     assert reset.status_code == 200 and reset.get_json()["ok"] is True
     after_ids = {row.id for row in db_session.query(ConversationSession).all()}
     assert len(after_ids) == 3 and before_ids < after_ids
@@ -178,7 +190,11 @@ def test_new_chat_and_separate_clients_are_session_isolated(app, db_session) -> 
 def test_blank_chat_input_is_rejected_without_persistence(app, client, db_session) -> None:
     _configure_deterministic_runtime(app)
     assert client.get("/chat").status_code == 200
-    response = client.post("/api/chat/messages", json={"message": "   "})
+    response = client.post(
+        "/api/chat/messages",
+        json={"message": "   "},
+        headers=_csrf_headers(client),
+    )
     assert response.status_code == 400 and response.get_json()["ok"] is False
     assert db_session.query(ChatMessage).count() == 0
 
@@ -190,7 +206,11 @@ def test_chat_dependency_failure_returns_safe_error(app, client, db_session) -> 
         "app.blueprints.chat.routes.build_sales_orchestrator",
         side_effect=AgentLLMError("super-secret-provider-detail"),
     ):
-        response = client.post("/api/chat/messages", json={"message": "عايز عربية"})
+        response = client.post(
+            "/api/chat/messages",
+            json={"message": "عايز عربية"},
+            headers=_csrf_headers(client),
+        )
     body = response.get_data(as_text=True)
     assert response.status_code == 503 and response.get_json()["ok"] is False
     assert "super-secret-provider-detail" not in body and "Traceback" not in body
