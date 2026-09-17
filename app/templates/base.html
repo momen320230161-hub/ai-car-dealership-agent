@@ -3,52 +3,16 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <meta name="theme-color" content="#111a2d">
+  <meta name="theme-color" content="#0b1220">
   <title>{% block title %}AutoDrive Egypt{% endblock %}</title>
   <meta name="description" content="AutoDrive Egypt AI Car Dealership">
-  {% if request.endpoint == 'chat.chat_page' or request.blueprint == 'auth' %}
-    <link rel="stylesheet" href="{{ url_for('static', filename='css/app.css') }}">
-  {% else %}
-    <link rel="stylesheet" href="{{ url_for('static', filename='css/site.css') }}">
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/ui-v2.css') }}">
+  {% if request.endpoint == 'chat.chat_page' %}
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/chat-v2.css') }}">
   {% endif %}
-  <link rel="stylesheet" href="{{ url_for('static', filename='css/customer-ui.css') }}">
   {% block head %}{% endblock %}
 </head>
 <body class="{% block body_class %}{% endblock %}">
-  {% if request.endpoint == 'chat.chat_page' %}
-  <header class="chat-app-header">
-    <div class="chat-app-header-inner">
-      <a class="chat-app-brand" href="{{ url_for('site.home') }}" aria-label="AutoDrive Egypt Home">
-        <span class="chat-app-brand-mark" aria-hidden="true">
-          <svg viewBox="0 0 32 32">
-            <path d="M6 19h20l-3-6.2A4 4 0 0 0 19.4 10h-6.8A4 4 0 0 0 9 12.8L6 19Z" fill="currentColor"/>
-            <path d="M8 18h16a3 3 0 0 1 3 3v2H5v-2a3 3 0 0 1 3-3Z" fill="currentColor" opacity=".72"/>
-            <circle cx="10" cy="23" r="2.5" fill="currentColor"/>
-            <circle cx="22" cy="23" r="2.5" fill="currentColor"/>
-          </svg>
-        </span>
-        <span class="chat-app-brand-copy">
-          <strong>AutoDrive Egypt</strong>
-          <small>AI Car Dealership</small>
-        </span>
-      </a>
-
-      <nav class="chat-app-nav" aria-label="التنقل الرئيسي">
-        <a href="{{ url_for('site.home') }}">الرئيسية</a>
-        <a href="{{ url_for('site.cars') }}">السيارات</a>
-        <a class="active" href="{{ url_for('chat.chat_page') }}">المساعد الذكي</a>
-        {% if current_user.is_authenticated and current_user.is_admin %}
-          <a href="{{ url_for('site.admin.dashboard') }}">الإدارة</a>
-        {% endif %}
-      </nav>
-
-      <div class="chat-app-actions">
-        <a href="{{ url_for('site.cars') }}">تصفح الكتالوج</a>
-        <a class="primary" href="{{ url_for('chat.chat_page') }}">المحادثة الحالية</a>
-      </div>
-    </div>
-  </header>
-  {% else %}
   <header class="site-header">
     <div class="container nav">
       <a class="brand" href="{{ url_for('site.home') }}" aria-label="AutoDrive Egypt Home">
@@ -65,7 +29,12 @@
           <small>AI Car Dealership</small>
         </span>
       </a>
-      <nav class="nav-links" aria-label="التنقل الرئيسي">
+
+      <button class="nav-toggle" id="nav-toggle" type="button" aria-label="فتح القائمة" aria-controls="primary-nav" aria-expanded="false">
+        <span></span><span></span><span></span>
+      </button>
+
+      <nav class="nav-links" id="primary-nav" aria-label="التنقل الرئيسي">
         <a class="{{ 'active' if request.endpoint == 'site.home' else '' }}" href="{{ url_for('site.home') }}">الرئيسية</a>
         <a class="{{ 'active' if request.endpoint in ('site.cars', 'site.car_detail') else '' }}" href="{{ url_for('site.cars') }}">السيارات</a>
         <a class="{{ 'active' if request.endpoint == 'chat.chat_page' else '' }}" href="{{ url_for('chat.chat_page') }}">المساعد الذكي</a>
@@ -73,6 +42,7 @@
           <a class="{{ 'active' if request.blueprint == 'site.admin' else '' }}" href="{{ url_for('site.admin.dashboard') }}">الإدارة</a>
         {% endif %}
       </nav>
+
       <div class="nav-actions">
         <a class="btn btn-light desktop-only" href="{{ url_for('site.cars') }}">تصفح الكتالوج</a>
         {% if current_user.is_authenticated %}
@@ -83,14 +53,13 @@
       </div>
     </div>
   </header>
-  {% endif %}
 
   <main>{% block content %}{% endblock %}</main>
 
   {% block footer %}
   <footer class="footer">
     <div class="container footer-grid">
-      <div>
+      <div class="footer-copy">
         <a class="brand footer-brand" href="{{ url_for('site.home') }}">
           <span class="brand-mark" aria-hidden="true">
             <svg viewBox="0 0 32 32"><path d="M6 19h20l-3-6.2A4 4 0 0 0 19.4 10h-6.8A4 4 0 0 0 9 12.8L6 19Z" fill="currentColor"/><path d="M8 18h16a3 3 0 0 1 3 3v2H5v-2a3 3 0 0 1 3-3Z" fill="currentColor" opacity=".72"/><circle cx="10" cy="23" r="2.5" fill="currentColor"/><circle cx="22" cy="23" r="2.5" fill="currentColor"/></svg>
@@ -115,6 +84,7 @@
     </svg>
   </a>
   {% endif %}
+
   <script src="{{ url_for('static', filename='js/site.js') }}" defer></script>
   {% block scripts %}{% endblock %}
 </body>

@@ -2,40 +2,119 @@
 {% from 'components/car_card.html' import car_card %}
 {% block title %}AutoDrive Egypt — AI Car Dealership{% endblock %}
 {% block content %}
-<section class="hero">
+<section class="hero hero-v2">
   <div class="container hero-grid">
     <div class="hero-copy">
       <span class="kicker"><i></i> تجربة بيع سيارات مدعومة بالذكاء الاصطناعي</span>
-      <h1>اختيار عربيتك يبدأ من <em>محادثة ذكية</em></h1>
-      <p>ابحث في الكتالوج بلغة طبيعية، قارن بين نفس الاختيارات الظاهرة أمامك، اسأل عن السياسات المعتمدة، وسجّل طلب تجربة قيادة أو تواصل مع المبيعات من نفس التجربة.</p>
+      <h1>اختار عربيتك بثقة، من <em>محادثة واحدة.</em></h1>
+      <p>قول للمساعد ميزانيتك واحتياجك بطريقتك. هيدور في الكتالوج المسجل، يعرضلك اختيارات واضحة، يقارنها بنفس ترتيبها، ويساعدك في الخطوة اللي بعدها.</p>
       <div class="hero-actions">
-        <a class="btn btn-primary btn-lg" href="{{ url_for('chat.chat_page') }}">ابدأ مع المساعد الذكي</a>
-        <a class="btn btn-light btn-lg" href="{{ url_for('site.cars') }}">استكشف السيارات</a>
+        <a class="btn btn-primary btn-lg" href="{{ url_for('chat.chat_page') }}">ابدأ مع المساعد</a>
+        <a class="btn btn-light btn-lg" href="{{ url_for('site.cars') }}">تصفح السيارات</a>
       </div>
-      <div class="microcopy">حسب البيانات المتاحة في الكتالوج المسجل · لا يتم ادعاء مخزون حي أو سعر نهائي دون تحقق</div>
+      <div class="hero-proof" aria-label="مزايا AutoDrive">
+        <span><b>01</b> بحث طبيعي</span>
+        <span><b>02</b> مقارنة دقيقة</span>
+        <span><b>03</b> طلبات حقيقية</span>
+      </div>
+      <p class="microcopy">حسب البيانات المتاحة في الكتالوج المسجل · لا ندّعي مخزونًا حيًا أو سعر بيع نهائيًا بدون تحقق</p>
     </div>
-    <div class="hero-visual" aria-label="AutoDrive premium customer experience illustration">
-      <div class="lux-badge">AUTODRIVE INTELLIGENCE</div>
-      {% if catalog_count is not none %}<div class="metric-card one"><strong>{{ '{:,}'.format(catalog_count) }}</strong><span>سجل سيارة في الكتالوج</span></div>{% endif %}
-      <div class="metric-card two"><strong>AI</strong><span>Search · RAG · Actions</span></div>
-      <div class="metric-card three"><strong>24/7</strong><span>تجربة محادثة رقمية</span></div>
-      <div class="car-scene" aria-hidden="true"><div class="car-shadow"></div><div class="hero-car-body"></div><div class="wheel left"></div><div class="wheel right"></div></div>
-      <div class="visual-caption"><span>Premium Customer Experience</span><span>Egypt · 2026</span></div>
+
+    <div class="assistant-preview" aria-label="معاينة تجربة المساعد الذكي">
+      <div class="preview-topbar">
+        <div class="preview-agent">
+          <span class="preview-avatar">A</span>
+          <div><strong>مساعد AutoDrive</strong><small><i></i> متاح الآن</small></div>
+        </div>
+        <span class="preview-pill">Sales AI</span>
+      </div>
+      <div class="preview-conversation">
+        <div class="preview-bubble user">عايز SUV مستعملة في حدود مليون ونص</div>
+        <div class="preview-bubble bot">تمام. هدور حسب الكتالوج المسجل وأعرضلك أنسب اختيارات تقدر تشير ليها بالترتيب.</div>
+        <div class="preview-cars" aria-hidden="true">
+          <span>#1 <b>اختيار مناسب</b></span>
+          <span>#2 <b>بديل قريب</b></span>
+          <span>#3 <b>خيار إضافي</b></span>
+        </div>
+        <div class="preview-bubble user compact">قارن أول اتنين</div>
+      </div>
+      <div class="preview-footer">
+        <span><b>{{ '{:,}'.format(catalog_count) if catalog_count is not none else '—' }}</b> سجل بالكتالوج</span>
+        <span><b>RAG</b> معرفة الوكيل</span>
+        <span><b>DB</b> إجراءات فعلية</span>
+      </div>
     </div>
   </div>
 </section>
-<section class="search-wrap" aria-label="ابدأ البحث بالمساعد">
+
+<section class="command-section" aria-label="ابدأ البحث بالمساعد">
   <div class="container">
-    <form class="search-card" id="assistant-search-form" action="{{ url_for('chat.chat_page') }}" method="get">
-      <div class="field search-field-wide"><label for="assistant-search">ابحث بطريقتك</label><input id="assistant-search" name="q" autocomplete="off" placeholder="مثال: عايز SUV مستعملة في حدود مليون ونص"></div>
-      <div class="search-benefit"><span>01</span><b>ابحث</b><small>بلغة طبيعية</small></div>
-      <div class="search-benefit"><span>02</span><b>قارن</b><small>القائمة الظاهرة</small></div>
-      <div class="search-benefit"><span>03</span><b>نفّذ</b><small>طلب حقيقي</small></div>
-      <button class="btn btn-accent" type="submit">ابدأ البحث</button>
+    <form class="command-bar" id="assistant-search-form" action="{{ url_for('chat.chat_page') }}" method="get">
+      <span class="command-icon" aria-hidden="true">⌕</span>
+      <div class="command-input">
+        <label for="assistant-search">دور على عربيتك بطريقتك</label>
+        <input id="assistant-search" name="q" autocomplete="off" placeholder="مثال: عايز عربية جديدة لحد مليون ونص ومش فارق سيدان أو SUV">
+      </div>
+      <button class="btn btn-primary" type="submit">اسأل المساعد</button>
     </form>
   </div>
 </section>
-<section class="section"><div class="container"><div class="section-head"><div><h2>اختيارات من الكتالوج</h2><p>أمثلة حقيقية من البيانات المسجلة، بدون اختراع حقائق غير موجودة.</p></div><a class="link-arrow" href="{{ url_for('site.cars') }}">عرض كل السيارات ←</a></div>{% if featured_cars %}<div class="car-grid">{% for car in featured_cars %}{{ car_card(car) }}{% endfor %}</div>{% else %}<div class="empty-state"><strong>الكتالوج غير متاح مؤقتًا</strong><p>تقدر تفتح المساعد الذكي وتجرب تاني بعد لحظات.</p></div>{% endif %}</div></section>
-<section class="section ai-band"><div class="container ai-grid"><div><span class="kicker dark-kicker"><i></i> AutoDrive AI Assistant</span><h2>محادثة واحدة من البحث لحد الإجراء</h2><p>المساعد يحتفظ بسياق الجلسة، يحترم ترتيب القائمة الظاهرة، يسترجع المعرفة المعتمدة، وينفذ إجراءات أعمال حقيقية فقط عند اكتمال البيانات المطلوبة.</p><div class="feature-grid"><div class="feature">🔎 Natural-language car search</div><div class="feature">⚖️ Visible-list comparison</div><div class="feature">🛡️ Managed RAG knowledge</div><div class="feature">📅 Real test-drive requests</div></div><div class="hero-actions"><a class="btn btn-accent" href="{{ url_for('chat.chat_page') }}">جرّب المحادثة</a></div></div><div class="chat-mock" aria-hidden="true"><div class="mock-head"><div class="avatar">A</div><div><strong>مساعد AutoDrive</strong><small>متاح الآن</small></div></div><div class="mock-msg user">عايز SUV مستعملة في حدود مليون ونص</div><div class="mock-msg bot">هبحث حسب البيانات المتاحة في الكتالوج وأعرضلك قائمة واضحة تقدر تشير ليها بالترتيب.</div><div class="mock-msg user">قارن أول اتنين</div><div class="mock-msg bot">تمام. المقارنة هتكون بين #1 و#2 بالضبط من نفس القائمة اللي ظهرتلك.</div></div></div></section>
-<section class="section"><div class="container"><div class="section-head"><div><h2>مبني على ثقة ووضوح</h2><p>المنتج يوضح حدود البيانات بدل ما يبالغ في الوعود.</p></div></div><div class="trust-grid"><article class="trust-card"><div class="trust-icon">1</div><strong>بيانات Structured</strong><p>تفاصيل السيارات والأسعار من قاعدة البيانات فقط.</p></article><article class="trust-card"><div class="trust-icon">2</div><strong>RAG معتمد</strong><p>الضمان والتمويل والسياسات من Knowledge Base مُدارة.</p></article><article class="trust-card"><div class="trust-icon">3</div><strong>إجراءات حقيقية</strong><p>Test Drive وSales Lead تُسجل فقط عند اكتمال البيانات.</p></article><article class="trust-card"><div class="trust-icon">4</div><strong>سياق محفوظ</strong><p>المحادثة تحافظ على الاختيارات والطلبات الجارية داخل الجلسة.</p></article></div></div></section>
+
+<section class="section process-section">
+  <div class="container">
+    <div class="section-head centered-head">
+      <div><span class="eyebrow">كيف تعمل التجربة؟</span><h2>من الاحتياج للقرار بدون تعقيد</h2><p>الـAI يفهم كلامك، لكن الحقائق والتنفيذ يفضلوا تحت تحكم بيانات وخدمات النظام.</p></div>
+    </div>
+    <div class="process-grid">
+      <article class="process-card"><span>01</span><div class="process-icon">⌕</div><h3>قول اللي محتاجه</h3><p>ميزانية، حالة، نوع عربية أو موديل. مش لازم تملى فورم طويل.</p></article>
+      <article class="process-card"><span>02</span><div class="process-icon">≋</div><h3>شوف وقارن</h3><p>كل عربية ليها Position واضح، والمقارنة بتحترم نفس القائمة اللي ظهرتلك.</p></article>
+      <article class="process-card"><span>03</span><div class="process-icon">✓</div><h3>نفّذ لما تكون جاهز</h3><p>احجز Test Drive أو اطلب تواصل المبيعات بعد اكتمال البيانات المطلوبة فقط.</p></article>
+    </div>
+  </div>
+</section>
+
+<section class="section featured-section">
+  <div class="container">
+    <div class="section-head">
+      <div><span class="eyebrow">من الكتالوج</span><h2>اختيارات مسجلة عندنا</h2><p>بيانات حقيقية من قاعدة البيانات، من غير افتراض مواصفات غير موجودة.</p></div>
+      <a class="link-arrow" href="{{ url_for('site.cars') }}">عرض كل السيارات ←</a>
+    </div>
+    {% if featured_cars %}
+      <div class="car-grid">{% for car in featured_cars %}{{ car_card(car) }}{% endfor %}</div>
+    {% else %}
+      <div class="empty-state"><strong>الكتالوج غير متاح مؤقتًا</strong><p>تقدر تفتح المساعد وتجرب تاني بعد لحظات.</p></div>
+    {% endif %}
+  </div>
+</section>
+
+<section class="section intelligence-section">
+  <div class="container intelligence-panel">
+    <div class="intelligence-copy">
+      <span class="kicker kicker-on-dark"><i></i> AutoDrive Intelligence</span>
+      <h2>AI للمحادثة، Python للحقيقة والتنفيذ.</h2>
+      <p>المساعد يفهم نيتك ويكمل الحوار طبيعي، بينما الأسعار والمواصفات والـIDs والـbusiness actions تفضل محكومة بالبيانات والخدمات المحددة.</p>
+      <div class="intelligence-features">
+        <span>Natural-language Search</span><span>Visible-list References</span><span>Managed RAG</span><span>Real Actions</span>
+      </div>
+      <a class="btn btn-accent btn-lg" href="{{ url_for('chat.chat_page') }}">جرّب المساعد الذكي</a>
+    </div>
+    <div class="intelligence-stack" aria-hidden="true">
+      <div class="stack-card"><small>UNDERSTAND</small><strong>“معايا 1.5 مليون وعايزها جديدة”</strong><span>Intent + preferences</span></div>
+      <div class="stack-card"><small>GROUND</small><strong>Catalog + RAG</strong><span>Verified context only</span></div>
+      <div class="stack-card"><small>ACT</small><strong>Test Drive / Sales Lead</strong><span>Real DB IDs</span></div>
+    </div>
+  </div>
+</section>
+
+<section class="section trust-section">
+  <div class="container">
+    <div class="section-head"><div><span class="eyebrow">Built for trust</span><h2>واضح في اللي يعرفه واللي مايعرفهوش</h2></div></div>
+    <div class="trust-grid">
+      <article class="trust-card"><div class="trust-icon">DB</div><strong>Structured Data</strong><p>تفاصيل السيارات والأسعار من قاعدة البيانات فقط.</p></article>
+      <article class="trust-card"><div class="trust-icon">R</div><strong>Managed RAG</strong><p>الضمان والتمويل والسياسات من Knowledge Base قابلة للإدارة.</p></article>
+      <article class="trust-card"><div class="trust-icon">ID</div><strong>Real Actions</strong><p>مفيش نجاح وهمي: الطلب الحقيقي لازم يرجع ID حقيقي.</p></article>
+      <article class="trust-card"><div class="trust-icon">CTX</div><strong>Persistent Context</strong><p>الاختيارات والطلبات الجارية مرتبطة بجلسة العميل.</p></article>
+    </div>
+  </div>
+</section>
 {% endblock %}

@@ -1,20 +1,9 @@
 (() => {
-  document.querySelectorAll(".brand-mark svg, .chat-app-brand-mark svg").forEach((svg) => {
-    svg.setAttribute("width", "22");
-    svg.setAttribute("height", "22");
-    svg.style.width = "22px";
-    svg.style.height = "22px";
-    svg.style.maxWidth = "22px";
-    svg.style.maxHeight = "22px";
-  });
-
   function readCookie(name) {
     const prefix = `${encodeURIComponent(name)}=`;
     for (const part of document.cookie.split(";")) {
       const trimmed = part.trim();
-      if (trimmed.startsWith(prefix)) {
-        return decodeURIComponent(trimmed.slice(prefix.length));
-      }
+      if (trimmed.startsWith(prefix)) return decodeURIComponent(trimmed.slice(prefix.length));
     }
     return "";
   }
@@ -28,6 +17,21 @@
       input.name = "csrf_token";
       input.value = csrfToken;
       form.appendChild(input);
+    });
+  }
+
+  const navToggle = document.getElementById("nav-toggle");
+  const primaryNav = document.getElementById("primary-nav");
+  if (navToggle && primaryNav) {
+    navToggle.addEventListener("click", () => {
+      const open = primaryNav.classList.toggle("open");
+      navToggle.setAttribute("aria-expanded", String(open));
+    });
+    primaryNav.addEventListener("click", (event) => {
+      if (event.target.closest("a")) {
+        primaryNav.classList.remove("open");
+        navToggle.setAttribute("aria-expanded", "false");
+      }
     });
   }
 

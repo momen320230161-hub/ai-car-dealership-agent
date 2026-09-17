@@ -4,379 +4,193 @@
 {% block footer %}{% endblock %}
 
 {% block content %}
-<section class="min-h-[calc(100vh-70px)] bg-[#F4F7FB] text-[#0F1B33] flex flex-col" id="chat-app" 
-         data-send-url="{{ url_for('chat.send_message') }}" 
+<section class="chat-app" id="chat-app"
+         data-send-url="{{ url_for('chat.send_message') }}"
          data-session-url="{{ url_for('chat.new_session') }}"
          data-history-url="{{ url_for('chat.get_history') }}"
          data-switch-base-url="/api/chat/switch_session/"
          data-max-message-length="{{ config.AGENT_MAX_MESSAGE_LENGTH }}">
-
-  <!-- Main Grid Layout -->
-  <div class="max-w-7xl mx-auto w-full px-4 sm:px-6 lg:px-8 py-6 flex-1 grid grid-cols-1 lg:grid-cols-4 gap-6">
-
-    <!-- Sidebar Info Panel (Desktop 1 Col / Mobile Drawer) -->
-    <aside class="lg:col-span-1 flex flex-col gap-4" id="chat-sidebar">
-      
-      <!-- User Profile & Logout -->
-      <div class="bg-white border border-[#D9E2EF] rounded-2xl p-5 shadow-xs flex flex-col gap-3">
-        <div class="flex items-center justify-between">
-          <div class="flex items-center gap-3">
-            {% if current_user.avatar_url %}
-              <img src="{{ current_user.avatar_url }}" alt="User Avatar" class="w-9 h-9 rounded-full object-cover border border-[#D9E2EF]" />
-            {% else %}
-              <div class="w-9 h-9 rounded-full bg-[#2F5BD3] text-white font-bold flex items-center justify-center text-sm">
-                {{ (current_user.display_name or current_user.email or 'U')[0]|upper }}
-              </div>
-            {% endif %}
-            <div class="flex flex-col text-right">
-              <span class="text-xs font-bold text-[#0F1B33] truncate max-w-[140px]">
-                {{ current_user.display_name or current_user.email }}
-              </span>
-              <span class="text-[10px] text-[#64748B]">
-                {% if current_user.role == 'admin' %}
-                  <span class="inline-block px-1.5 py-0.2 rounded bg-amber-50 text-amber-700 font-semibold">Admin</span>
-                {% else %}
-                  عميل موثق
-                {% endif %}
-              </span>
-            </div>
+  <div class="container chat-layout">
+    <aside class="chat-sidebar" id="chat-sidebar">
+      <div class="sidebar-profile sidebar-card">
+        <div class="profile-identity">
+          {% if current_user.avatar_url %}
+            <img src="{{ current_user.avatar_url }}" alt="صورة الحساب" class="profile-avatar-image">
+          {% else %}
+            <span class="profile-avatar">{{ (current_user.display_name or current_user.email or 'U')[0]|upper }}</span>
+          {% endif %}
+          <div class="profile-copy">
+            <strong>{{ current_user.display_name or current_user.email }}</strong>
+            <small>{{ 'Admin' if current_user.role == 'admin' else 'عميل موثق' }}</small>
           </div>
-          <form action="{{ url_for('auth.logout') }}" method="POST">
-            <button type="submit" class="text-xs text-rose-600 hover:underline font-medium px-2 py-1 rounded bg-rose-50 border border-rose-100">
-              خروج
-            </button>
-          </form>
         </div>
+        <form action="{{ url_for('auth.logout') }}" method="POST">
+          <button class="link-button danger-link" type="submit">خروج</button>
+        </form>
       </div>
 
-      <!-- Session Actions & New Chat -->
-      <div class="bg-white border border-[#D9E2EF] rounded-2xl p-5 shadow-xs flex flex-col gap-3">
-        <div class="flex items-center justify-between">
-          <div class="flex items-center gap-2">
-            <span class="w-2.5 h-2.5 rounded-full bg-emerald-500 animate-pulse"></span>
-            <span class="text-xs font-semibold text-[#64748B]">الجلسة نشطة وآمنة</span>
-          </div>
-          <button class="text-xs text-[#2F5BD3] hover:underline font-medium" id="new-chat-button" type="button">
-            محادثة جديدة ↺
-          </button>
+      <div class="sidebar-card session-card">
+        <div class="sidebar-card-head no-border">
+          <div><span class="live-dot"></span><strong>المحادثة الحالية</strong></div>
+          <button class="link-button" id="new-chat-button" type="button">+ محادثة جديدة</button>
         </div>
+        <p>كل Chat ليها سياق مستقل واختياراتها الخاصة.</p>
       </div>
 
-      <!-- Recent Conversations History -->
-      <div class="bg-white border border-[#D9E2EF] rounded-2xl p-5 shadow-xs flex flex-col gap-3">
-        <div class="flex items-center justify-between border-b border-[#D9E2EF] pb-3">
-          <span class="text-xs font-bold uppercase tracking-wider text-[#64748B]">محادثاتك السابقة</span>
-          <svg class="w-4 h-4 text-[#2F5BD3]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/>
-          </svg>
+      <div class="sidebar-card history-card">
+        <div class="sidebar-card-head">
+          <div><span class="sidebar-icon">↺</span><strong>المحادثات السابقة</strong></div>
         </div>
-        <div class="flex flex-col gap-1.5 max-h-48 overflow-y-auto pr-1" id="history-list">
+        <div class="history-list" id="history-list">
           {% if user_history %}
             {% for item in user_history %}
-              <button class="w-full text-right p-2 text-xs rounded-xl hover:bg-[#F1F5F9] transition-colors border border-transparent flex flex-col gap-0.5 {% if item.id == chat_state.session_id|string %}bg-blue-50 border-[#2F5BD3] font-semibold text-[#2F5BD3]{% else %}text-[#0F1B33]{% endif %}" 
-                      type="button" 
-                      data-history-id="{{ item.id }}">
-                <span class="truncate w-full">{{ item.title }}</span>
+              <button class="history-item {% if item.id == chat_state.session_id|string %}active{% endif %}"
+                      type="button" data-history-id="{{ item.id }}">
+                <span>{{ item.title }}</span>
               </button>
             {% endfor %}
           {% else %}
-            <span class="text-xs text-[#64748B] py-2 text-center">لا توجد محادثات سابقة</span>
+            <span class="sidebar-empty">لا توجد محادثات سابقة</span>
           {% endif %}
         </div>
       </div>
 
-      <!-- Selected Car Card -->
-      <div class="bg-white border border-[#D9E2EF] rounded-2xl p-5 shadow-xs flex flex-col gap-3">
-        <div class="flex items-center justify-between border-b border-[#D9E2EF] pb-3">
-          <span class="text-xs font-bold uppercase tracking-wider text-[#64748B]">السيارة المختارة حالياً</span>
-          <svg class="w-4 h-4 text-[#2F5BD3]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/>
-          </svg>
+      <div class="sidebar-card">
+        <div class="sidebar-card-head">
+          <div><span class="sidebar-icon">⌁</span><strong>السيارة المختارة</strong></div>
         </div>
         <div id="selected-car-container">
           {% if chat_state.selected_car %}
-            <div class="flex flex-col gap-1">
-              <span class="text-base font-bold text-[#0F1B33]">
-                {{ chat_state.selected_car.brand }} {{ chat_state.selected_car.model }}
-              </span>
-              <div class="flex items-center gap-2 text-xs text-[#64748B] mt-1">
-                {% if chat_state.selected_car.year %}
-                  <span class="bg-[#F1F5F9] px-2 py-0.5 rounded font-medium">{{ chat_state.selected_car.year }}</span>
-                {% endif %}
-                <span class="bg-[#F1F5F9] px-2 py-0.5 rounded font-medium">
-                  {{ chat_state.selected_car.condition|condition_ar }}
-                </span>
+            <div class="selected-car-summary">
+              <strong>{{ chat_state.selected_car.brand }} {{ chat_state.selected_car.model }}</strong>
+              <div class="selected-car-meta">
+                {% if chat_state.selected_car.year %}<span>{{ chat_state.selected_car.year }}</span>{% endif %}
+                <span>{{ chat_state.selected_car.condition|condition_ar }}</span>
               </div>
-              {% if chat_state.selected_car.price_egp %}
-                <span class="text-sm font-bold text-[#2F5BD3] mt-2">
-                  {{ chat_state.selected_car.price_egp|egp }}
-                </span>
-              {% endif %}
+              {% if chat_state.selected_car.price_egp %}<b>{{ chat_state.selected_car.price_egp|egp }}</b>{% endif %}
             </div>
           {% else %}
-            <div class="py-2 text-center text-xs text-[#64748B]" id="selected-car-empty">
-              لم يتم تحديد سيارة بعد.<br>تصفح الاختيارات واذكر اسم العربية أو رقمها لتحديدها.
-            </div>
+            <div class="sidebar-empty" id="selected-car-empty">لسه ما اخترتش عربية. اختار من القائمة أو اذكر اسمها.</div>
           {% endif %}
         </div>
       </div>
 
-      <!-- Pending Business Action Card -->
-      <div class="bg-white border border-[#D9E2EF] rounded-2xl p-5 shadow-xs flex flex-col gap-3">
-        <div class="flex items-center justify-between border-b border-[#D9E2EF] pb-3">
-          <span class="text-xs font-bold uppercase tracking-wider text-[#64748B]">حالة الطلب / الإجراء</span>
-          <svg class="w-4 h-4 text-[#2F5BD3]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"/>
-          </svg>
+      <div class="sidebar-card">
+        <div class="sidebar-card-head">
+          <div><span class="sidebar-icon">✓</span><strong>حالة الإجراء</strong></div>
         </div>
-        <div>
-          <span class="text-sm font-semibold text-[#0F1B33]" id="pending-action-label">
+        <div class="pending-summary">
+          <strong id="pending-action-label">
+            {% if chat_state.pending_action_type == 'test_drive' %}حجز تجربة قيادة
+            {% elif chat_state.pending_action_type == 'sales_lead' %}طلب تواصل مبيعات
+            {% elif chat_state.pending_action_type == 'cancel_test_drive' %}إلغاء تجربة قيادة
+            {% else %}مفيش طلب جارٍ{% endif %}
+          </strong>
+          <p id="pending-action-hint">
             {% if chat_state.pending_action_type == 'test_drive' %}
-              حجز تجربة قيادة (Test Drive)
-            {% elif chat_state.pending_action_type == 'sales_lead' %}
-              طلب تواصل مبيعات
-            {% elif chat_state.pending_action_type == 'cancel_test_drive' %}
-              إلغاء حجز تجربة قيادة
+              كمّل البيانات الناقصة في المحادثة، ومش هيتسجل الطلب قبل اكتمالها.
             {% else %}
-              لا يوجد طلب جارٍ تنفيذ بياناته
-            {% endif %}
-          </span>
-          <p class="text-xs text-[#64748B] mt-1" id="pending-action-hint">
-            {% if chat_state.pending_action_type == 'test_drive' %}
-              اكتب باقي البيانات المطلوبة (الاسم، الموبايل، اليوم والوقت) لإتمام التسجيل.
-            {% else %}
-              يمكنك طلب حجز تجربة قيادة أو طلب تواصل المبيعات في أي وقت.
+              تقدر تطلب Test Drive أو تواصل من المبيعات في أي وقت.
             {% endif %}
           </p>
         </div>
       </div>
 
-      <!-- Navigation & Catalog Links -->
-      <div class="mt-auto hidden lg:flex flex-col gap-2">
-        <a class="w-full text-center py-2.5 px-4 bg-white border border-[#D9E2EF] hover:border-[#2F5BD3] text-[#0F1B33] font-medium text-xs rounded-xl transition-all shadow-2xs" 
-           href="{{ url_for('site.cars') }}">
-          تصفح الكتالوج الكامل ↗
-        </a>
-      </div>
+      <a class="sidebar-catalog-link" href="{{ url_for('site.cars') }}">فتح الكتالوج الكامل <span>←</span></a>
     </aside>
 
-    <!-- Main Chat Workspace (Desktop 3 Cols) -->
-    <main class="lg:col-span-3 flex flex-col bg-white border border-[#D9E2EF] rounded-2xl shadow-xs overflow-hidden h-[calc(100vh-140px)] min-h-[580px]">
-      
-      <!-- Top Chat Header -->
-      <div class="px-6 py-4 bg-white border-b border-[#D9E2EF] flex items-center justify-between">
-        <div class="flex items-center gap-3">
-          <div class="w-10 h-10 rounded-full bg-[#0F1B33] text-white flex items-center justify-center font-bold text-sm shadow-xs">
-            A
-          </div>
+    <main class="chat-panel">
+      <header class="chat-panel-header">
+        <div class="chat-agent-heading">
+          <span class="assistant-avatar">A</span>
           <div>
-            <div class="flex items-center gap-2">
-              <h1 class="font-bold text-[#0F1B33] text-base leading-none">مساعد AutoDrive الذكي</h1>
-              <span class="inline-flex items-center px-2 py-0.5 rounded text-[10px] font-semibold bg-blue-50 text-[#2F5BD3]">Sales Orchestrator</span>
-            </div>
-            <span class="text-xs text-[#64748B] mt-1 inline-block">متاح للرد الفوري على الاستفسارات وحجز تجارب القيادة</span>
+            <div class="agent-title-line"><h1>مساعد AutoDrive</h1><span>Sales Orchestrator</span></div>
+            <p><i></i> متاح الآن · فاهم العامية المصرية وبيستخدم بيانات النظام</p>
+          </div>
+        </div>
+        <button class="mobile-side-toggle" id="mobile-side-toggle" type="button" aria-label="فتح معلومات المحادثة">☰</button>
+      </header>
+
+      <div class="chat-window" id="chat-window">
+        <div class="chat-intro" id="chat-intro">
+          <div class="intro-icon">✦</div>
+          <div>
+            <span>AutoDrive AI Assistant</span>
+            <h2>قولّي إنت محتاج عربية إزاي.</h2>
+            <p>اكتب بطريقتك: ميزانية، جديدة أو مستعملة، موديل معين، أو حتى “مش فارق معايا”. وتقدر تسأل عن الضمان والسياسات أو تبدأ حجز Test Drive.</p>
           </div>
         </div>
 
-        <div class="flex items-center gap-2">
-          <button class="lg:hidden p-2 rounded-lg text-[#64748B] hover:bg-[#F1F5F9]" id="mobile-side-toggle" type="button" aria-label="فتح معلومات المحادثة">
-            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/>
-            </svg>
-          </button>
-        </div>
-      </div>
-
-      <!-- Chat Stream Content Window -->
-      <div class="chat-window flex-1 overflow-y-auto p-6 space-y-4" id="chat-window">
-        
-        <!-- Welcome Intro Container -->
-        <div class="chat-intro bg-[#F8FAFC] border border-[#D9E2EF] rounded-2xl p-5 mb-4" id="chat-intro">
-          <div class="flex items-center gap-2 text-xs font-bold text-[#2F5BD3] mb-1">
-            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"/>
-            </svg>
-            AutoDrive Egypt AI Assistant
-          </div>
-          <h2 class="text-lg font-bold text-[#0F1B33] mb-1">أهلاً بيك! قولي بتدور على عربية بمواصفات إيه؟</h2>
-          <p class="text-xs text-[#64748B] leading-relaxed">
-            يمكنك البحث بالعامية المصرية، استعراض المواصفات المسجلة بالكتالوج، مقارنة الاختيارات، أو حجز تجربة قيادة فورية.
-          </p>
-        </div>
-
-        <!-- Dynamic Message List -->
-        <div class="messages space-y-4" id="message-list" aria-live="polite">
+        <div class="messages" id="message-list" aria-live="polite">
           {% if not chat_state.messages %}
             <div class="msg-row assistant">
               <div class="avatar-badge">A</div>
-              <div class="message-stack">
-                <div class="msg bot">
-                  يا هلا بيك في AutoDrive Egypt 👋
-أنا مساعدك الذكي، قولي بتدور على عربية بمواصفات أو ميزانية إيه وأنا أساعدك فوراً باللي متوفر في الكتالوج!
-                </div>
-              </div>
+              <div class="message-stack"><div class="msg bot">أهلاً بيك 👋 قولي بتدور على عربية بإيه وأنا أساعدك حسب البيانات المتاحة في الكتالوج.</div></div>
             </div>
           {% else %}
             {% for message in chat_state.messages %}
               {% if message.role == 'user' %}
-                <div class="msg-row user">
-                  <div class="message-stack">
-                    <div class="msg user-msg">{{ message.content }}</div>
-                  </div>
-                </div>
+                <div class="msg-row user"><div class="message-stack"><div class="msg user-msg">{{ message.content }}</div></div></div>
               {% else %}
-                <div class="msg-row assistant">
-                  <div class="avatar-badge">A</div>
-                  <div class="message-stack">
-                    <div class="msg bot">{{ message.content }}</div>
-                  </div>
-                </div>
+                <div class="msg-row assistant"><div class="avatar-badge">A</div><div class="message-stack"><div class="msg bot">{{ message.content }}</div></div></div>
               {% endif %}
             {% endfor %}
           {% endif %}
         </div>
 
-        <!-- Interactive Recommendation Cards Stream -->
-        <section class="active-recommendations mt-6 pt-4 border-t border-[#D9E2EF] {% if not chat_state.visible_recommendations %}hidden{% endif %}" id="active-recommendations">
-          <div class="flex items-center justify-between mb-3">
-            <span class="text-xs font-bold text-[#0F1B33] flex items-center gap-1.5">
-              <svg class="w-4 h-4 text-[#2F5BD3]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10"/>
-              </svg>
-              السيارات المعروضة لك حالياً في القائمة
-            </span>
-            <span class="text-[11px] text-[#64748B]">تقدر تقول "الأولى" أو "تاني واحدة" للإشارة ليها</span>
+        <section class="active-recommendations {% if not chat_state.visible_recommendations %}hidden{% endif %}" id="active-recommendations">
+          <div class="recommendations-head">
+            <div><strong>الاختيارات الظاهرة دلوقتي</strong><span>الأرقام دي هي المرجع في المقارنة والاختيار</span></div>
+            <button class="compare-visible" type="button" data-action="compare">قارن أول اتنين</button>
           </div>
-
-          <div class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4" id="recommendation-grid">
+          <div class="recommendation-grid" id="recommendation-grid">
             {% if chat_state.visible_recommendations %}
               {% for item in chat_state.visible_recommendations %}
                 {% set car = item.car %}
-                <div class="rec-card flex flex-col justify-between">
-                  <div>
-                    <!-- Neutral Vehicle Illustration -->
-                    <div class="vehicle-placeholder-bg">
-                      <svg class="w-12 h-12 text-[#94A3B8] opacity-75" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M8 17a2 2 0 100 4 2 2 0 000-4zm8 0a2 2 0 100 4 2 2 0 000-4zM3 9l2-4h10l2 4M3 9h18v7a1 1 0 01-1 1H4a1 1 0 01-1-1V9z"/>
-                      </svg>
-                      <span class="absolute top-2 right-2 bg-[#0F1B33] text-white text-[10px] font-bold px-2 py-0.5 rounded-full">
-                        #{{ item.position }}
-                      </span>
-                    </div>
-                    <h3 class="font-bold text-sm text-[#0F1B33] leading-tight">
-                      {{ car.brand }} {{ car.model }}
-                    </h3>
-                    <div class="flex items-center gap-1.5 text-[11px] text-[#64748B] mt-1">
-                      <span>{{ car.year }}</span>
-                      <span>·</span>
-                      <span>{{ car.condition|condition_ar }}</span>
-                      {% if car.body_type %}
-                        <span>·</span>
-                        <span>{{ car.body_type }}</span>
-                      {% endif %}
-                    </div>
-                    {% if car.price_egp %}
-                      <div class="text-sm font-bold text-[#2F5BD3] mt-2">
-                        {{ car.price_egp|egp }}
-                      </div>
-                    {% endif %}
+                <article class="rec-card">
+                  <div class="rec-visual"><span class="rec-position">#{{ item.position }}</span><span class="rec-car-icon">⌁</span></div>
+                  <div class="rec-content">
+                    <h3>{{ car.brand }} {{ car.model }}</h3>
+                    <div class="rec-meta"><span>{{ car.year }}</span><span>{{ car.condition|condition_ar }}</span>{% if car.body_type %}<span>{{ car.body_type }}</span>{% endif %}</div>
+                    {% if car.price_egp %}<strong class="rec-price">{{ car.price_egp|egp }}</strong>{% endif %}
                   </div>
-                  <!-- Quick Card Action Controls -->
-                  <div class="flex items-center gap-1.5 mt-3 pt-3 border-t border-[#D9E2EF]">
-                    <button class="flex-1 py-1 px-2 bg-[#F1F5F9] hover:bg-[#E2E8F0] text-[#0F1B33] text-[11px] font-medium rounded text-center transition-colors" 
-                            type="button" 
-                            data-action="details" 
-                            data-position="{{ item.position }}">
-                      التفاصيل
-                    </button>
-                    <button class="flex-1 py-1 px-2 bg-[#2F5BD3] hover:bg-[#2563EB] text-white text-[11px] font-medium rounded text-center transition-colors" 
-                            type="button" 
-                            data-action="select" 
-                            data-position="{{ item.position }}">
-                      اختر هذه
-                    </button>
+                  <div class="rec-actions">
+                    <button type="button" class="rec-action secondary" data-action="details" data-position="{{ item.position }}">التفاصيل</button>
+                    <button type="button" class="rec-action primary" data-action="select" data-position="{{ item.position }}">اختار دي</button>
                   </div>
-                </div>
+                </article>
               {% endfor %}
             {% endif %}
           </div>
         </section>
 
-        <!-- Typing Shimmer Loading Indicator -->
         <div class="msg-row assistant hidden" id="typing-row">
           <div class="avatar-badge">A</div>
-          <div class="msg bot flex items-center gap-2 py-3 px-4">
-            <span class="text-xs text-[#64748B]">جاري التفكير وتحضير الرد...</span>
-            <div class="typing-dots flex gap-1 items-center">
-              <span></span>
-              <span></span>
-              <span></span>
-            </div>
-          </div>
+          <div class="msg bot typing-message"><span>بفكر في طلبك</span><div class="typing-dots"><i></i><i></i><i></i></div></div>
         </div>
-
-        <!-- Error Message Alert Box -->
-        <div class="p-3 bg-rose-50 border border-rose-200 text-rose-700 text-xs rounded-xl hidden" id="chat-error" role="alert"></div>
+        <div class="chat-error hidden" id="chat-error" role="alert"></div>
       </div>
 
-      <!-- Composer Input Form Area -->
-      <div class="p-4 bg-white border-t border-[#D9E2EF]">
-        
-        <!-- Quick Action Prompt Chips -->
-        <div class="flex items-center gap-2 overflow-x-auto pb-2.5 mb-2 scrollbar-none text-xs">
-          <button class="px-3 py-1.5 rounded-full bg-[#F8FAFC] border border-[#D9E2EF] hover:border-[#2F5BD3] text-[#0F1B33] whitespace-nowrap transition-colors" 
-                  type="button" 
-                  data-prompt="عايز عربية SUV مستعملة تحت مليون ونصف">
-            🚙 SUV مستعملة تحت 1.5M
-          </button>
-          <button class="px-3 py-1.5 rounded-full bg-[#F8FAFC] border border-[#D9E2EF] hover:border-[#2F5BD3] text-[#0F1B33] whitespace-nowrap transition-colors" 
-                  type="button" 
-                  data-prompt="وريني عربيات سيدان جديدة زيرو">
-            ✨ سيدان جديدة زيرو
-          </button>
-          <button class="px-3 py-1.5 rounded-full bg-[#F8FAFC] border border-[#D9E2EF] hover:border-[#2F5BD3] text-[#0F1B33] whitespace-nowrap transition-colors" 
-                  type="button" 
-                  data-prompt="قارن أول اتنين">
-            ⚖️ قارن أول 2 في القائمة
-          </button>
-          <button class="px-3 py-1.5 rounded-full bg-[#F8FAFC] border border-[#D9E2EF] hover:border-[#2F5BD3] text-[#0F1B33] whitespace-nowrap transition-colors" 
-                  type="button" 
-                  data-prompt="عايز احجز تست درايف">
-            📅 احجز تجربة قيادة
-          </button>
+      <footer class="chat-composer">
+        <div class="prompt-chips" aria-label="اقتراحات سريعة">
+          <button type="button" data-prompt="عايز عربية SUV مستعملة تحت مليون ونصف">SUV مستعملة تحت 1.5M</button>
+          <button type="button" data-prompt="وريني عربيات سيدان جديدة زيرو">سيدان جديدة</button>
+          <button type="button" data-prompt="قارن أول اتنين">قارن أول اتنين</button>
+          <button type="button" data-prompt="عايز احجز تست درايف">احجز Test Drive</button>
         </div>
-
-        <!-- Chat Input Form -->
-        <form class="flex items-center gap-2" id="chat-form">
-          <div class="flex-1 relative">
-            <textarea id="chat-input" 
-                      rows="1" 
-                      maxlength="{{ config.AGENT_MAX_MESSAGE_LENGTH }}" 
-                      placeholder="اكتب رسالتك بالعامية... مثال: وريني BMW مستعملة أو قارن أول اتنين" 
-                      class="w-full py-3 px-4 bg-[#F8FAFC] border border-[#D9E2EF] focus:border-[#2F5BD3] focus:bg-white rounded-xl text-sm text-[#0F1B33] placeholder-[#64748B] outline-none resize-none transition-all leading-normal" 
-                      autocomplete="off"></textarea>
-          </div>
-          <button id="chat-send" 
-                  type="submit" 
-                  class="w-11 h-11 rounded-xl bg-[#2F5BD3] hover:bg-[#2563EB] disabled:opacity-50 text-white flex items-center justify-center transition-colors shadow-xs shrink-0" 
-                  aria-label="إرسال الرسالة">
-            <svg class="w-5 h-5 transform rotate-180" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8"/>
-            </svg>
+        <form class="composer-form" id="chat-form">
+          <textarea id="chat-input" rows="1" maxlength="{{ config.AGENT_MAX_MESSAGE_LENGTH }}"
+                    placeholder="اكتب رسالتك... مثال: معايا مليون ونص وعايزها جديدة"
+                    autocomplete="off"></textarea>
+          <button id="chat-send" type="submit" aria-label="إرسال الرسالة">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="m5 12 14-7-5 14-2-6-7-1Z"/><path d="m12 13 7-8"/></svg>
           </button>
         </form>
-
-        <div class="flex items-center justify-between text-[11px] text-[#64748B] mt-2 px-1">
-          <span>Enter للإرسال · Shift + Enter لسطر جديد</span>
-          <span>بيانات رسمية محدثة حسب كتالوج AutoDrive Egypt</span>
-        </div>
-      </div>
+        <div class="composer-note"><span>Enter للإرسال · Shift + Enter لسطر جديد</span><span>الأسعار والمواصفات حسب البيانات المسجلة</span></div>
+      </footer>
     </main>
-
   </div>
 </section>
 {% endblock %}
 
-{% block scripts %}
-<script src="{{ url_for('static', filename='js/chat.js') }}" defer></script>
-{% endblock %}
+{% block scripts %}<script src="{{ url_for('static', filename='js/chat.js') }}" defer></script>{% endblock %}
