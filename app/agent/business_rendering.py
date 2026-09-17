@@ -31,6 +31,14 @@ def render_business_action(
         missing = [str(field) for field in status.get("missing_fields", [])]
         if not missing:
             return "محتاج شوية بيانات إضافية قبل تنفيذ الطلب."
+        if status.get("ambiguous_time") and "preferred_time" in missing:
+            hour = status.get("ambiguous_time_hour")
+            if isinstance(hour, int) and 1 <= hour <= 12:
+                return (
+                    f"تقصد الساعة {hour} صباحًا ولا {hour} العصر/مساءً؟ "
+                    "حددها عشان ما نسجلش وقت غلط."
+                )
+            return "تقصد الوقت صباحًا ولا عصر/مساءً؟ حدده عشان ما نسجلش وقت غلط."
         if missing == ["request_id"]:
             candidates = _integer_ids(status.get("candidate_request_ids"))
             if candidates:
