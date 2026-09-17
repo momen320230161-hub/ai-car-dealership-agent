@@ -25,6 +25,7 @@ class ConversationContextError(RuntimeError):
 class ConversationContext:
     session_id: uuid.UUID
     preferences: dict[str, Any]
+    dialogue_state: dict[str, Any]
     selected_car_id: int | None
     active_snapshot: dict[str, Any] | None
     pending_action: dict[str, Any] | None
@@ -124,6 +125,7 @@ class ConversationContextService:
             return ConversationContext(
                 session_id=conversation.id,
                 preferences=dict(conversation.preferences or {}),
+                dialogue_state=dict(conversation.dialogue_state or {}),
                 selected_car_id=conversation.selected_car_id,
                 active_snapshot=snapshot_data,
                 pending_action=(
