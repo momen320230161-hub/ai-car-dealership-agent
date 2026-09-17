@@ -7,7 +7,7 @@ import re
 import secrets
 import uuid
 
-from flask import Flask, abort, g, request, session
+from flask import Blueprint, abort, g, request, session
 
 _BROWSER_CSRF_SESSION_KEY = "_browser_csrf_token"
 _SAFE_REQUEST_ID_RE = re.compile(r"^[A-Za-z0-9._-]{1,64}$")
@@ -34,19 +34,19 @@ def require_browser_csrf() -> None:
         abort(400)
 
 
-def init_security(app: Flask) -> None:
-    """Install request correlation, browser CSRF context, and safe response headers."""
+def register_security_hooks(bp: Blueprint) -> None:
+    """Install app-wide request correlation, CSRF context, and safe response headers."""
 
-    @app.before_request
+    @bp.before_app_request
     def assign_request_id() -> None:
         supplied = request.headers.get("X-Request-ID", "").strip()
         g.request_id = supplied if _SAFE_REQUEST_ID_RE.fullmatch(supplied) else uuid.uuid4().hex
 
-    @app.context_processor
+    @bp.app_context_processor
     def inject_browser_security_context() -> dict[str, str]:
         return {"browser_csrf_token": browser_csrf_token()}
 
-    @app.after_request
+    @bp.after_app_request
     def add_security_headers(response):
         response.headers.setdefault("X-Request-ID", str(getattr(g, "request_id", uuid.uuid4().hex)))
         response.headers.setdefault("X-Content-Type-Options", "nosniff")
