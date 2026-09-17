@@ -4,7 +4,11 @@ from datetime import time
 
 from app.agent.business_rendering import render_business_action
 from app.agent.conversational_orchestrator import ConversationalSalesOrchestrator
-from app.agent.schemas import PreferenceUpdates, RequestUnderstanding
+from app.agent.schemas import (
+    PreferenceUpdates,
+    RequestUnderstanding,
+    sanitize_understanding,
+)
 from app.agent.turn_semantics import analyze_turn
 from app.services.business_action_parsing import explicit_time
 from app.services.customer_memory_service import CustomerMemory
@@ -63,6 +67,28 @@ def test_ambiguous_pending_time_renderer_asks_a_specific_question() -> None:
     assert "4 صباح" in response
     assert "4 العصر" in response
     assert "وقت غلط" in response
+
+
+def test_direct_try_driving_phrase_overrides_rag_misclassification() -> None:
+    understanding = RequestUnderstanding(intent="knowledge_question")
+
+    sanitized = sanitize_understanding(
+        understanding,
+        "هو انا ينفع اجي اجرب اسوقها",
+    )
+
+    assert sanitized.intent == "test_drive"
+
+
+def test_test_drive_policy_question_stays_knowledge_question() -> None:
+    understanding = RequestUnderstanding(intent="knowledge_question")
+
+    sanitized = sanitize_understanding(
+        understanding,
+        "إيه نظام التست درايف والمطلوب إيه؟",
+    )
+
+    assert sanitized.intent == "knowledge_question"
 
 
 def _reference_state(message: str) -> dict:
