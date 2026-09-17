@@ -52,6 +52,17 @@ def test_chat_v2_styles_cover_desktop_and_mobile_shell() -> None:
     assert "@media(max-width:650px)" in source
 
 
+def test_admin_v2_styles_cover_real_filter_and_form_controls() -> None:
+    source = _source("app/static/css/admin.css")
+
+    assert ".admin-filter-form" in source
+    assert ".admin-form-grid" in source
+    assert ".admin-form select" in source
+    assert ".admin-filter-form input" in source
+    assert ".table-wrap" in source
+    assert "@media(max-width:760px)" in source
+
+
 def test_customer_pages_render_v2_assets(app, client) -> None:
     home = client.get("/")
     home_body = home.get_data(as_text=True)
