@@ -60,6 +60,41 @@ _FALLBACK_TERMS = (
     "if not",
 )
 
+_BODY_TERMS = (
+    "suv",
+    "sedan",
+    "سيدان",
+    "هاتشباك",
+    "هاتش باك",
+    "كوبيه",
+    "كروس اوفر",
+    "كروس أوفر",
+    "نوع العربية",
+    "نوع السياره",
+)
+_TRANSMISSION_TERMS = (
+    "اوتوماتيك",
+    "أوتوماتيك",
+    "اتوماتيك",
+    "مانيوال",
+    "manual",
+    "automatic",
+    "transmission",
+    "فتيس",
+)
+_FUEL_TERMS = (
+    "بنزين",
+    "ديزل",
+    "كهربا",
+    "كهرباء",
+    "هايبرد",
+    "هجين",
+    "fuel",
+    "وقود",
+)
+_YEAR_TERMS = ("سنة", "السنة", "السنه", "موديل سنة", "model year")
+_MILEAGE_TERMS = ("عداد", "ممشى", "ممشاها", "كيلومتر", "كيلو", "mileage", "km")
+
 _BROADEN_MARKERS = (
     "اعرضلي العربيات اللي عندك",
     "اعرضلي العربيات الي عندك",
@@ -199,32 +234,13 @@ def analyze_turn(
 
     generic_dont_care = any(marker in text for marker in _GENERIC_DONT_CARE)
     if generic_dont_care:
-        clear.update(_NON_IDENTITY_FILTERS)
-        force_clear.update(_NON_IDENTITY_FILTERS)
+        scoped_fields = _scoped_dont_care_fields(text)
+        fields_to_clear = scoped_fields or set(_NON_IDENTITY_FILTERS)
+        clear.update(fields_to_clear)
+        force_clear.update(fields_to_clear)
         force_search = bool(current or extracted)
         if mode == "refine":
             mode = "flexible_search"
-
-    condition_words = any(term in text for term in (*_NEW_TERMS, *_USED_TERMS))
-    if generic_dont_care and condition_words and not soft_condition_order:
-        clear.add("condition")
-        force_clear.add("condition")
-
-    body_words = any(
-        term in text
-        for term in (
-            "suv",
-            "sedan",
-            "سيدان",
-            "هاتشباك",
-            "هاتش باك",
-            "كوبيه",
-            "نوع العربية",
-        )
-    )
-    if generic_dont_care and body_words:
-        clear.add("body_type")
-        force_clear.add("body_type")
 
     broadens = any(marker in text for marker in _BROADEN_MARKERS)
     if broadens:
@@ -270,6 +286,46 @@ def analyze_turn(
         more_results_question=more_results_question,
         budget_change_unspecified=budget_change_unspecified,
     )
+
+
+def _scoped_dont_care_fields(text: str) -> set[str]:
+    """Return fields explicitly waived after the nearest don't-care phrase.
+
+    Natural turns often mix a hard preference with one waived preference, e.g.
+    ``جديدة ومش فارق معايا سيدان أو SUV``. Clearing every non-identity filter in
+    that case loses the explicit ``new`` constraint. Only terms occurring after the
+    conversational waiver are treated as waived; a bare/global waiver still falls
+    back to clearing the legacy flexible fields.
+    """
+    marker_match: tuple[int, str] | None = None
+    for marker in _GENERIC_DONT_CARE:
+        index = text.rfind(marker)
+        if index < 0:
+            continue
+        end = index + len(marker)
+        if marker_match is None or end > marker_match[0]:
+            marker_match = (end, marker)
+    if marker_match is None:
+        return set()
+
+    suffix = text[marker_match[0] :].strip(" ،,.-")
+    if not suffix:
+        return set()
+
+    scoped: set[str] = set()
+    if any(term in suffix for term in (*_NEW_TERMS, *_USED_TERMS, "الحالة", "الحاله")):
+        scoped.add("condition")
+    if any(term in suffix for term in _BODY_TERMS):
+        scoped.add("body_type")
+    if any(term in suffix for term in _TRANSMISSION_TERMS):
+        scoped.add("transmission")
+    if any(term in suffix for term in _FUEL_TERMS):
+        scoped.add("fuel_type")
+    if any(term in suffix for term in _YEAR_TERMS):
+        scoped.update(("min_year", "max_year"))
+    if any(term in suffix for term in _MILEAGE_TERMS):
+        scoped.add("max_mileage")
+    return scoped
 
 
 def _normalize(value: str) -> str:
