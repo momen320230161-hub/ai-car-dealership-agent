@@ -21,3 +21,35 @@ def test_social_plan_avoids_forced_sales_followup_and_repeated_opening() -> None
     assert "تسلم يا غالي" in plan["avoid_openings"]
     assert not composition_policy_allows("تسلم يا غالي! أنا تمام الحمد لله.", plan)
     assert composition_policy_allows("أنا تمام الحمد لله، تسلم إنك سألت.", plan)
+
+
+def test_recommendation_policy_rejects_unsupported_best_language() -> None:
+    plan = build_response_plan(
+        {
+            "route": "catalog",
+            "catalog_result": {"type": "recommendations", "cars": []},
+            "recent_messages": [],
+        }
+    )
+
+    assert plan["preferred_response_shape"] == "shortlist_then_optional_next_step"
+    assert plan["allow_evaluative_superlatives"] is False
+    assert not composition_policy_allows("دي أفضل الخيارات المتاحة ليك.", plan)
+    assert composition_policy_allows("دي 3 خيارات مطابقة للشروط اللي قلتها.", plan)
+
+
+def test_clarification_policy_rejects_multi_questionnaire() -> None:
+    plan = build_response_plan(
+        {
+            "route": "catalog",
+            "catalog_result": {"type": "clarification"},
+            "recent_messages": [],
+        }
+    )
+
+    assert plan["preferred_response_shape"] == "single_high_value_question"
+    assert not composition_policy_allows(
+        "تحبها جديدة ولا مستعملة؟ وعايز SUV ولا Sedan؟",
+        plan,
+    )
+    assert composition_policy_allows("تحبها جديدة ولا مستعملة؟", plan)
