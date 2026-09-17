@@ -21,6 +21,13 @@ from app.services.conversation_context_service import (
 from app.services.customer_web_service import CustomerWebService
 
 
+def _csrf_headers(client: FlaskClient) -> dict[str, str]:
+    with client.session_transaction() as sess:
+        token = str(sess.get("_browser_csrf_token") or "test-browser-csrf")
+        sess["_browser_csrf_token"] = token
+    return {"X-CSRF-Token": token}
+
+
 @pytest.fixture()
 def sample_user_a(db_session) -> UserProfile:
     user = UserProfile(
@@ -164,7 +171,7 @@ class TestAuthAccessControl:
             with app.test_request_context():
                 login_user(sample_user_a)
 
-            res = client.post("/auth/logout")
+            res = client.post("/auth/logout", headers=_csrf_headers(client))
             assert res.status_code == 302
             assert "/auth/login" in res.location
 
@@ -260,7 +267,10 @@ class TestUserOwnershipAndIsolation:
             login_user(sample_user_b)
 
         # User B attempts to switch to User A's session_id
-        res = client.post(f"/api/chat/switch_session/{session_a_id}")
+        res = client.post(
+            f"/api/chat/switch_session/{session_a_id}",
+            headers=_csrf_headers(client),
+        )
         assert res.status_code == 404
         payload = res.get_json()
         assert payload["ok"] is False
