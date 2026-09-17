@@ -37,6 +37,9 @@
         <a href="{{ url_for('site.home') }}">الرئيسية</a>
         <a href="{{ url_for('site.cars') }}">السيارات</a>
         <a class="active" href="{{ url_for('chat.chat_page') }}">المساعد الذكي</a>
+        {% if current_user.is_authenticated and current_user.is_admin %}
+          <a href="{{ url_for('site.admin.dashboard') }}">الإدارة</a>
+        {% endif %}
       </nav>
 
       <div class="chat-app-actions">
@@ -66,6 +69,9 @@
         <a class="{{ 'active' if request.endpoint == 'site.home' else '' }}" href="{{ url_for('site.home') }}">الرئيسية</a>
         <a class="{{ 'active' if request.endpoint in ('site.cars', 'site.car_detail') else '' }}" href="{{ url_for('site.cars') }}">السيارات</a>
         <a class="{{ 'active' if request.endpoint == 'chat.chat_page' else '' }}" href="{{ url_for('chat.chat_page') }}">المساعد الذكي</a>
+        {% if current_user.is_authenticated and current_user.is_admin %}
+          <a class="{{ 'active' if request.blueprint == 'site.admin' else '' }}" href="{{ url_for('site.admin.dashboard') }}">الإدارة</a>
+        {% endif %}
       </nav>
       <div class="nav-actions">
         <a class="btn btn-light desktop-only" href="{{ url_for('site.cars') }}">تصفح الكتالوج</a>
