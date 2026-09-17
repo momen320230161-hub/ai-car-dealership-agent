@@ -1,0 +1,32 @@
+{% extends "admin/base.html" %}
+
+{% block admin_title %}Sales Leads{% endblock %}
+{% block admin_subtitle %}طلبات التواصل مع فريق المبيعات المسجلة فعليًا.{% endblock %}
+
+{% block admin_content %}
+<section class="admin-panel">
+  <div class="panel-heading">
+    <h2>{{ page.total }} Lead</h2>
+    <span>صفحة {{ page.page }} من {{ page.total_pages }}</span>
+  </div>
+  <div class="table-wrap">
+    <table class="admin-table">
+      <thead><tr><th>ID</th><th>العميل</th><th>العربية</th><th>Status</th><th>Created</th></tr></thead>
+      <tbody>
+      {% for item in page.items %}
+        <tr>
+          <td>{{ item.id }}</td>
+          <td><strong>{{ item.customer_name }}</strong><small>{{ item.phone }}{% if item.email %} · {{ item.email }}{% endif %}</small></td>
+          <td>{% if item.car %}{{ item.car.brand }} {{ item.car.model }} <small>#{{ item.car_id }}</small>{% else %}—{% endif %}</td>
+          <td><span class="status-pill {{ 'ok' if item.status in ('NEW', 'CONTACTED', 'QUALIFIED') else 'muted' }}">{{ item.status }}</span></td>
+          <td>{{ item.created_at.strftime('%Y-%m-%d %H:%M') if item.created_at else '—' }}</td>
+        </tr>
+      {% else %}
+        <tr><td colspan="5" class="empty-state">لا توجد Sales Leads.</td></tr>
+      {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% include "admin/pagination.html" %}
+</section>
+{% endblock %}
