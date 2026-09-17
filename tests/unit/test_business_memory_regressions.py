@@ -87,5 +87,53 @@ def test_ambiguous_five_oclock_stays_pending_instead_of_becoming_0500(db_session
     assert plan["status"] == "missing_fields"
     assert plan["missing_fields"] == ["preferred_time"]
     assert plan["ambiguous_time"] is True
+    assert plan["ambiguous_time_hour"] == 5
     assert plan["fields"]["preferred_date"] == "2026-09-17"
     assert "preferred_time" not in plan["fields"]
+
+
+def test_arabic_afternoon_is_kept_as_unambiguous_test_drive_time(db_session) -> None:
+    car = _car(db_session, "afternoon-time")
+    conversation = ConversationSession(id=uuid.uuid4(), selected_car_id=car.id)
+    db_session.add(conversation)
+    db_session.commit()
+
+    plan = _workflow(db_session).prepare_action(
+        conversation.id,
+        "test_drive",
+        "اسمي مؤمن محمد ورقمي 01229847585 بعد بكره الساعة 3 العصر",
+    )
+
+    assert plan["status"] == "ready"
+    assert plan["fields"]["preferred_date"] == "2026-09-18"
+    assert plan["fields"]["preferred_time"] == "15:00"
+    assert plan.get("ambiguous_time") is not True
+
+
+def test_bare_pending_hour_then_daypart_completes_same_test_drive(db_session) -> None:
+    car = _car(db_session, "pending-bare-hour")
+    conversation = ConversationSession(id=uuid.uuid4(), selected_car_id=car.id)
+    db_session.add(conversation)
+    db_session.commit()
+    workflow = _workflow(db_session)
+
+    first = workflow.prepare_action(
+        conversation.id,
+        "test_drive",
+        "اسمي مؤمن محمد ورقمي 01229847585 بكره",
+    )
+    assert first["status"] == "missing_fields"
+    assert first["missing_fields"] == ["preferred_time"]
+
+    second = workflow.prepare_action(conversation.id, "general", "4")
+    assert second["status"] == "missing_fields"
+    assert second["missing_fields"] == ["preferred_time"]
+    assert second["ambiguous_time"] is True
+    assert second["ambiguous_time_hour"] == 4
+
+    pending = db_session.get(ConversationSession, conversation.id).pending_action
+    assert pending["ambiguous_time_hour"] == 4
+
+    third = workflow.prepare_action(conversation.id, "general", "العصر")
+    assert third["status"] == "ready"
+    assert third["fields"]["preferred_time"] == "16:00"
