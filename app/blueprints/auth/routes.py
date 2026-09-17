@@ -9,6 +9,7 @@ from flask_login import current_user, login_required, login_user, logout_user
 from sqlalchemy.exc import SQLAlchemyError
 
 from app.blueprints.auth import bp
+from app.common.security import require_browser_csrf
 from app.extensions import db
 from app.services.auth_service import AuthError, AuthService, AuthUserInactiveError
 
@@ -147,9 +148,10 @@ def callback():
     return redirect(next_page or url_for("chat.chat_page"))
 
 
-@bp.route("/auth/logout", methods=["GET", "POST"])
+@bp.post("/auth/logout")
 @login_required
 def logout():
+    require_browser_csrf()
     session.pop(_CONVERSATION_SESSION_KEY, None)
     logout_user()
     session.clear()
