@@ -54,6 +54,29 @@ def test_dont_care_turn_clears_form_like_constraints_and_searches() -> None:
     assert "max_price" not in semantics.clear_fields
 
 
+def test_scoped_dont_care_preserves_explicit_new_condition() -> None:
+    semantics = analyze_turn(
+        "عايزها جديدة مش فارق معايا سيدان أو لا",
+        {"max_price": 800_000},
+        {"condition": "new", "body_type": "Sedan"},
+    )
+
+    assert semantics.force_catalog_search is True
+    assert "body_type" in semantics.force_clear_fields
+    assert "condition" not in semantics.clear_fields
+
+
+def test_condition_waiver_clears_condition_when_explicitly_scoped() -> None:
+    semantics = analyze_turn(
+        "مش فارق معايا جديدة ولا مستعملة",
+        {"max_price": 800_000, "condition": "new"},
+        {"condition": "used"},
+    )
+
+    assert "condition" in semantics.force_clear_fields
+    assert "body_type" not in semantics.clear_fields
+
+
 def test_new_then_used_is_soft_fallback_not_hard_used_filter() -> None:
     semantics = analyze_turn(
         "هاتها زيرو لو مفيش عايزها استعمال",
