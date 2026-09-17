@@ -1,4 +1,4 @@
-"""Regression tests for response planning policy."""
+"""Regression tests for response planning and conversational composition policy."""
 
 from app.agent.composition_policy import (
     build_response_plan,
