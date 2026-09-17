@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import uuid
 
-from flask import current_app, flash, redirect, render_template, request, url_for
+from flask import abort, current_app, flash, redirect, render_template, request, url_for
 
 from app.blueprints.admin import bp
 from app.extensions import db
@@ -74,9 +74,16 @@ def knowledge_new():
             content=request.form.get("content", ""),
             active=request.form.get("active") == "on",
         )
-    except (EmbeddingError, KnowledgeIndexingError, KnowledgePersistenceError, ValueError) as exc:
+    except ValueError:
+        flash("راجع العنوان والـcategory والمحتوى؛ الحقول المطلوبة لا تقبل قيمًا فارغة.", "error")
+        return redirect(url_for("site.admin.knowledge_new"))
+    except KnowledgeIndexingError as exc:
+        current_app.logger.warning("Admin knowledge create indexing failed: %s", type(exc).__name__)
+        flash("تم حفظ المستند لكن الفهرسة فشلت. راجع حالته ثم استخدم Reindex.", "error")
+        return redirect(url_for("site.admin.knowledge_list"))
+    except (EmbeddingError, KnowledgePersistenceError) as exc:
         current_app.logger.warning("Admin knowledge create failed: %s", type(exc).__name__)
-        flash("اتحفظت محاولة الإضافة لكن فهرسة المعرفة لم تكتمل. راجع حالة الفهرسة.", "error")
+        flash("تعذر إضافة مستند المعرفة حاليًا.", "error")
         return redirect(url_for("site.admin.knowledge_list"))
 
     flash(f"تمت إضافة المعرفة: {document.title}", "success")
@@ -87,7 +94,7 @@ def knowledge_new():
 def knowledge_edit(document_id: uuid.UUID):
     document = _dashboard().knowledge_document(document_id)
     if document is None:
-        raise KnowledgeNotFoundError("Knowledge document was not found")
+        abort(404)
 
     if request.method == "GET":
         return render_template("admin/knowledge/form.html", document=document)
@@ -100,9 +107,16 @@ def knowledge_edit(document_id: uuid.UUID):
             content=request.form.get("content", ""),
             active=request.form.get("active") == "on",
         )
-    except (EmbeddingError, KnowledgeIndexingError, KnowledgePersistenceError, ValueError) as exc:
+    except ValueError:
+        flash("راجع العنوان والـcategory والمحتوى؛ الحقول المطلوبة لا تقبل قيمًا فارغة.", "error")
+        return redirect(url_for("site.admin.knowledge_edit", document_id=document_id))
+    except KnowledgeIndexingError as exc:
+        current_app.logger.warning("Admin knowledge update indexing failed: %s", type(exc).__name__)
+        flash("تم حفظ التعديل لكن إعادة الفهرسة فشلت. راجع الحالة ثم استخدم Reindex.", "error")
+        return redirect(url_for("site.admin.knowledge_list"))
+    except (EmbeddingError, KnowledgePersistenceError, KnowledgeNotFoundError) as exc:
         current_app.logger.warning("Admin knowledge update failed: %s", type(exc).__name__)
-        flash("تم تحديث السجل لكن إعادة الفهرسة لم تكتمل. راجع حالة الفهرسة.", "error")
+        flash("تعذر تحديث مستند المعرفة حاليًا.", "error")
         return redirect(url_for("site.admin.knowledge_list"))
 
     flash(f"تم تحديث المعرفة: {document.title}", "success")
