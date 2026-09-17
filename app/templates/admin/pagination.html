@@ -1,0 +1,11 @@
+{% if page.total_pages > 1 %}
+<nav class="admin-pagination" aria-label="التنقل بين الصفحات">
+  {% if page.page > 1 %}
+    <a href="{{ url_for(request.endpoint, page=page.page - 1) }}">السابق</a>
+  {% endif %}
+  <span>صفحة {{ page.page }} من {{ page.total_pages }}</span>
+  {% if page.page < page.total_pages %}
+    <a href="{{ url_for(request.endpoint, page=page.page + 1) }}">التالي</a>
+  {% endif %}
+</nav>
+{% endif %}
