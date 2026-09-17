@@ -381,7 +381,7 @@ class AdminDashboardService:
         return resolved_page, resolved_size
 
     @staticmethod
-    def _page(items: list[T], page: int, page_size: int, total: int) -> AdminPage[T]:
+    def _page[T](items: list[T], page: int, page_size: int, total: int) -> AdminPage[T]:
         total_pages = max(1, (total + page_size - 1) // page_size)
         return AdminPage(
             items=items,
