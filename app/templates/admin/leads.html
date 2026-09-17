@@ -1,7 +1,7 @@
 {% extends "admin/base.html" %}
 
 {% block admin_title %}Sales Leads{% endblock %}
-{% block admin_subtitle %}طلبات التواصل مع فريق المبيعات المسجلة فعليًا.{% endblock %}
+{% block admin_subtitle %}طلبات التواصل مع فريق المبيعات المسجلة فعليًا مع إدارة دورة حالة الـLead.{% endblock %}
 
 {% block admin_content %}
 <section class="admin-panel">
@@ -11,7 +11,7 @@
   </div>
   <div class="table-wrap">
     <table class="admin-table">
-      <thead><tr><th>ID</th><th>العميل</th><th>العربية</th><th>Status</th><th>Created</th></tr></thead>
+      <thead><tr><th>ID</th><th>العميل</th><th>العربية</th><th>Status</th><th>Created</th><th>إدارة</th></tr></thead>
       <tbody>
       {% for item in page.items %}
         <tr>
@@ -20,9 +20,23 @@
           <td>{% if item.car %}{{ item.car.brand }} {{ item.car.model }} <small>#{{ item.car_id }}</small>{% else %}—{% endif %}</td>
           <td><span class="status-pill {{ 'ok' if item.status in ('NEW', 'CONTACTED', 'QUALIFIED') else 'muted' }}">{{ item.status }}</span></td>
           <td>{{ item.created_at.strftime('%Y-%m-%d %H:%M') if item.created_at else '—' }}</td>
+          <td>
+            {% if item.status not in ('CLOSED_WON', 'CLOSED_LOST') %}
+            <form class="inline-status-form" method="POST" action="{{ url_for('site.admin.lead_status', lead_id=item.id) }}">
+              <input type="hidden" name="csrf_token" value="{{ admin_csrf_token }}">
+              <select name="status" aria-label="حالة Sales Lead #{{ item.id }}">
+                {% if item.status == 'NEW' %}<option value="CONTACTED">CONTACTED</option>{% endif %}
+                {% if item.status in ('NEW', 'CONTACTED') %}<option value="QUALIFIED">QUALIFIED</option>{% endif %}
+                <option value="CLOSED_WON">CLOSED_WON</option>
+                <option value="CLOSED_LOST">CLOSED_LOST</option>
+              </select>
+              <button class="admin-button" type="submit">Update</button>
+            </form>
+            {% else %}—{% endif %}
+          </td>
         </tr>
       {% else %}
-        <tr><td colspan="5" class="empty-state">لا توجد Sales Leads.</td></tr>
+        <tr><td colspan="6" class="empty-state">لا توجد Sales Leads.</td></tr>
       {% endfor %}
       </tbody>
     </table>
