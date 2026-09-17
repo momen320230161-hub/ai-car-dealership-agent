@@ -115,6 +115,13 @@ _BARE_NAME_BLOCKLIST = {
     "please",
 }
 _CLOCK_PREFIX = r"(?:(?:الساعة|الساعه|ساعة|ساعه)\s*|at\s+)"
+_TIME_DAYPART_PATTERN = (
+    r"صباح(?:ا|اً)?|الصباح|الصبح|"
+    r"مساء(?:ا|ً)?|المساء|"
+    r"عصر(?:ا|اً)?|العصر|"
+    r"ظهر(?:ا|اً)?|الظهر|"
+    r"am|pm"
+)
 
 
 @dataclass(frozen=True, slots=True)
@@ -247,7 +254,7 @@ def explicit_time(message: str) -> time | None:
     pattern = re.compile(
         rf"(?:{_CLOCK_PREFIX})?"
         r"(?<!\d)([01]?\d|2[0-3])(?::([0-5]\d))?\s*"
-        r"(صباح(?:ا|اً)?|مساء(?:ا|ً)?|am|pm)?",
+        rf"({_TIME_DAYPART_PATTERN})?",
         re.IGNORECASE,
     )
     for match in pattern.finditer(normalized):
@@ -263,10 +270,19 @@ def explicit_time(message: str) -> time | None:
         minute = int(match.group(2) or 0)
         if daypart:
             folded = daypart.casefold()
-            if folded.startswith("مساء") or folded == "pm":
-                if hour < 12:
-                    hour += 12
-            elif (folded.startswith("صباح") or folded == "am") and hour == 12:
+            is_pm = (
+                folded.startswith("مساء")
+                or folded in {"المساء", "pm", "العصر", "الظهر"}
+                or folded.startswith("عصر")
+                or folded.startswith("ظهر")
+            )
+            is_am = (
+                folded.startswith("صباح")
+                or folded in {"الصباح", "الصبح", "am"}
+            )
+            if is_pm and hour < 12:
+                hour += 12
+            elif is_am and hour == 12:
                 hour = 0
         if 0 <= hour <= 23:
             return time(hour=hour, minute=minute)
@@ -306,7 +322,7 @@ def explicit_customer_name(
     remainder = re.sub(r"\b\d{1,2}[/-]\d{1,2}[/-]20\d{2}\b", " ", remainder)
     time_pattern = (
         rf"(?:{_CLOCK_PREFIX})?(?:[01]?\d|2[0-3])(?::[0-5]\d)?\s*"
-        r"(?:صباح(?:ا|اً)?|مساء(?:ا|اً)?|am|pm)?"
+        rf"(?:{_TIME_DAYPART_PATTERN})?"
     )
     remainder = re.sub(time_pattern, " ", remainder, flags=re.IGNORECASE)
     for term in sorted(_DATE_WORDS, key=len, reverse=True):
