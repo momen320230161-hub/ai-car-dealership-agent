@@ -35,14 +35,13 @@ class CustomerMemory:
         return fields
 
     def safe_context(self) -> dict[str, Any]:
-        """Return only the contact hints a response composer needs."""
-        return {
-            "customer_name": self.customer_name,
-            "phone_last4": self.phone[-4:] if self.phone and len(self.phone) >= 4 else None,
-            "has_phone": bool(self.phone),
-            "has_email": bool(self.email),
-            "scope": self.scope,
-        }
+        """Expose no customer PII to the free-form response composer.
+
+        Verified contact memory exists to complete deterministic business actions without
+        asking the customer for the same data again. The customer-facing LLM does not need
+        the stored name, phone suffix, email, or memory provenance in ordinary conversation.
+        """
+        return {"available_for_actions": bool(self.as_fields())}
 
 
 class CustomerMemoryService:
