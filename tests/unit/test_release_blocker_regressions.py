@@ -2,6 +2,8 @@
 
 from datetime import time
 
+from app.agent.conversational_orchestrator import ConversationalSalesOrchestrator
+from app.agent.schemas import PreferenceUpdates, RequestUnderstanding
 from app.agent.turn_semantics import analyze_turn
 from app.services.business_action_parsing import explicit_time
 from app.services.customer_memory_service import CustomerMemory
@@ -44,3 +46,72 @@ def test_response_memory_context_contains_no_contact_pii() -> None:
     assert "7585" not in serialized
     assert "customer@example.com" not in serialized
     assert "authenticated_user_history" not in serialized
+
+
+def _reference_state(message: str) -> dict:
+    return {
+        "normalized_message": message,
+        "preferences": {"max_price": 2_000_000, "condition": "new"},
+        "active_snapshot": {
+            "id": 44,
+            "items": [
+                {
+                    "position": 1,
+                    "car_id": 101,
+                    "car": {"brand": "Chevrolet", "model": "Malibu"},
+                },
+                {
+                    "position": 2,
+                    "car_id": 102,
+                    "car": {"brand": "Kia", "model": "XCeed"},
+                },
+            ],
+        },
+        "selected_car_id": None,
+        "recent_messages": [],
+        "errors": [],
+        "trace": [],
+    }
+
+
+def test_visible_model_from_llm_resolves_before_filter_mutation() -> None:
+    class ReferenceLLM:
+        model_name = "reference-test"
+
+        def understand(self, message, *, recent_messages, preferences):
+            del message, recent_messages, preferences
+            return RequestUnderstanding(
+                intent="car_selection",
+                preference_updates=PreferenceUpdates(model="Malibu"),
+            )
+
+    orchestrator = object.__new__(ConversationalSalesOrchestrator)
+    orchestrator.llm = ReferenceLLM()
+
+    update = orchestrator._understand_request(_reference_state("جميلة أوي الماليبو"))
+
+    assert update["car_reference"] == 1
+    assert update["turn_semantics"]["mode"] == "reference"
+    assert "model" not in update["extracted_preferences"]
+
+
+def test_llm_ordinal_is_validated_against_visible_snapshot_before_mutation() -> None:
+    class OrdinalLLM:
+        model_name = "ordinal-test"
+
+        def understand(self, message, *, recent_messages, preferences):
+            del message, recent_messages, preferences
+            return RequestUnderstanding(
+                intent="car_details",
+                preference_updates=PreferenceUpdates(model="Malibu"),
+                car_reference=1,
+            )
+
+    orchestrator = object.__new__(ConversationalSalesOrchestrator)
+    orchestrator.llm = OrdinalLLM()
+
+    update = orchestrator._understand_request(_reference_state("قصدي أول عربية"))
+
+    assert update["car_reference"] == 1
+    assert update["turn_semantics"]["mode"] == "reference"
+    assert "model" not in update["extracted_preferences"]
