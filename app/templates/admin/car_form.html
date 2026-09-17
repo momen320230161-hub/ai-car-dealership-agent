@@ -1,0 +1,53 @@
+{% extends "admin/base.html" %}
+
+{% block admin_title %}{{ 'تعديل سيارة #' ~ car.id if car else 'إضافة سيارة' }}{% endblock %}
+{% block admin_subtitle %}سجّل فقط الحقائق المتاحة فعليًا؛ الحقول الاختيارية تظل فارغة إذا لم تكن معلومة.{% endblock %}
+
+{% block admin_content %}
+<section class="admin-panel admin-form-panel">
+  <form class="admin-form" method="POST">
+    <input type="hidden" name="csrf_token" value="{{ admin_csrf_token }}">
+
+    <div class="admin-form-grid">
+      <label><span>Brand *</span><input type="text" name="brand" maxlength="100" required value="{{ request.form.get('brand', car.brand if car else '') }}"></label>
+      <label><span>Model *</span><input type="text" name="model" maxlength="100" required value="{{ request.form.get('model', car.model if car else '') }}"></label>
+      <label><span>Year *</span><input type="number" name="year" min="1900" max="2100" required value="{{ request.form.get('year', car.year if car else '') }}"></label>
+      <label><span>Condition *</span>
+        {% set condition_value = request.form.get('condition', car.condition if car else 'new') %}
+        <select name="condition" required>
+          <option value="new" {{ 'selected' if condition_value == 'new' else '' }}>new</option>
+          <option value="used" {{ 'selected' if condition_value == 'used' else '' }}>used</option>
+        </select>
+      </label>
+      <label><span>Price EGP *</span><input type="number" name="price_egp" min="0" step="0.01" required value="{{ request.form.get('price_egp', car.price_egp if car else '') }}"></label>
+      <label><span>Body Type</span><input type="text" name="body_type" maxlength="50" value="{{ request.form.get('body_type', car.body_type if car and car.body_type else '') }}"></label>
+      <label><span>Transmission</span><input type="text" name="transmission" maxlength="50" value="{{ request.form.get('transmission', car.transmission if car and car.transmission else '') }}"></label>
+      <label><span>Fuel Type</span><input type="text" name="fuel_type" maxlength="50" value="{{ request.form.get('fuel_type', car.fuel_type if car and car.fuel_type else '') }}"></label>
+      <label><span>Mileage KM</span><input type="number" name="mileage_km" min="0" value="{{ request.form.get('mileage_km', car.mileage_km if car and car.mileage_km is not none else '') }}"></label>
+      <label><span>Engine CC</span><input type="number" name="engine_capacity_cc" min="1" value="{{ request.form.get('engine_capacity_cc', car.engine_capacity_cc if car and car.engine_capacity_cc is not none else '') }}"></label>
+      <label><span>Horsepower</span><input type="number" name="horsepower" min="0" step="0.01" value="{{ request.form.get('horsepower', car.horsepower if car and car.horsepower is not none else '') }}"></label>
+      <label><span>Trim</span><input type="text" name="trim" maxlength="100" value="{{ request.form.get('trim', car.trim if car and car.trim else '') }}"></label>
+      <label><span>Color</span><input type="text" name="color" maxlength="50" value="{{ request.form.get('color', car.color if car and car.color else '') }}"></label>
+      <label><span>Location</span><input type="text" name="location" maxlength="100" value="{{ request.form.get('location', car.location if car and car.location else '') }}"></label>
+    </div>
+
+    {% set active_checked = request.form.get('active') == 'on' if request.method == 'POST' else (car.active if car else true) %}
+    <label class="admin-checkbox">
+      <input type="checkbox" name="active" {{ 'checked' if active_checked else '' }}>
+      <span>Active — تظهر في نتائج الكتالوج</span>
+    </label>
+
+    {% if car %}
+    <div class="form-meta">
+      <span>Source: {{ car.source }}</span>
+      <span>Source ID: {{ car.source_id }}</span>
+    </div>
+    {% endif %}
+
+    <div class="admin-form-actions">
+      <button class="admin-button primary" type="submit">حفظ</button>
+      <a class="admin-button" href="{{ url_for('site.admin.cars') }}">إلغاء</a>
+    </div>
+  </form>
+</section>
+{% endblock %}
