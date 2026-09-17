@@ -22,7 +22,14 @@ from app.agent.state import AgentState
 from app.agent.turn_semantics import analyze_turn
 from app.services.business_action_parsing import parse_business_fields
 from app.services.catalog_preference_state_service import CatalogPreferenceStateService
-from app.services.conversation_context_service import ConversationContextError
+from app.services.conversation_context_service import (
+    ConversationContext,
+    ConversationContextError,
+)
+from app.services.conversation_dialogue_state_service import (
+    ConversationDialogueStateError,
+    ConversationDialogueStateService,
+)
 from app.services.conversational_business_action_workflow_service import (
     ConversationalBusinessActionWorkflowService,
 )
@@ -40,6 +47,22 @@ _RESUME_TERMS = (
     "نكمل",
     "continue",
     "resume",
+)
+_RECOMMEND_GOAL_MARKERS = (
+    "رشح",
+    "اقترح",
+    "وريني",
+    "ورّيني",
+    "اعرض",
+    "هات اللي عندك",
+    "هات ال عندك",
+    "نفسي اركب",
+    "نفسي أركب",
+    "عايز عربية",
+    "عاوز عربية",
+    "recommend",
+    "suggest",
+    "show me",
 )
 _REQUIRED_BY_ACTION = {
     "test_drive": {"car_id", "customer_name", "phone", "preferred_date", "preferred_time"},
@@ -132,6 +155,7 @@ class ConversationalSalesOrchestrator(SalesOrchestrator):
         super().__init__(*args, **kwargs)
 
         self.customer_memory = CustomerMemoryService(self.session)
+        self.dialogue_state_service = ConversationDialogueStateService(self.session)
         if provided_state_service is None:
             self.state_updates = CatalogPreferenceStateService(self.session)
         if provided_business_service is None:
@@ -205,8 +229,54 @@ class ConversationalSalesOrchestrator(SalesOrchestrator):
                 extracted.pop("brand", None)
                 extracted.pop("model", None)
 
+        current_goal = str((state.get("dialogue_state") or {}).get("catalog_goal") or "")
+        resolved_intent = str(update.get("intent") or "general")
+        if resolved_intent in _BUSINESS_INTENTS or resolved_intent == "car_selection":
+            semantics_data["catalog_goal_operation"] = "clear"
+        elif self._explicit_recommendation_goal(message) and resolved_intent in {
+            "catalog_search",
+            "general",
+        }:
+            semantics_data["catalog_goal_operation"] = "recommend"
+            if resolved_intent == "general" and (state.get("preferences") or extracted):
+                update["intent"] = "catalog_search"
+                semantics_data["force_catalog_search"] = True
+        elif (
+            current_goal == "recommend"
+            and extracted
+            and resolved_intent in {"catalog_search", "general"}
+            and not semantics.budget_change_unspecified
+        ):
+            update["intent"] = "catalog_search"
+            semantics_data["force_catalog_search"] = True
+            semantics_data["resume_catalog_goal"] = True
+
         update["extracted_preferences"] = extracted
         update["turn_semantics"] = semantics_data
+        return update
+
+    def _update_state(self, state: AgentState) -> AgentState:
+        """Persist filter changes and non-filter conversational goal changes separately."""
+        update = super()._update_state(state)
+        if "state_update_failed" in update.get("errors", []):
+            return update
+
+        operation = str((state.get("turn_semantics") or {}).get("catalog_goal_operation") or "")
+        if operation not in {"recommend", "clear"}:
+            return update
+        try:
+            session_id = uuid.UUID(state["session_id"])
+            goal = "recommend" if operation == "recommend" else None
+            self.dialogue_state_service.set_catalog_goal(session_id, goal)
+            update.update(self._context_update(self.context.load(session_id)))
+        except (
+            ConversationContextError,
+            ConversationDialogueStateError,
+            TypeError,
+            ValueError,
+            SQLAlchemyError,
+        ):
+            update["errors"] = self._errors(state, "state_update_failed")
         return update
 
     def _route_request(self, state: AgentState) -> AgentState:
@@ -525,6 +595,7 @@ class ConversationalSalesOrchestrator(SalesOrchestrator):
             "turn_semantics": state.get("turn_semantics", {}),
             "recent_messages": state.get("recent_messages", [])[-8:],
             "vehicle_preferences": state.get("preferences", {}),
+            "dialogue_state": state.get("dialogue_state", {}),
             "selected_car_id": state.get("selected_car_id"),
             "pending_action": {
                 "type": pending.get("type"),
@@ -640,7 +711,12 @@ class ConversationalSalesOrchestrator(SalesOrchestrator):
         for item in items:
             car = item.get("car") or {}
             values = (str(car.get("model") or ""), str(car.get("brand") or ""))
-            if any(self._message_mentions_catalog_value(message, value) for value in values if value):
+            mentions_visible_value = any(
+                self._message_mentions_catalog_value(message, value)
+                for value in values
+                if value
+            )
+            if mentions_visible_value:
                 direct_matches.append(item)
         if len(direct_matches) == 1:
             return int(direct_matches[0]["position"])
@@ -813,6 +889,11 @@ class ConversationalSalesOrchestrator(SalesOrchestrator):
         return bool(re.search(rf"(?<!\w){re.escape(value)}(?!\w)", text))
 
     @staticmethod
+    def _explicit_recommendation_goal(message: str) -> bool:
+        text = str(message or "").casefold()
+        return any(marker in text for marker in _RECOMMEND_GOAL_MARKERS)
+
+    @staticmethod
     def _catalog_model_token(message: str) -> str | None:
         text = message.translate(_ARABIC_DIGITS).casefold()
         if any(marker in text for marker in ("الف", "ألف", "ميزانية", "ميزانيه", "معايا", "سعر")):
@@ -845,3 +926,9 @@ class ConversationalSalesOrchestrator(SalesOrchestrator):
     def _numbers(text: str) -> set[int]:
         normalized = str(text).translate(_ARABIC_DIGITS)
         return {int(value) for value in re.findall(r"\d+", normalized)}
+
+    @staticmethod
+    def _context_update(context: ConversationContext) -> AgentState:
+        update = SalesOrchestrator._context_update(context)
+        update["dialogue_state"] = context.dialogue_state
+        return update
