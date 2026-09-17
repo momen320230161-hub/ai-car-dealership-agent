@@ -18,6 +18,13 @@ def _configure_deterministic_runtime(app) -> None:
     )
 
 
+def _csrf_headers(client) -> dict[str, str]:
+    with client.session_transaction() as sess:
+        token = str(sess.get("_browser_csrf_token") or "test-browser-csrf")
+        sess["_browser_csrf_token"] = token
+    return {"X-CSRF-Token": token}
+
+
 def _seed_used_suv(db_session, source_id: str, brand: str, model: str, price: int) -> Car:
     car = Car(
         brand=brand,
@@ -48,6 +55,7 @@ def test_detail_page_ask_ai_resolves_explicit_car_id_without_llm_guessing(
     response = client.post(
         "/api/chat/messages",
         json={"message": f"عايز تفاصيل العربية ID {car.id}"},
+        headers=_csrf_headers(client),
     )
     payload = response.get_json()
 
@@ -67,14 +75,23 @@ def test_visible_comparison_through_browser_api_uses_displayed_positions(
     _seed_used_suv(db_session, "compare-2", "Soueast", "S07", 1_350_000)
     _seed_used_suv(db_session, "compare-3", "Haval", "H6", 1_490_000)
     assert client.get("/chat").status_code == 200
+    headers = _csrf_headers(client)
 
-    search = client.post("/api/chat/messages", json={"message": "عايز SUV مستعملة"})
+    search = client.post(
+        "/api/chat/messages",
+        json={"message": "عايز SUV مستعملة"},
+        headers=headers,
+    )
     search_payload = search.get_json()
     assert search.status_code == 200
     visible = search_payload["visible_recommendations"]
     assert [item["position"] for item in visible] == [1, 2, 3]
 
-    comparison = client.post("/api/chat/messages", json={"message": "قارن أول اتنين"})
+    comparison = client.post(
+        "/api/chat/messages",
+        json={"message": "قارن أول اتنين"},
+        headers=headers,
+    )
     comparison_payload = comparison.get_json()
     assert comparison.status_code == 200
     assert comparison_payload["route"] == "catalog"
@@ -91,20 +108,37 @@ def test_browser_business_flow_creates_cancels_and_reuses_contact_for_sales_lead
     _configure_deterministic_runtime(app)
     car = _seed_used_suv(db_session, "actions-1", "Soueast", "S07", 1_350_000)
     assert client.get("/chat").status_code == 200
+    headers = _csrf_headers(client)
 
     start = client.post(
         "/api/chat/messages",
         json={"message": f"عايز احجز تجربة قيادة للعربية ID {car.id}"},
+        headers=headers,
     )
     assert start.status_code == 200
     assert start.get_json()["state"]["pending_action_type"] == "test_drive"
     assert db_session.query(TestDriveRequest).count() == 0
 
-    assert client.post("/api/chat/messages", json={"message": "اسمي محمد جمال"}).status_code == 200
-    assert client.post("/api/chat/messages", json={"message": "01012345678"}).status_code == 200
+    assert (
+        client.post(
+            "/api/chat/messages",
+            json={"message": "اسمي محمد جمال"},
+            headers=headers,
+        ).status_code
+        == 200
+    )
+    assert (
+        client.post(
+            "/api/chat/messages",
+            json={"message": "01012345678"},
+            headers=headers,
+        ).status_code
+        == 200
+    )
     completed = client.post(
         "/api/chat/messages",
         json={"message": "2026-09-16 الساعة 4 مساء"},
+        headers=headers,
     )
     assert completed.status_code == 200
     booking = db_session.query(TestDriveRequest).one()
@@ -114,7 +148,11 @@ def test_browser_business_flow_creates_cancels_and_reuses_contact_for_sales_lead
     assert booking.status == "NEW"
     assert completed.get_json()["state"]["pending_action_type"] is None
 
-    cancelled = client.post("/api/chat/messages", json={"message": "عايز الغي التست درايف"})
+    cancelled = client.post(
+        "/api/chat/messages",
+        json={"message": "عايز الغي التست درايف"},
+        headers=headers,
+    )
     assert cancelled.status_code == 200
     db_session.refresh(booking)
     assert booking.status == "CANCELLED"
@@ -124,6 +162,7 @@ def test_browser_business_flow_creates_cancels_and_reuses_contact_for_sales_lead
     lead_response = client.post(
         "/api/chat/messages",
         json={"message": "عايز حد من المبيعات يكلمني"},
+        headers=headers,
     )
     assert lead_response.status_code == 200
     assert lead_response.get_json()["state"]["pending_action_type"] is None
