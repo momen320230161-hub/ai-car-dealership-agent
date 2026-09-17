@@ -5,7 +5,7 @@ from sqlalchemy import text
 
 from app.extensions import db
 
-LATEST_REVISION = "5e8b9f1a2c3d"
+LATEST_REVISION = "8c1e4d7f2a90"
 EXPECTED_TABLES = {
     "alembic_version",
     "cars",
