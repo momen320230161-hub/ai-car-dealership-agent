@@ -114,7 +114,6 @@ def _render_comparison(result: dict[str, Any]) -> str:
         return "معلش، مقدرتش أعرض المقارنة المطلوبة بشكل آمن."
 
     lines = ["المقارنة حسب البيانات المتاحة في الكتالوج المسجل:"]
-    lines.extend(["", "البيانات المسجلة لكل عربية:"])
     for position, car in zip(positions, cars, strict=True):
         year = car.get("year")
         year_text = f"موديل {year}" if year is not None else "سنة الموديل غير مسجلة"
