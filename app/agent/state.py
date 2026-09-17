@@ -11,6 +11,7 @@ class AgentState(TypedDict, total=False):
     normalized_message: str
     recent_messages: list[dict[str, Any]]
     preferences: dict[str, Any]
+    dialogue_state: dict[str, Any]
     selected_car_id: int | None
     active_snapshot: dict[str, Any] | None
     pending_action: dict[str, Any] | None
