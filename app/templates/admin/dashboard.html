@@ -1,0 +1,30 @@
+{% extends "admin/base.html" %}
+
+{% block admin_title %}نظرة عامة{% endblock %}
+{% block admin_subtitle %}مؤشرات تشغيلية مباشرة من قاعدة البيانات المسجلة.{% endblock %}
+
+{% block admin_content %}
+<div class="admin-metrics">
+  <article class="metric-card"><span>السيارات النشطة</span><strong>{{ overview.active_cars }}</strong></article>
+  <article class="metric-card"><span>طلبات Test Drive</span><strong>{{ overview.test_drives_total }}</strong><small>{{ overview.test_drives_new }} جديدة</small></article>
+  <article class="metric-card"><span>Sales Leads</span><strong>{{ overview.sales_leads_total }}</strong><small>{{ overview.sales_leads_new }} جديدة</small></article>
+  <article class="metric-card"><span>Knowledge Docs</span><strong>{{ overview.knowledge_total }}</strong><small>{{ overview.knowledge_indexed }} مفهرسة</small></article>
+</div>
+
+<div class="admin-panel-grid">
+  <section class="admin-panel">
+    <div class="panel-heading"><h2>RAG health</h2><a href="{{ url_for('site.admin.knowledge_list') }}">إدارة المعرفة</a></div>
+    <dl class="status-list">
+      <div><dt>Indexed</dt><dd>{{ overview.knowledge_indexed }}</dd></div>
+      <div><dt>Failed</dt><dd class="{{ 'danger' if overview.knowledge_failed else '' }}">{{ overview.knowledge_failed }}</dd></div>
+    </dl>
+  </section>
+  <section class="admin-panel">
+    <div class="panel-heading"><h2>Business queue</h2></div>
+    <dl class="status-list">
+      <div><dt>New test drives</dt><dd>{{ overview.test_drives_new }}</dd></div>
+      <div><dt>New sales leads</dt><dd>{{ overview.sales_leads_new }}</dd></div>
+    </dl>
+  </section>
+</div>
+{% endblock %}
