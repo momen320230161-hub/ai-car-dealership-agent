@@ -7,9 +7,10 @@ import re
 import secrets
 import uuid
 
-from flask import Blueprint, abort, g, request, session
+from flask import Blueprint, abort, current_app, g, request, session
 
 _BROWSER_CSRF_SESSION_KEY = "_browser_csrf_token"
+_BROWSER_CSRF_COOKIE_NAME = "autodrive_csrf"
 _SAFE_REQUEST_ID_RE = re.compile(r"^[A-Za-z0-9._-]{1,64}$")
 
 
@@ -55,5 +56,13 @@ def register_security_hooks(bp: Blueprint) -> None:
         response.headers.setdefault(
             "Permissions-Policy",
             "camera=(), microphone=(), geolocation=()",
+        )
+        response.set_cookie(
+            _BROWSER_CSRF_COOKIE_NAME,
+            browser_csrf_token(),
+            secure=bool(current_app.config.get("SESSION_COOKIE_SECURE")),
+            httponly=False,
+            samesite="Lax",
+            path="/",
         )
         return response
