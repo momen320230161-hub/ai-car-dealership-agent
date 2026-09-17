@@ -108,18 +108,32 @@ class ConversationalSalesOrchestrator(SalesOrchestrator):
             if semantics.force_catalog_search and update.get("intent") == "general":
                 update["intent"] = "catalog_search"
 
-        resolved_reference = self._resolve_visible_reference(
+        # Resolve references while the previous visible snapshot is still authoritative.
+        # First trust an LLM ordinal only if that exact visible position exists; otherwise
+        # match the LLM-extracted brand/model against the visible items. This prevents
+        # "الأولى" or "الماليبو" from mutating catalog filters and invalidating the list
+        # before the referenced car is resolved.
+        resolved_reference = self._validated_llm_visible_reference(
             state,
-            message,
-            intent=str(update.get("intent") or "general"),
+            update.get("car_reference"),
         )
+        if resolved_reference is None:
+            resolved_reference = self._resolve_visible_reference(
+                state,
+                message,
+                intent=str(update.get("intent") or "general"),
+                extracted_preferences=extracted,
+            )
         if resolved_reference is not None:
             update["car_reference"] = resolved_reference
             semantics_data["resolved_visible_reference"] = resolved_reference
             semantics_data["mode"] = "reference"
-            # A visible-list reference is not a new catalog filter. Prevent brand/model
-            # words inside "عايز الرينو" from invalidating the very list being referenced.
-            if update.get("intent") in {"car_selection", "car_details", "test_drive"}:
+            if update.get("intent") in {
+                "car_selection",
+                "car_details",
+                "test_drive",
+                "sales_lead",
+            }:
                 extracted.pop("brand", None)
                 extracted.pop("model", None)
 
@@ -414,14 +428,6 @@ class ConversationalSalesOrchestrator(SalesOrchestrator):
         state: AgentState,
         fallback: str,
     ) -> dict[str, Any]:
-        memory_context: dict[str, Any] = {}
-        session_id = state.get("session_id")
-        if session_id:
-            try:
-                memory_context = self.customer_memory.load(uuid.UUID(session_id)).safe_context()
-            except (LookupError, TypeError, ValueError):
-                memory_context = {}
-
         pending = state.get("pending_action") or {}
         pending_fields = dict(pending.get("fields") or {})
         action = dict(state.get("action_status") or {})
@@ -435,8 +441,6 @@ class ConversationalSalesOrchestrator(SalesOrchestrator):
             "preferred_time",
             "missing_fields",
             "candidate_request_ids",
-            "memory_fields_used",
-            "customer_memory_scope",
         }
 
         return {
@@ -451,7 +455,6 @@ class ConversationalSalesOrchestrator(SalesOrchestrator):
                 "type": pending.get("type"),
                 "collected_fields": sorted(pending_fields),
             },
-            "customer_memory": memory_context,
             "catalog_result": state.get("catalog_result"),
             "grounded_knowledge": state.get("grounded_knowledge"),
             "action_result": {key: action.get(key) for key in safe_action_keys if key in action},
@@ -504,29 +507,46 @@ class ConversationalSalesOrchestrator(SalesOrchestrator):
                 return False
         return True
 
+    def _validated_llm_visible_reference(
+        self,
+        state: AgentState,
+        reference: Any,
+    ) -> int | None:
+        if reference is None:
+            return None
+        try:
+            position = int(reference)
+        except (TypeError, ValueError):
+            return None
+        snapshot = state.get("active_snapshot") or {}
+        items = list(snapshot.get("items") or [])
+        return position if any(int(item.get("position", -1)) == position for item in items) else None
+
     def _resolve_visible_reference(
         self,
         state: AgentState,
         message: str,
         *,
         intent: str,
+        extracted_preferences: dict[str, Any] | None = None,
     ) -> int | None:
-        if intent not in {"car_selection", "car_details", "test_drive"}:
+        if intent not in {"car_selection", "car_details", "test_drive", "sales_lead"}:
             return None
         snapshot = state.get("active_snapshot") or {}
         items = list(snapshot.get("items") or [])
         if not items:
             return None
 
-        brand = explicit_brand_from_message(message)
-        model = explicit_model_from_message(message)
-        matches = []
+        extracted = extracted_preferences or {}
+        brand = explicit_brand_from_message(message) or self._text_value(extracted.get("brand"))
+        model = explicit_model_from_message(message) or self._text_value(extracted.get("model"))
+        matches: list[dict[str, Any]] = []
         if brand or model:
             for item in items:
                 car = item.get("car") or {}
-                if brand and str(car.get("brand") or "").casefold() != brand.casefold():
+                if brand and not self._entity_matches(str(car.get("brand") or ""), brand):
                     continue
-                if model and str(car.get("model") or "").casefold() != model.casefold():
+                if model and not self._entity_matches(str(car.get("model") or ""), model):
                     continue
                 matches.append(item)
             if len(matches) == 1:
@@ -630,6 +650,23 @@ class ConversationalSalesOrchestrator(SalesOrchestrator):
             return None
         match = re.search(r"(?<!\d)(\d{3}[a-z]?)(?!\d)", text)
         return match.group(1) if match else None
+
+    @classmethod
+    def _entity_matches(cls, candidate: str, requested: str) -> bool:
+        candidate_norm = cls._entity_norm(candidate)
+        requested_norm = cls._entity_norm(requested)
+        if not candidate_norm or not requested_norm:
+            return False
+        return (
+            candidate_norm == requested_norm
+            or candidate_norm.startswith(requested_norm)
+            or requested_norm.startswith(candidate_norm)
+        )
+
+    @staticmethod
+    def _text_value(value: Any) -> str | None:
+        text = str(value or "").strip()
+        return text or None
 
     @staticmethod
     def _entity_norm(value: str) -> str:
