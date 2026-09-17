@@ -96,8 +96,8 @@ def test_budget_only_search_asks_preferences_before_creating_snapshot(db_session
     assert result.route == "catalog"
     assert result.recommendation_snapshot_id is None
     assert "جديدة ولا مستعملة" in result.response
-    assert "SUV" in result.response
-    assert "Sedan" in result.response
+    assert "SUV" not in result.response
+    assert "Sedan" not in result.response
     assert db_session.scalar(select(func.count()).select_from(RecommendationSnapshot)) == 0
     session = db_session.get(ConversationSession, uuid.UUID(result.session_id))
     assert session.preferences == {"max_price": 2_000_000}
