@@ -1,0 +1,45 @@
+{% extends "admin/base.html" %}
+
+{% block admin_title %}{{ 'تعديل المعرفة' if document else 'إضافة معرفة' }}{% endblock %}
+{% block admin_subtitle %}أي تعديل في المحتوى يرفع الـversion ويعيد بناء الـvector chunks قبل اعتماد الحالة indexed.{% endblock %}
+
+{% block admin_content %}
+<section class="admin-panel admin-form-panel">
+  <form method="post" class="admin-form">
+    <input type="hidden" name="csrf_token" value="{{ admin_csrf_token }}">
+
+    <label>
+      <span>العنوان</span>
+      <input name="title" type="text" required maxlength="255" value="{{ document.title if document else '' }}">
+    </label>
+
+    <label>
+      <span>Category</span>
+      <input name="category" type="text" required maxlength="100" placeholder="faq / financing / warranty / test drive policy" value="{{ document.category if document else '' }}">
+    </label>
+
+    <label>
+      <span>المحتوى المعتمد</span>
+      <textarea name="content" required rows="16">{{ document.content if document else '' }}</textarea>
+    </label>
+
+    <label class="admin-checkbox">
+      <input name="active" type="checkbox" {% if document is none or document.active %}checked{% endif %}>
+      <span>Active for retrieval</span>
+    </label>
+
+    {% if document %}
+      <div class="form-meta">
+        <span>Content version: {{ document.content_version }}</span>
+        <span>Index status: {{ document.index_status }}</span>
+        <span>Indexed version: {{ document.indexed_version or '—' }}</span>
+      </div>
+    {% endif %}
+
+    <div class="admin-form-actions">
+      <button class="admin-button primary" type="submit">{{ 'حفظ التعديل' if document else 'إضافة وفهرسة' }}</button>
+      <a class="admin-button" href="{{ url_for('site.admin.knowledge_list') }}">إلغاء</a>
+    </div>
+  </form>
+</section>
+{% endblock %}
