@@ -36,6 +36,25 @@
     sales_lead: "اكتب الاسم ورقم الموبايل ليصلك اتصال من فريق المبيعات.",
   };
 
+  function readCookie(name) {
+    const prefix = `${encodeURIComponent(name)}=`;
+    for (const part of document.cookie.split(";")) {
+      const trimmed = part.trim();
+      if (trimmed.startsWith(prefix)) {
+        return decodeURIComponent(trimmed.slice(prefix.length));
+      }
+    }
+    return "";
+  }
+
+  const csrfToken = readCookie("autodrive_csrf");
+
+  function csrfHeaders(extra = {}) {
+    const headers = { ...extra };
+    if (csrfToken) headers["X-CSRF-Token"] = csrfToken;
+    return headers;
+  }
+
   function scrollBottom() {
     requestAnimationFrame(() => { chatWindow.scrollTop = chatWindow.scrollHeight; });
   }
@@ -101,7 +120,7 @@
     }
     for (const item of items) {
       const car = item && typeof item.car === "object" ? item.car : {};
-      const position = item.position || 1;
+      const position = Number(item.position) || 1;
 
       const card = document.createElement("div");
       card.className = "rec-card flex flex-col justify-between";
@@ -114,10 +133,11 @@
         <svg class="w-12 h-12 text-[#94A3B8] opacity-75" fill="none" stroke="currentColor" viewBox="0 0 24 24">
           <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M8 17a2 2 0 100 4 2 2 0 000-4zm8 0a2 2 0 100 4 2 2 0 000-4zM3 9l2-4h10l2 4M3 9h18v7a1 1 0 01-1 1H4a1 1 0 01-1-1V9z"/>
         </svg>
-        <span class="absolute top-2 right-2 bg-[#0F1B33] text-white text-[10px] font-bold px-2 py-0.5 rounded-full">
-          #${position}
-        </span>
       `;
+      const badge = document.createElement("span");
+      badge.className = "absolute top-2 right-2 bg-[#0F1B33] text-white text-[10px] font-bold px-2 py-0.5 rounded-full";
+      badge.textContent = `#${position}`;
+      placeholderBg.appendChild(badge);
       topArea.appendChild(placeholderBg);
 
       const title = document.createElement("h3");
@@ -168,26 +188,48 @@
 
   function renderSelectedCar(selected) {
     if (!selectedContainer) return;
+    selectedContainer.replaceChildren();
+
     if (selected && selected.brand) {
-      selectedContainer.innerHTML = `
-        <div class="flex flex-col gap-1">
-          <span class="text-base font-bold text-[#0F1B33]">
-            ${selected.brand} ${selected.model || ""}
-          </span>
-          <div class="flex items-center gap-2 text-xs text-[#64748B] mt-1">
-            ${selected.year ? `<span class="bg-[#F1F5F9] px-2 py-0.5 rounded font-medium">${selected.year}</span>` : ""}
-            ${selected.condition ? `<span class="bg-[#F1F5F9] px-2 py-0.5 rounded font-medium">${formatCondition(selected.condition)}</span>` : ""}
-          </div>
-          ${selected.price_egp ? `<span class="text-sm font-bold text-[#2F5BD3] mt-2">${formatPrice(selected.price_egp)}</span>` : ""}
-        </div>
-      `;
-    } else {
-      selectedContainer.innerHTML = `
-        <div class="py-2 text-center text-xs text-[#64748B]">
-          لم يتم تحديد سيارة بعد.<br>تصفح الاختيارات واذكر اسم العربية أو رقمها لتحديدها.
-        </div>
-      `;
+      const wrapper = document.createElement("div");
+      wrapper.className = "flex flex-col gap-1";
+
+      const title = document.createElement("span");
+      title.className = "text-base font-bold text-[#0F1B33]";
+      title.textContent = [selected.brand, selected.model].filter(Boolean).join(" ");
+      wrapper.appendChild(title);
+
+      const specs = document.createElement("div");
+      specs.className = "flex items-center gap-2 text-xs text-[#64748B] mt-1";
+      if (selected.year) {
+        const year = document.createElement("span");
+        year.className = "bg-[#F1F5F9] px-2 py-0.5 rounded font-medium";
+        year.textContent = String(selected.year);
+        specs.appendChild(year);
+      }
+      if (selected.condition) {
+        const condition = document.createElement("span");
+        condition.className = "bg-[#F1F5F9] px-2 py-0.5 rounded font-medium";
+        condition.textContent = formatCondition(selected.condition);
+        specs.appendChild(condition);
+      }
+      wrapper.appendChild(specs);
+
+      if (selected.price_egp) {
+        const price = document.createElement("span");
+        price.className = "text-sm font-bold text-[#2F5BD3] mt-2";
+        price.textContent = formatPrice(selected.price_egp);
+        wrapper.appendChild(price);
+      }
+      selectedContainer.appendChild(wrapper);
+      return;
     }
+
+    const empty = document.createElement("div");
+    empty.className = "py-2 text-center text-xs text-[#64748B]";
+    empty.append("لم يتم تحديد سيارة بعد.", document.createElement("br"));
+    empty.append("تصفح الاختيارات واذكر اسم العربية أو رقمها لتحديدها.");
+    selectedContainer.appendChild(empty);
   }
 
   function renderState(state) {
@@ -224,7 +266,7 @@
     try {
       const response = await fetch(sendUrl, {
         method: "POST",
-        headers: { "Content-Type": "application/json", Accept: "application/json" },
+        headers: csrfHeaders({ "Content-Type": "application/json", Accept: "application/json" }),
         body: JSON.stringify({ message }),
         signal: controller.signal,
       });
@@ -306,7 +348,7 @@
     try {
       const response = await fetch(`${switchBaseUrl}${sessionId}`, {
         method: "POST",
-        headers: { Accept: "application/json" },
+        headers: csrfHeaders({ Accept: "application/json" }),
       });
       const payload = await parseJson(response);
       if (!response.ok || !payload || !payload.ok) throw new Error("switch failed");
@@ -363,7 +405,10 @@
       clearError();
       setBusy(true);
       try {
-        const response = await fetch(sessionUrl, { method: "POST", headers: { Accept: "application/json" } });
+        const response = await fetch(sessionUrl, {
+          method: "POST",
+          headers: csrfHeaders({ Accept: "application/json" }),
+        });
         const payload = await parseJson(response);
         if (!response.ok || !payload || !payload.ok) throw new Error("session reset failed");
         messageList.replaceChildren();
