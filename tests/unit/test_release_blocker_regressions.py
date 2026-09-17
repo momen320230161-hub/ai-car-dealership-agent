@@ -2,6 +2,7 @@
 
 from datetime import time
 
+from app.agent.business_rendering import render_business_action
 from app.agent.conversational_orchestrator import ConversationalSalesOrchestrator
 from app.agent.schemas import PreferenceUpdates, RequestUnderstanding
 from app.agent.turn_semantics import analyze_turn
@@ -46,6 +47,22 @@ def test_response_memory_context_contains_no_contact_pii() -> None:
     assert "7585" not in serialized
     assert "customer@example.com" not in serialized
     assert "authenticated_user_history" not in serialized
+
+
+def test_ambiguous_pending_time_renderer_asks_a_specific_question() -> None:
+    response = render_business_action(
+        {
+            "status": "missing_fields",
+            "intent": "test_drive",
+            "missing_fields": ["preferred_time"],
+            "ambiguous_time": True,
+            "ambiguous_time_hour": 4,
+        }
+    )
+
+    assert "4 صباح" in response
+    assert "4 العصر" in response
+    assert "وقت غلط" in response
 
 
 def _reference_state(message: str) -> dict:
@@ -95,6 +112,27 @@ def test_visible_model_from_llm_resolves_before_filter_mutation() -> None:
     assert "model" not in update["extracted_preferences"]
 
 
+def test_visible_model_survives_catalog_search_misclassification() -> None:
+    class MisclassifiedLLM:
+        model_name = "misclassified-reference-test"
+
+        def understand(self, message, *, recent_messages, preferences):
+            del message, recent_messages, preferences
+            return RequestUnderstanding(
+                intent="catalog_search",
+                preference_updates=PreferenceUpdates(model="Malibu"),
+            )
+
+    orchestrator = object.__new__(ConversationalSalesOrchestrator)
+    orchestrator.llm = MisclassifiedLLM()
+
+    update = orchestrator._understand_request(_reference_state("جميلة أوي الماليبو"))
+
+    assert update["intent"] == "car_selection"
+    assert update["car_reference"] == 1
+    assert "model" not in update["extracted_preferences"]
+
+
 def test_llm_ordinal_is_validated_against_visible_snapshot_before_mutation() -> None:
     class OrdinalLLM:
         model_name = "ordinal-test"
@@ -115,3 +153,21 @@ def test_llm_ordinal_is_validated_against_visible_snapshot_before_mutation() -> 
     assert update["car_reference"] == 1
     assert update["turn_semantics"]["mode"] == "reference"
     assert "model" not in update["extracted_preferences"]
+
+
+def test_deterministic_ordinal_recovers_when_llm_misses_reference() -> None:
+    class MissedOrdinalLLM:
+        model_name = "missed-ordinal-test"
+
+        def understand(self, message, *, recent_messages, preferences):
+            del message, recent_messages, preferences
+            return RequestUnderstanding(intent="general")
+
+    orchestrator = object.__new__(ConversationalSalesOrchestrator)
+    orchestrator.llm = MissedOrdinalLLM()
+
+    update = orchestrator._understand_request(_reference_state("لا يا باشا قصدي على أول عربية"))
+
+    assert update["intent"] == "car_selection"
+    assert update["car_reference"] == 1
+    assert update["turn_semantics"]["mode"] == "reference"
