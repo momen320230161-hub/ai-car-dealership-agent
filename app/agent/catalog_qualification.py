@@ -243,11 +243,7 @@ def qualify_catalog_search(
         return CatalogQualification(True)
 
     if missing == ["condition", "body_type"]:
-        prompt = (
-            "تمام. قبل ما أرشحلك عربيات مناسبة: تحبها جديدة ولا مستعملة؟ "
-            "ونوع العربية يفضل يكون SUV ولا Sedan ولا نوع تاني؟ "
-            "ولو في ماركة أو موديل في دماغك قولي."
-        )
+        prompt = "أهم حاجة الأول: تحب العربية جديدة ولا مستعملة؟"
     elif missing == ["condition"]:
         prompt = "تمام. تحب العربية جديدة ولا مستعملة؟"
     else:
