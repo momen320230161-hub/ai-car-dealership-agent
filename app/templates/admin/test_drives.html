@@ -1,0 +1,33 @@
+{% extends "admin/base.html" %}
+
+{% block admin_title %}Test Drive Requests{% endblock %}
+{% block admin_subtitle %}طلبات تجربة القيادة المسجلة فعليًا في قاعدة البيانات.{% endblock %}
+
+{% block admin_content %}
+<section class="admin-panel">
+  <div class="panel-heading">
+    <h2>{{ page.total }} طلب</h2>
+    <span>صفحة {{ page.page }} من {{ page.total_pages }}</span>
+  </div>
+  <div class="table-wrap">
+    <table class="admin-table">
+      <thead><tr><th>ID</th><th>العميل</th><th>العربية</th><th>الموعد المطلوب</th><th>Status</th><th>Created</th></tr></thead>
+      <tbody>
+      {% for item in page.items %}
+        <tr>
+          <td>{{ item.id }}</td>
+          <td><strong>{{ item.customer_name }}</strong><small>{{ item.phone }}</small></td>
+          <td>{{ item.car.brand }} {{ item.car.model }} <small>#{{ item.car_id }}</small></td>
+          <td>{{ item.preferred_date }} · {{ item.preferred_time.strftime('%H:%M') }}</td>
+          <td><span class="status-pill {{ 'muted' if item.status == 'CANCELLED' else 'ok' }}">{{ item.status }}</span></td>
+          <td>{{ item.created_at.strftime('%Y-%m-%d %H:%M') if item.created_at else '—' }}</td>
+        </tr>
+      {% else %}
+        <tr><td colspan="6" class="empty-state">لا توجد طلبات Test Drive.</td></tr>
+      {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% include "admin/pagination.html" %}
+</section>
+{% endblock %}
