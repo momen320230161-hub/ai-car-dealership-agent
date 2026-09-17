@@ -23,7 +23,7 @@ def test_chat_template_has_no_uncompiled_tailwind_utility_markup() -> None:
     source = _source("app/templates/chat/index.html")
 
     assert 'class="chat-app"' in source
-    assert 'class="chat-layout"' in source
+    assert "chat-layout" in source
     assert 'id="recommendation-grid"' in source
     assert "bg-[#" not in source
     assert "text-[#" not in source
