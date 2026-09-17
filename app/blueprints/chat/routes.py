@@ -13,6 +13,7 @@ from sqlalchemy.exc import SQLAlchemyError
 from app.agent.factory import build_sales_orchestrator
 from app.agent.llm import AgentLLMError
 from app.blueprints.chat import bp
+from app.common.security import require_browser_csrf
 from app.extensions import db
 from app.rag.embeddings import EmbeddingError
 from app.services.conversation_context_service import ConversationContextError
@@ -93,6 +94,7 @@ def chat_page():
 @bp.post("/api/chat/messages")
 @login_required
 def send_message():
+    require_browser_csrf()
     payload = request.get_json(silent=True)
     if not isinstance(payload, dict) or not isinstance(payload.get("message"), str):
         return jsonify({"ok": False, "message": "الرسالة غير صالحة."}), 400
@@ -133,6 +135,7 @@ def send_message():
 @bp.post("/api/chat/session")
 @login_required
 def new_session():
+    require_browser_csrf()
     service = _service()
     browser_session.pop(_BROWSER_SESSION_KEY, None)
     try:
@@ -156,6 +159,7 @@ def get_history():
 @bp.post("/api/chat/switch_session/<session_id_str>")
 @login_required
 def switch_session(session_id_str: str):
+    require_browser_csrf()
     try:
         target_uuid = uuid.UUID(session_id_str)
     except ValueError:
