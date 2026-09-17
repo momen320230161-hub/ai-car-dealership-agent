@@ -46,6 +46,14 @@ _REQUIRED_BY_ACTION = {
     "sales_lead": {"customer_name", "phone"},
     "cancel_test_drive": {"request_id"},
 }
+_PENDING_FIELD_LABELS = {
+    "car_id": "العربية",
+    "customer_name": "الاسم",
+    "phone": "رقم الموبايل",
+    "preferred_date": "اليوم أو التاريخ",
+    "preferred_time": "الوقت",
+    "request_id": "رقم الطلب",
+}
 _ARABIC_DIGITS = str.maketrans("٠١٢٣٤٥٦٧٨٩", "0123456789")
 _DEICTIC_CAR_MARKERS = (
     "العربية دي",
@@ -56,6 +64,62 @@ _DEICTIC_CAR_MARKERS = (
     "عايز دي",
     "عاوز دي",
     "this one",
+)
+_REFERENCE_LANGUAGE_MARKERS = (
+    "قصدي",
+    "اقصد",
+    "أقصد",
+    "جميلة",
+    "جميله",
+    "حلوة",
+    "حلوه",
+    "جامدة",
+    "جامده",
+    "عجبتني",
+    "عاجباني",
+    "عاجبني",
+    "اختار",
+    "تفاصيل",
+    "مواصفات",
+    "حصان",
+    "الأولى",
+    "الاولى",
+    "اول عربية",
+    "أول عربية",
+    "التانية",
+    "الثانية",
+    "تاني عربية",
+    "التالتة",
+    "الثالثة",
+    "تالت عربية",
+    "this one",
+    "first car",
+    "second car",
+    "third car",
+)
+_DETAIL_REFERENCE_MARKERS = (
+    "تفاصيل",
+    "مواصفات",
+    "حصان",
+    "قوة",
+    "سعرها",
+    "عدادها",
+    "ممشاها",
+    "عنها",
+    "details",
+    "specs",
+    "horsepower",
+)
+_CONFUSION_MARKERS = (
+    "مش فاهم",
+    "مش فاهمة",
+    "مش فاهمم",
+    "يعني ايه",
+    "يعني إيه",
+    "مش واضح",
+    "وضحلي",
+    "وضح لي",
+    "what do you mean",
 )
 
 
@@ -110,9 +174,8 @@ class ConversationalSalesOrchestrator(SalesOrchestrator):
 
         # Resolve references while the previous visible snapshot is still authoritative.
         # First trust an LLM ordinal only if that exact visible position exists; otherwise
-        # match the LLM-extracted brand/model against the visible items. This prevents
-        # "الأولى" or "الماليبو" from mutating catalog filters and invalidating the list
-        # before the referenced car is resolved.
+        # resolve deterministic ordinals or unique visible brand/model references. This keeps
+        # reference turns from mutating filters and invalidating the list before resolution.
         resolved_reference = self._validated_llm_visible_reference(
             state,
             update.get("car_reference"),
@@ -125,6 +188,11 @@ class ConversationalSalesOrchestrator(SalesOrchestrator):
                 extracted_preferences=extracted,
             )
         if resolved_reference is not None:
+            current_intent = str(update.get("intent") or "general")
+            if current_intent in {"general", "catalog_search"}:
+                update["intent"] = (
+                    "car_details" if self._looks_like_detail_reference(message) else "car_selection"
+                )
             update["car_reference"] = resolved_reference
             semantics_data["resolved_visible_reference"] = resolved_reference
             semantics_data["mode"] = "reference"
@@ -180,6 +248,8 @@ class ConversationalSalesOrchestrator(SalesOrchestrator):
         parsed = parse_business_fields(message, allow_bare_name=allow_bare_name)
         explicit = set(parsed.as_json_fields())
         if explicit & required:
+            return True
+        if self._looks_like_pending_time_answer(pending, missing, message):
             return True
 
         text = message.casefold()
@@ -363,6 +433,11 @@ class ConversationalSalesOrchestrator(SalesOrchestrator):
             update["response"] = render_error(errors[0])
             return update
 
+        pending_help = self._pending_confusion_response(state)
+        if pending_help is not None:
+            update["response"] = pending_help
+            return update
+
         semantics = dict(state.get("turn_semantics") or {})
         if semantics.get("budget_change_unspecified"):
             current_budget = (state.get("preferences") or {}).get("max_price")
@@ -520,7 +595,8 @@ class ConversationalSalesOrchestrator(SalesOrchestrator):
             return None
         snapshot = state.get("active_snapshot") or {}
         items = list(snapshot.get("items") or [])
-        return position if any(int(item.get("position", -1)) == position for item in items) else None
+        exists = any(int(item.get("position", -1)) == position for item in items)
+        return position if exists else None
 
     def _resolve_visible_reference(
         self,
@@ -530,11 +606,19 @@ class ConversationalSalesOrchestrator(SalesOrchestrator):
         intent: str,
         extracted_preferences: dict[str, Any] | None = None,
     ) -> int | None:
-        if intent not in {"car_selection", "car_details", "test_drive", "sales_lead"}:
-            return None
         snapshot = state.get("active_snapshot") or {}
         items = list(snapshot.get("items") or [])
         if not items:
+            return None
+
+        ordinal = self._explicit_visible_ordinal(message)
+        if ordinal is not None:
+            exists = any(int(item.get("position", -1)) == ordinal for item in items)
+            if exists:
+                return ordinal
+
+        reference_intents = {"car_selection", "car_details", "test_drive", "sales_lead"}
+        if intent not in reference_intents and not self._looks_like_reference_turn(message):
             return None
 
         extracted = extracted_preferences or {}
@@ -551,6 +635,15 @@ class ConversationalSalesOrchestrator(SalesOrchestrator):
                 matches.append(item)
             if len(matches) == 1:
                 return int(matches[0]["position"])
+
+        direct_matches: list[dict[str, Any]] = []
+        for item in items:
+            car = item.get("car") or {}
+            values = (str(car.get("model") or ""), str(car.get("brand") or ""))
+            if any(self._message_mentions_catalog_value(message, value) for value in values if value):
+                direct_matches.append(item)
+        if len(direct_matches) == 1:
+            return int(direct_matches[0]["position"])
 
         selected_car_id = state.get("selected_car_id")
         text = message.casefold()
@@ -642,6 +735,82 @@ class ConversationalSalesOrchestrator(SalesOrchestrator):
                 ),
             }
         return {"type": "no_results"}
+
+    def _pending_confusion_response(self, state: AgentState) -> str | None:
+        message = state.get("normalized_message", "").casefold()
+        if not any(marker in message for marker in _CONFUSION_MARKERS):
+            return None
+        pending = state.get("pending_action") or {}
+        pending_type = str(pending.get("type") or "")
+        required = _REQUIRED_BY_ACTION.get(pending_type, set())
+        if not required:
+            return None
+        fields = dict(pending.get("fields") or {})
+        missing = [name for name in required if fields.get(name) in (None, "")]
+        if not missing:
+            return None
+        if pending_type == "test_drive" and missing == ["preferred_time"]:
+            return (
+                "قصدي تحدد الساعة ومعاها صباح ولا عصر/مساء، مثلاً 4 العصر، "
+                "عشان ما نسجلش وقت غلط."
+            )
+        labels = [_PENDING_FIELD_LABELS.get(name, name) for name in sorted(missing)]
+        joined = "، ".join(labels)
+        action_name = "طلب التست درايف" if pending_type == "test_drive" else "الطلب"
+        return f"إحنا بنكمل {action_name}. الناقص بس: {joined}."
+
+    @staticmethod
+    def _looks_like_pending_time_answer(
+        pending: dict[str, Any],
+        missing: set[str],
+        message: str,
+    ) -> bool:
+        if "preferred_time" not in missing:
+            return False
+        text = str(message or "").translate(_ARABIC_DIGITS).casefold().strip()
+        if re.fullmatch(r"(?:(?:الساعة|الساعه|ساعة|ساعه)\s*)?(?:[1-9]|1[0-2])", text):
+            return True
+        if pending.get("ambiguous_time_hour") is None:
+            return False
+        return bool(
+            re.fullmatch(
+                r"(?:الصباح|الصبح|صباح(?:ا|اً)?|المساء|مساء(?:ا|ً)?|"
+                r"العصر|عصر(?:ا|اً)?|الظهر|ظهر(?:ا|اً)?|am|pm)",
+                text,
+                flags=re.IGNORECASE,
+            )
+        )
+
+    @staticmethod
+    def _explicit_visible_ordinal(message: str) -> int | None:
+        text = str(message or "").casefold()
+        ordinal_terms = {
+            1: ("الأولى", "الاولى", "الأول", "الاول", "اول عربية", "أول عربية", "first"),
+            2: ("التانية", "التانيه", "الثاني", "الثانية", "الثانيه", "second"),
+            3: ("التالتة", "التالته", "الثالث", "الثالثة", "الثالثه", "third"),
+        }
+        for position, terms in ordinal_terms.items():
+            if any(term in text for term in terms):
+                return position
+        return None
+
+    @staticmethod
+    def _looks_like_reference_turn(message: str) -> bool:
+        text = str(message or "").casefold()
+        return any(marker in text for marker in _REFERENCE_LANGUAGE_MARKERS)
+
+    @staticmethod
+    def _looks_like_detail_reference(message: str) -> bool:
+        text = str(message or "").casefold()
+        return any(marker in text for marker in _DETAIL_REFERENCE_MARKERS)
+
+    @staticmethod
+    def _message_mentions_catalog_value(message: str, candidate: str) -> bool:
+        value = str(candidate or "").strip().casefold()
+        if not value:
+            return False
+        text = str(message or "").casefold()
+        return bool(re.search(rf"(?<!\w){re.escape(value)}(?!\w)", text))
 
     @staticmethod
     def _catalog_model_token(message: str) -> str | None:
