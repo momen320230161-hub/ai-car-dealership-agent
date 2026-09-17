@@ -7,6 +7,7 @@ import re
 from collections.abc import Mapping, Sequence
 from typing import Any, Protocol
 
+from app.agent.composition_policy import build_response_plan, composition_policy_allows
 from app.agent.prompts import GENERAL_COMPOSITION_SYSTEM_PROMPT, UNDERSTANDING_SYSTEM_PROMPT
 from app.agent.schemas import RequestUnderstanding
 
@@ -114,9 +115,12 @@ class GeminiAgentLLM:
         try:
             from google.genai import types
 
+            context = dict(verified_context)
+            response_plan = build_response_plan(context)
+            context["response_plan"] = response_plan
             payload = {
                 "customer_message": message,
-                "verified_context": dict(verified_context),
+                "verified_context": context,
             }
             client = self._client()
             response = client.models.generate_content(
@@ -131,6 +135,8 @@ class GeminiAgentLLM:
             text = (response.text or "").strip()
             if not text:
                 raise AgentLLMError("Gemini returned no response text")
+            if not composition_policy_allows(text, response_plan):
+                raise AgentLLMError("Gemini response rejected by composition policy")
             return text
         except AgentLLMError:
             raise
