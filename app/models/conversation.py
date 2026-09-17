@@ -40,6 +40,12 @@ class ConversationSession(Base, TimestampMixin):
         server_default=text("'{}'"),
         nullable=False,
     )
+    dialogue_state: Mapped[dict[str, Any]] = mapped_column(
+        PortableJSON,
+        default=dict,
+        server_default=text("'{}'"),
+        nullable=False,
+    )
     selected_car_id: Mapped[int | None] = mapped_column(
         Integer,
         ForeignKey(
