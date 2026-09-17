@@ -1,0 +1,49 @@
+{% extends "admin/base.html" %}
+
+{% block admin_title %}RAG Knowledge{% endblock %}
+{% block admin_subtitle %}إضافة وتعديل وحذف وإعادة فهرسة معرفة الوكيل بدون تعديل الكود.{% endblock %}
+
+{% block admin_content %}
+<div class="admin-toolbar">
+  <div>
+    <strong>{{ documents|length }} مستند معرفة</strong>
+    <span>الحالة هنا تعكس الفهرسة الفعلية المستخدمة في retrieval.</span>
+  </div>
+  <a class="admin-button primary" href="{{ url_for('site.admin.knowledge_new') }}">إضافة مستند</a>
+</div>
+
+<section class="admin-panel">
+  <div class="table-wrap">
+    <table class="admin-table">
+      <thead><tr><th>المستند</th><th>Category</th><th>Version</th><th>Index</th><th>Active</th><th>آخر تحديث</th><th>إجراءات</th></tr></thead>
+      <tbody>
+      {% for document in documents %}
+        <tr>
+          <td><strong>{{ document.title }}</strong><small>{{ document.id }}</small>{% if document.index_error %}<small class="danger">{{ document.index_error }}</small>{% endif %}</td>
+          <td>{{ document.category }}</td>
+          <td>{{ document.content_version }}{% if document.indexed_version %} / indexed {{ document.indexed_version }}{% endif %}</td>
+          <td><span class="status-pill {{ 'ok' if document.index_status == 'indexed' else ('danger' if document.index_status == 'failed' else 'muted') }}">{{ document.index_status }}</span></td>
+          <td>{{ 'Yes' if document.active else 'No' }}</td>
+          <td>{{ document.updated_at.strftime('%Y-%m-%d %H:%M') if document.updated_at else '—' }}</td>
+          <td>
+            <div class="admin-actions-row">
+              <a class="admin-button" href="{{ url_for('site.admin.knowledge_edit', document_id=document.id) }}">تعديل</a>
+              <form method="post" action="{{ url_for('site.admin.knowledge_reindex', document_id=document.id) }}">
+                <input type="hidden" name="csrf_token" value="{{ admin_csrf_token }}">
+                <button class="admin-button" type="submit">Reindex</button>
+              </form>
+              <form method="post" action="{{ url_for('site.admin.knowledge_delete', document_id=document.id) }}" onsubmit="return confirm('حذف مستند المعرفة نهائيًا؟');">
+                <input type="hidden" name="csrf_token" value="{{ admin_csrf_token }}">
+                <button class="admin-button danger-button" type="submit">حذف</button>
+              </form>
+            </div>
+          </td>
+        </tr>
+      {% else %}
+        <tr><td colspan="7" class="empty-state">لا توجد مستندات معرفة بعد.</td></tr>
+      {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</section>
+{% endblock %}
