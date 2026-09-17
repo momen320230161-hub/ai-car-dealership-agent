@@ -127,7 +127,12 @@ def knowledge_edit(document_id: uuid.UUID):
 def knowledge_reindex(document_id: uuid.UUID):
     try:
         document = _knowledge().reindex_document(document_id)
-    except (EmbeddingError, KnowledgeIndexingError, KnowledgePersistenceError, KnowledgeNotFoundError) as exc:
+    except (
+        EmbeddingError,
+        KnowledgeIndexingError,
+        KnowledgeNotFoundError,
+        KnowledgePersistenceError,
+    ) as exc:
         current_app.logger.warning("Admin knowledge reindex failed: %s", type(exc).__name__)
         flash("إعادة الفهرسة فشلت. راجع حالة المستند وإعدادات الـembedding provider.", "error")
         return redirect(url_for("site.admin.knowledge_list"))
