@@ -64,3 +64,11 @@ jobs:
           TEST_DATABASE_URL: postgresql+psycopg://postgres:postgrespassword@localhost:5432/autodrive_test
           SECRET_KEY: ci-secret-key
         run: uv run pytest -q
+
+      - name: Build production image
+        run: docker build --tag autodrive-ci:latest .
+
+      - name: Verify migration scripts are packaged
+        run: |
+          docker run --rm autodrive-ci:latest test -f /app/migrations/alembic.ini
+          docker run --rm autodrive-ci:latest test -f /app/migrations/versions/8c1e4d7f2a90_add_conversation_dialogue_state.py
