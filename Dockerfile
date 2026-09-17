@@ -14,6 +14,7 @@ COPY pyproject.toml uv.lock .python-version README.md ./
 RUN uv sync --locked --no-dev --no-install-project
 
 COPY app ./app
+COPY migrations ./migrations
 COPY run.py ./run.py
 
 RUN addgroup --system app && adduser --system --home /home/app --ingroup app app \
@@ -23,4 +24,3 @@ USER app
 EXPOSE 5000
 
 CMD ["gunicorn", "--bind", "0.0.0.0:5000", "--workers", "2", "--threads", "4", "--timeout", "60", "run:app"]
-
