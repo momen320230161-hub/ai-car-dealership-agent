@@ -1,7 +1,7 @@
 {% extends "admin/base.html" %}
 
 {% block admin_title %}Test Drive Requests{% endblock %}
-{% block admin_subtitle %}طلبات تجربة القيادة المسجلة فعليًا في قاعدة البيانات.{% endblock %}
+{% block admin_subtitle %}طلبات تجربة القيادة المسجلة فعليًا في قاعدة البيانات مع انتقالات حالة مضبوطة.{% endblock %}
 
 {% block admin_content %}
 <section class="admin-panel">
@@ -11,7 +11,7 @@
   </div>
   <div class="table-wrap">
     <table class="admin-table">
-      <thead><tr><th>ID</th><th>العميل</th><th>العربية</th><th>الموعد المطلوب</th><th>Status</th><th>Created</th></tr></thead>
+      <thead><tr><th>ID</th><th>العميل</th><th>العربية</th><th>الموعد المطلوب</th><th>Status</th><th>Created</th><th>إدارة</th></tr></thead>
       <tbody>
       {% for item in page.items %}
         <tr>
@@ -21,9 +21,22 @@
           <td>{{ item.preferred_date }} · {{ item.preferred_time.strftime('%H:%M') }}</td>
           <td><span class="status-pill {{ 'muted' if item.status == 'CANCELLED' else 'ok' }}">{{ item.status }}</span></td>
           <td>{{ item.created_at.strftime('%Y-%m-%d %H:%M') if item.created_at else '—' }}</td>
+          <td>
+            {% if item.status not in ('COMPLETED', 'CANCELLED') %}
+            <form class="inline-status-form" method="POST" action="{{ url_for('site.admin.test_drive_status', request_id=item.id) }}">
+              <input type="hidden" name="csrf_token" value="{{ admin_csrf_token }}">
+              <select name="status" aria-label="حالة Test Drive #{{ item.id }}">
+                {% if item.status == 'NEW' %}<option value="CONFIRMED">CONFIRMED</option>{% endif %}
+                {% if item.status == 'CONFIRMED' %}<option value="COMPLETED">COMPLETED</option>{% endif %}
+                <option value="CANCELLED">CANCELLED</option>
+              </select>
+              <button class="admin-button" type="submit">Update</button>
+            </form>
+            {% else %}—{% endif %}
+          </td>
         </tr>
       {% else %}
-        <tr><td colspan="6" class="empty-state">لا توجد طلبات Test Drive.</td></tr>
+        <tr><td colspan="7" class="empty-state">لا توجد طلبات Test Drive.</td></tr>
       {% endfor %}
       </tbody>
     </table>
