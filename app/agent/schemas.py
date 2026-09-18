@@ -105,12 +105,18 @@ class RequestUnderstanding(BaseModel):
 
 _ARABIC_DIGITS = str.maketrans("٠١٢٣٤٥٦٧٨٩", "0123456789")
 _ORDINAL_REFERENCES = (
-    (r"\b(?:الأولى|الاولى|الأول|الاول|أول|اول|الأولانية|الاولانية|first)\b", 1),
-    (r"\b(?:التانية|التانيه|الثاني|الثانية|الثانيه|تاني|تانيه|second)\b", 2),
+    (r"\b(?:الأولى|الاولى|الأول|الاول|الأولانية|الاولانية|first)\b", 1),
+    (r"\b(?:التانية|التانيه|التاني|الثاني|الثانية|الثانيه|second)\b", 2),
     (r"\b(?:التالتة|التالته|التالت|الثالثة|الثالثه|الثالث|third)\b", 3),
     (r"\b(?:الرابعة|الرابعه|الرابع|fourth)\b", 4),
     (r"\b(?:الخامسة|الخامسه|الخامس|fifth)\b", 5),
 )
+_BARE_ORDINAL_REFERENCES = (
+    (r"(?:أول|اول)", 1),
+    (r"(?:تاني|تانيه)", 2),
+    (r"(?:تالت|تالته)", 3),
+)
+_REFERENCE_NOUN = r"(?:عربية|العربية|سيارة|السيارة|اختيار|الاختيار|واحدة|واحد|car|option)"
 _EXPLICIT_CAR_ID_RE = re.compile(
     r"(?:\bcar\s*id\b|\bid\b|رقم\s+العربية|العربية\s+(?:رقم|id))"
     r"\s*[:#-]?\s*([1-9][0-9]*)",
@@ -172,16 +178,38 @@ _TEST_DRIVE_ACTION_PATTERNS = (
 
 
 def explicit_visible_references(message: str) -> list[int]:
-    """Extract only ordinals visibly present in the current user message."""
-    normalized = message.translate(_ARABIC_DIGITS).casefold()
+    """Extract visible positions without treating ordinary conversational words as ordinals.
+
+    Egyptian Arabic uses forms such as "تاني" for both "second" and "other/again".
+    A bare form is accepted only when it is the whole reply or is attached to an
+    explicit vehicle/option noun. Definite ordinals such as "التانية" remain safe
+    references anywhere in the turn.
+    """
+    normalized = " ".join(message.translate(_ARABIC_DIGITS).casefold().split())
     if re.search(r"(?:أول|اول|first)\s+(?:اتنين|اثنين|two)", normalized):
         return [1, 2]
+
     references: list[tuple[int, int]] = []
     for pattern, position in _ORDINAL_REFERENCES:
         match = re.search(pattern, normalized)
         if match:
             references.append((match.start(), position))
-    for match in re.finditer(r"(?:#|رقم\s*|(?:العربية|السيارة)\s*#?)([1-9][0-9]*)", normalized):
+
+    for bare_pattern, position in _BARE_ORDINAL_REFERENCES:
+        standalone = re.fullmatch(rf"(?:{bare_pattern})", normalized)
+        contextual = re.search(
+            rf"(?<!\w)(?:{bare_pattern})\s+{_REFERENCE_NOUN}(?!\w)"
+            rf"|(?<!\w){_REFERENCE_NOUN}\s+(?:{bare_pattern})(?!\w)",
+            normalized,
+        )
+        match = standalone or contextual
+        if match:
+            references.append((match.start(), position))
+
+    for match in re.finditer(
+        r"(?:#|رقم\s*|(?:العربية|السيارة)\s*#?)([1-9][0-9]*)",
+        normalized,
+    ):
         references.append((match.start(), int(match.group(1))))
     comparison = re.search(
         r"(?:قارن|compare).*?\b([1-9][0-9]*)\b\s*(?:و|and|,)\s*\b([1-9][0-9]*)\b",
@@ -202,7 +230,6 @@ def explicit_visible_references(message: str) -> list[int]:
         references.append((single.start(1), int(single.group(1))))
     ordered = [position for _, position in sorted(set(references))]
     return list(dict.fromkeys(ordered))
-
 
 def explicit_car_id_from_message(message: str) -> int | None:
     """Extract a car ID only when the current message explicitly marks it as an ID."""
