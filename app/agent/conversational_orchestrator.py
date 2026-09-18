@@ -192,6 +192,17 @@ class ConversationalSalesOrchestrator(SalesOrchestrator):
             if str(field)
         }
         llm_budget_change = str(update.get("llm_budget_change") or "none")
+        catalog_semantic_action = llm_action in {
+            "recommend",
+            "refine",
+            "broaden",
+            "reset",
+        }
+        effective_llm_clears = (
+            llm_clears
+            if catalog_semantic_action or update.get("intent") == "catalog_search"
+            else set()
+        )
         has_llm_semantics = bool(
             llm_action or llm_clears or llm_budget_change != "none"
         )
@@ -204,12 +215,12 @@ class ConversationalSalesOrchestrator(SalesOrchestrator):
                 {
                     "source": "llm",
                     "mode": llm_action or "refine",
-                    "clear_fields": sorted(llm_clears),
-                    "force_clear_fields": sorted(llm_clears),
+                    "clear_fields": sorted(effective_llm_clears),
+                    "force_clear_fields": sorted(effective_llm_clears),
                     "budget_change": llm_budget_change,
                 }
             )
-            for field in llm_clears:
+            for field in effective_llm_clears:
                 extracted[field] = None
 
             if llm_action == "reset":
