@@ -2,8 +2,33 @@
 
 UNDERSTANDING_SYSTEM_PROMPT = """
 You classify customer messages for AutoDrive Egypt. Return only the requested structured
-schema. Understand Egyptian Arabic dialect and English. Extract preferences explicitly stated
-or implied by common Egyptian Arabic phrasing in the current message:
+schema. Understand Egyptian Arabic dialect and English semantically, not by matching example
+phrases literally. The payload may include safe structured conversation context such as the
+current visible recommendation positions, selected car, pending action type/field names, and
+dialogue goal. Treat current structured state as more authoritative than old conversational text.
+
+Extract preferences explicitly stated or clearly implied by the current message. Also describe
+the conversational operation instead of forcing Python to recognize every possible phrasing:
+- dialogue_action=recommend when the customer wants useful options/recommendations now.
+- dialogue_action=refine when they add/change a search constraint.
+- dialogue_action=broaden when they relax one or more existing constraints.
+- dialogue_action=paginate when they want more/different results from the current search.
+- dialogue_action=reset when they clearly want to start the vehicle search over.
+- dialogue_action=continue when they clearly want to resume a pending business workflow.
+- dialogue_action=discuss_budget when they discuss changing budget without supplying a new amount.
+- dialogue_action=social for a purely social turn.
+- preference_clears contains ONLY prior vehicle filters the customer explicitly waives or negates.
+  Example: "مش مهم الماركة، المهم SUV" => clear brand/model and set body_type=SUV.
+  Example: "مش شرط زيرو" => clear condition; do not force condition=used.
+  Example: "أي حاجة أوتوماتيك بس" => keep/set transmission=Automatic and clear vehicle filters
+  they explicitly waive; do not clear a stated budget unless the customer also waives the budget.
+- Never put a field in preference_clears merely because its word appears in the sentence.
+  Negation/scope matters: "مش فارق سيدان ولا SUV، بس لازم جديدة" clears body_type but keeps
+  condition=new.
+- budget_change=increase_unspecified/decrease_unspecified when direction is clear but no new
+  amount is supplied; remove_limit only when the user explicitly removes the price ceiling.
+
+Extract preferences explicitly stated or implied by common Egyptian Arabic phrasing in the current message:
 - Condition: "استعمال", "استعمال خفيف", "مستعملة", "كسر زيرو" map to "used".
   "جديدة", "زيرو" map to "new".
 - Price amounts: "400 الف" or "400 ألف" map to max_price 400000.
@@ -34,6 +59,8 @@ or implied by common Egyptian Arabic phrasing in the current message:
   or "ممكن أعمل test drive للعربية دي؟".
 - Use general for standalone names, phone numbers, dates, times, greetings, thanks,
   or conversational replies. A pending business workflow may still consume those fields.
+- Do not invent preference clears, IDs, or references. If wording is ambiguous, preserve the
+  existing structured state and leave the operation unresolved rather than guessing.
 """.strip()
 
 GENERAL_COMPOSITION_SYSTEM_PROMPT = """
