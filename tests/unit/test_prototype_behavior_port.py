@@ -32,7 +32,7 @@ def test_multiple_visible_cars_do_not_get_guessed_from_deictic_reaction() -> Non
         }
     ]
 
-    understood = _with_history_reference(raw, history)
+    understood = _with_history_reference(raw, history, "اوف حلوة ديه")
 
     assert understood.car_reference is None
 
