@@ -26,6 +26,36 @@ Intent = Literal[
     "general",
 ]
 
+PreferenceField = Literal[
+    "brand",
+    "model",
+    "condition",
+    "body_type",
+    "transmission",
+    "fuel_type",
+    "min_year",
+    "max_year",
+    "min_price",
+    "max_price",
+    "max_mileage",
+]
+DialogueAction = Literal[
+    "recommend",
+    "refine",
+    "broaden",
+    "paginate",
+    "reset",
+    "continue",
+    "discuss_budget",
+    "social",
+]
+BudgetChange = Literal[
+    "none",
+    "increase_unspecified",
+    "decrease_unspecified",
+    "remove_limit",
+]
+
 
 class PreferenceUpdates(BaseModel):
     """Only the Phase 2 catalog filters may leave the LLM boundary."""
@@ -57,6 +87,9 @@ class RequestUnderstanding(BaseModel):
 
     intent: Intent
     preference_updates: PreferenceUpdates = Field(default_factory=PreferenceUpdates)
+    dialogue_action: DialogueAction | None = None
+    preference_clears: list[PreferenceField] = Field(default_factory=list, max_length=11)
+    budget_change: BudgetChange = "none"
     car_reference: str | int | None = None
     comparison_references: list[str | int] = Field(default_factory=list, max_length=5)
     explicit_car_id: int | None = Field(default=None, ge=1)
@@ -344,6 +377,10 @@ def sanitize_understanding(
     if budget_reset:
         updates["max_price"] = None
         updates["min_price"] = None
+        data["budget_change"] = "remove_limit"
+        data["preference_clears"] = list(
+            dict.fromkeys([*data.get("preference_clears", []), "min_price", "max_price"])
+        )
 
     global_reset = (
         re.search(
@@ -355,7 +392,7 @@ def sanitize_understanding(
         or "تصفير التفضيلات" in message_folded
     )
     if global_reset:
-        for key in (
+        reset_fields = (
             "brand",
             "model",
             "condition",
@@ -367,8 +404,13 @@ def sanitize_understanding(
             "min_price",
             "max_price",
             "max_mileage",
-        ):
+        )
+        for key in reset_fields:
             updates[key] = None
+        data["dialogue_action"] = "reset"
+        data["preference_clears"] = list(
+            dict.fromkeys([*data.get("preference_clears", []), *reset_fields])
+        )
 
     data["preference_updates"] = updates
     return RequestUnderstanding.model_validate(data)
