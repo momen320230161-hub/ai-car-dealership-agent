@@ -18,7 +18,11 @@ from app.agent.llm import (
     build_agent_llm,
     gemini_understanding_schema,
 )
-from app.agent.schemas import RequestUnderstanding, sanitize_understanding
+from app.agent.schemas import (
+    RequestUnderstanding,
+    explicit_visible_references,
+    sanitize_understanding,
+)
 from app.models.car import Car
 from app.models.conversation import ConversationSession
 from app.models.lead import SalesLead
@@ -164,6 +168,32 @@ def test_gemini_schema_omits_unsupported_additional_properties():
     assert "additionalProperties" not in str(schema)
     assert schema["type"] == "object"
     assert "preference_updates" in schema["properties"]
+
+
+
+def test_conversational_other_is_not_misread_as_visible_second():
+    assert explicit_visible_references("في حاجات تاني غير ال انت عارضهم دول") == []
+    assert explicit_visible_references("وريني اختيارات تاني") == []
+    assert explicit_visible_references("this is my second time buying a car") == []
+    assert explicit_visible_references("first time shopping for a car") == []
+
+
+@pytest.mark.parametrize(
+    ("message", "expected"),
+    [
+        ("التانية عجبتني", [2]),
+        ("تاني", [2]),
+        ("تاني عربية", [2]),
+        ("العربية تاني", [2]),
+        ("اول عربية", [1]),
+        ("تالت اختيار", [3]),
+        ("second", [2]),
+        ("second option", [2]),
+        ("first car", [1]),
+    ],
+)
+def test_explicit_vehicle_ordinals_still_resolve(message, expected):
+    assert explicit_visible_references(message) == expected
 
 
 def test_python_validation_removes_invented_ids_and_ordinals():
