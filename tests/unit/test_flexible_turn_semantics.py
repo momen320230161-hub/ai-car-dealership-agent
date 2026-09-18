@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from decimal import Decimal
 
-from app.agent.catalog_qualification import explicit_brand_from_message
+from app.domain.catalog_language import explicit_brand_from_message
 from app.agent.conversational_orchestrator import ConversationalSalesOrchestrator
 from app.agent.schemas import PreferenceUpdates, RequestUnderstanding
 from app.agent.turn_semantics import analyze_turn
