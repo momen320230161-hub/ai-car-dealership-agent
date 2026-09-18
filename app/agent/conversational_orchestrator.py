@@ -213,14 +213,19 @@ class ConversationalSalesOrchestrator(SalesOrchestrator):
             if catalog_semantic_action or update.get("intent") == "catalog_search"
             else set()
         )
-        if llm_condition_order:
+        effective_condition_order = (
+            llm_condition_order
+            if catalog_semantic_action or update.get("intent") == "catalog_search"
+            else []
+        )
+        if effective_condition_order:
             effective_llm_clears.add("condition")
 
         has_llm_semantics = bool(
             llm_action
             or llm_clears
             or llm_budget_change != "none"
-            or llm_condition_order
+            or effective_condition_order
         )
 
         if has_llm_semantics:
@@ -232,7 +237,7 @@ class ConversationalSalesOrchestrator(SalesOrchestrator):
                 "mode": llm_action or "refine",
                 "clear_fields": sorted(effective_llm_clears),
                 "force_clear_fields": sorted(effective_llm_clears),
-                "soft_condition_order": llm_condition_order,
+                "soft_condition_order": effective_condition_order,
                 "force_catalog_search": False,
                 "pagination_requested": False,
                 "more_results_question": False,
