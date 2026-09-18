@@ -64,6 +64,32 @@ PendingFieldAnswer = Literal[
     "request_id",
 ]
 ConditionPreference = Literal["new", "used"]
+VisibleReferenceField = Literal[
+    "none",
+    "price_egp",
+    "mileage_km",
+    "year",
+    "condition",
+    "transmission",
+    "body_type",
+    "fuel_type",
+]
+VisibleReferenceOperator = Literal["none", "min", "max", "equals"]
+
+
+class VisibleReferenceSelector(BaseModel):
+    """Semantic description of one currently visible car; Python resolves the position."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    field: VisibleReferenceField = "none"
+    operator: VisibleReferenceOperator = "none"
+    value: str = ""
+
+    @field_validator("value")
+    @classmethod
+    def strip_value(cls, value: str) -> str:
+        return value.strip()
 
 
 class PreferenceUpdates(BaseModel):
@@ -103,6 +129,9 @@ class RequestUnderstanding(BaseModel):
     condition_preference_order: list[ConditionPreference] = Field(
         default_factory=list,
         max_length=2,
+    )
+    visible_reference_selector: VisibleReferenceSelector = Field(
+        default_factory=VisibleReferenceSelector
     )
     car_reference: str | int | None = None
     comparison_references: list[str | int] = Field(default_factory=list, max_length=5)
