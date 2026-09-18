@@ -8,6 +8,7 @@ from decimal import Decimal
 
 from sqlalchemy import func, select
 
+from app.agent.catalog_qualification import qualify_catalog_search
 from app.agent.graph import SalesOrchestrator
 from app.agent.llm import DeterministicAgentLLM
 from app.agent.schemas import RequestUnderstanding, sanitize_understanding
@@ -145,3 +146,13 @@ def test_brand_budget_search_asks_model_or_recommendation_then_uses_persisted_br
         "condition": "new",
         "max_price": 3_000_000,
     }
+
+
+def test_budget_plus_body_type_is_enough_for_initial_search() -> None:
+    qualification = qualify_catalog_search(
+        {"max_price": 1_100_000, "body_type": "SUV"},
+        "معايا مليون ومية وعايز عربية suv تعرف تجبهالي",
+    )
+
+    assert qualification.ready is True
+    assert qualification.message is None
