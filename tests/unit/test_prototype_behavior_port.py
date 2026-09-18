@@ -16,7 +16,7 @@ def test_single_visible_car_reaction_resolves_from_recent_history() -> None:
         }
     ]
 
-    understood = _with_history_reference(raw, history)
+    understood = _with_history_reference(raw, history, "اوف حلوة ديه")
     sanitized = sanitize_understanding(understood, "اوف حلوة ديه")
 
     assert understood.car_reference == 1
@@ -43,3 +43,17 @@ def test_large_invented_reference_is_still_rejected() -> None:
     sanitized = sanitize_understanding(raw, "اوف حلوة ديه")
 
     assert sanitized.car_reference is None
+
+
+def test_ambiguous_history_clears_llm_guess_without_explicit_ordinal() -> None:
+    raw = RequestUnderstanding(intent="car_selection", car_reference=1)
+    history = [
+        {
+            "role": "assistant",
+            "content": "1. Kia XCeed — 1,490,000 جنيه 2. Chery Tiggo 8 — 1,420,000 جنيه",
+        }
+    ]
+
+    understood = _with_history_reference(raw, history, "حلوة ديه")
+
+    assert understood.car_reference is None
