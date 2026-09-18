@@ -255,11 +255,20 @@ class SalesOrchestrator:
     def _understand_request(self, state: AgentState) -> AgentState:
         update = self._trace(state, "understand_request")
         try:
-            understanding = self.llm.understand(
-                state["normalized_message"],
-                recent_messages=state.get("recent_messages", []),
-                preferences=state.get("preferences", {}),
-            )
+            contextual_understanding = getattr(self.llm, "understand_with_context", None)
+            if callable(contextual_understanding):
+                understanding = contextual_understanding(
+                    state["normalized_message"],
+                    recent_messages=state.get("recent_messages", []),
+                    preferences=state.get("preferences", {}),
+                    conversation_context=self._safe_understanding_context(state),
+                )
+            else:
+                understanding = self.llm.understand(
+                    state["normalized_message"],
+                    recent_messages=state.get("recent_messages", []),
+                    preferences=state.get("preferences", {}),
+                )
             understanding = sanitize_understanding(understanding, state["normalized_message"])
             update.update(
                 {
@@ -267,6 +276,9 @@ class SalesOrchestrator:
                     "extracted_preferences": understanding.preference_updates.model_dump(
                         exclude_unset=True
                     ),
+                    "llm_dialogue_action": understanding.dialogue_action,
+                    "llm_preference_clears": list(understanding.preference_clears),
+                    "llm_budget_change": understanding.budget_change,
                     "car_reference": understanding.car_reference,
                     "comparison_references": understanding.comparison_references,
                     "explicit_car_id": understanding.explicit_car_id,
@@ -282,6 +294,71 @@ class SalesOrchestrator:
                 }
             )
         return update
+
+    @staticmethod
+    def _safe_understanding_context(state: AgentState) -> dict[str, Any]:
+        """Expose conversation control state to the LLM without pending contact values."""
+        snapshot = state.get("active_snapshot") or {}
+        visible: list[dict[str, Any]] = []
+        for item in list(snapshot.get("items") or []):
+            car = item.get("car") or {}
+            visible.append(
+                {
+                    "position": item.get("position"),
+                    "brand": car.get("brand"),
+                    "model": car.get("model"),
+                    "year": car.get("year"),
+                    "condition": car.get("condition"),
+                    "body_type": car.get("body_type"),
+                }
+            )
+
+        selected: dict[str, Any] | None = None
+        selected_car_id = state.get("selected_car_id")
+        if selected_car_id is not None:
+            for item in list(snapshot.get("items") or []):
+                try:
+                    matches = int(item.get("car_id")) == int(selected_car_id)
+                except (TypeError, ValueError):
+                    matches = False
+                if not matches:
+                    continue
+                car = item.get("car") or {}
+                selected = {
+                    "position": item.get("position"),
+                    "brand": car.get("brand"),
+                    "model": car.get("model"),
+                    "year": car.get("year"),
+                }
+                break
+
+        pending = state.get("pending_action") or {}
+        pending_type = str(pending.get("type") or "")
+        fields = dict(pending.get("fields") or {})
+        required_by_action = {
+            "test_drive": {"car_id", "customer_name", "phone", "preferred_date", "preferred_time"},
+            "sales_lead": {"customer_name", "phone"},
+            "cancel_test_drive": {"request_id"},
+        }
+        required = required_by_action.get(pending_type, set())
+        collected = sorted(name for name, value in fields.items() if value not in (None, ""))
+        missing = sorted(name for name in required if fields.get(name) in (None, ""))
+
+        dialogue = state.get("dialogue_state") or {}
+        return {
+            "dialogue_goal": dialogue.get("catalog_goal"),
+            "visible_recommendations": visible,
+            "selected_car": selected,
+            "pending_action": (
+                {
+                    "type": pending_type,
+                    "collected_fields": collected,
+                    "missing_fields": missing,
+                }
+                if pending_type
+                else None
+            ),
+        }
 
     def _update_state(self, state: AgentState) -> AgentState:
         update = self._trace(state, "update_state")
