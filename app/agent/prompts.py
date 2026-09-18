@@ -28,7 +28,8 @@ the conversational operation instead of forcing Python to recognize every possib
 - budget_change=increase_unspecified/decrease_unspecified when direction is clear but no new
   amount is supplied; remove_limit only when the user explicitly removes the price ceiling.
 
-Extract preferences explicitly stated or implied by common Egyptian Arabic phrasing in the current message:
+Extract preferences explicitly stated or implied by common Egyptian Arabic phrasing in the
+current message:
 - Condition: "استعمال", "استعمال خفيف", "مستعملة", "كسر زيرو" map to "used".
   "جديدة", "زيرو" map to "new".
 - Price amounts: "400 الف" or "400 ألف" map to max_price 400000.
