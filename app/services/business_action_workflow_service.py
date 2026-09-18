@@ -11,7 +11,7 @@ from sqlalchemy import select
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.orm import Session
 
-from app.agent.catalog_qualification import explicit_brand_from_message, explicit_model_from_message
+from app.domain.catalog_language import explicit_brand_from_message, explicit_model_from_message
 from app.models.car import Car
 from app.models.conversation import ConversationSession
 from app.services.business_action_parsing import cairo_today, parse_business_fields
