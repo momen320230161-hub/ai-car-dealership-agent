@@ -127,12 +127,29 @@ class GeminiAgentLLM:
         recent_messages: Sequence[Mapping[str, Any]],
         preferences: Mapping[str, Any],
     ) -> RequestUnderstanding:
+        return self.understand_with_context(
+            message,
+            recent_messages=recent_messages,
+            preferences=preferences,
+            conversation_context={},
+        )
+
+    def understand_with_context(
+        self,
+        message: str,
+        *,
+        recent_messages: Sequence[Mapping[str, Any]],
+        preferences: Mapping[str, Any],
+        conversation_context: Mapping[str, Any],
+    ) -> RequestUnderstanding:
+        """Understand language with safe structured state, never raw pending PII."""
         try:
             from google.genai import types
 
             payload = {
                 "current_message": message,
                 "current_structured_preferences": dict(preferences),
+                "conversation_context": dict(conversation_context),
                 "recent_messages_for_language_context": list(recent_messages)[-12:],
             }
             client = self._client()
