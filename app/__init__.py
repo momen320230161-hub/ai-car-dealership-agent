@@ -245,7 +245,7 @@ def _register_cli(app: Flask) -> None:
     @click.option(
         "--all-scenarios",
         is_flag=True,
-        help="Run all 5 live compatibility scenarios with semantic assertions.",
+        help="Run all live compatibility and conversational-semantic scenarios.",
     )
     def agent_llm_smoke(model: str | None, message: str, all_scenarios: bool) -> None:
         """Perform a safe live smoke test for Gemini LLM understanding and composition."""
@@ -292,6 +292,53 @@ def _register_cli(app: Flask) -> None:
             if failures:
                 details = "; ".join(failures)
                 raise AgentLLMError(f"{name} semantic validation failed: {details}")
+
+        def assert_conversational_semantics(
+            name: str,
+            sanitized,
+            *,
+            expected_actions: set[str] | None = None,
+            required_clears: set[str] | None = None,
+            forbidden_clears: set[str] | None = None,
+            expected_pending_field: str | None = None,
+            expected_selector: dict[str, str] | None = None,
+        ) -> None:
+            failures: list[str] = []
+            if expected_actions and sanitized.dialogue_action not in expected_actions:
+                failures.append(
+                    "dialogue_action expected one of "
+                    f"{sorted(expected_actions)!r}, got {sanitized.dialogue_action!r}"
+                )
+
+            clears = set(sanitized.preference_clears)
+            missing_clears = (required_clears or set()) - clears
+            if missing_clears:
+                failures.append(f"missing preference clears: {sorted(missing_clears)!r}")
+            unexpected_clears = clears & (forbidden_clears or set())
+            if unexpected_clears:
+                failures.append(f"forbidden preference clears: {sorted(unexpected_clears)!r}")
+
+            if (
+                expected_pending_field is not None
+                and sanitized.pending_field_answer != expected_pending_field
+            ):
+                failures.append(
+                    f"pending_field_answer expected {expected_pending_field!r}, "
+                    f"got {sanitized.pending_field_answer!r}"
+                )
+
+            if expected_selector is not None:
+                selector = sanitized.visible_reference_selector.model_dump()
+                for key, expected_value in expected_selector.items():
+                    if str(selector.get(key) or "").casefold() != str(expected_value).casefold():
+                        failures.append(
+                            f"selector.{key} expected {expected_value!r}, "
+                            f"got {selector.get(key)!r}"
+                        )
+
+            if failures:
+                details = "; ".join(failures)
+                raise AgentLLMError(f"{name} conversational validation failed: {details}")
 
         click.echo(f"model: {target_model}")
         try:
@@ -366,6 +413,160 @@ def _register_cli(app: Flask) -> None:
                         expected_preferences,
                     )
                     click.echo("semantic validation: PASS")
+
+                semantic_scenarios = [
+                    {
+                        "name": "Scenario 6 (Scoped Preference Waiver)",
+                        "message": "مش فارق معايا سيدان ولا SUV، بس لازم جديدة",
+                        "preferences": {
+                            "body_type": "Sedan",
+                            "condition": "used",
+                            "max_price": 800000,
+                        },
+                        "context": {},
+                        "intent": "catalog_search",
+                        "expected_preferences": {"condition": "new"},
+                        "actions": {"refine", "broaden", "recommend"},
+                        "required_clears": {"body_type"},
+                        "forbidden_clears": {"max_price"},
+                    },
+                    {
+                        "name": "Scenario 7 (Flexible Automatic Request)",
+                        "message": "أي حاجة أوتوماتيك بس",
+                        "preferences": {
+                            "condition": "used",
+                            "body_type": "Sedan",
+                            "max_price": 1000000,
+                        },
+                        "context": {},
+                        "intent": "catalog_search",
+                        "expected_preferences": {"transmission": "Automatic"},
+                        "actions": {"refine", "broaden", "recommend"},
+                        "required_clears": {"condition", "body_type"},
+                        "forbidden_clears": {"max_price"},
+                    },
+                    {
+                        "name": "Scenario 8 (Pending Single Name)",
+                        "message": "مؤمن",
+                        "preferences": {},
+                        "context": {
+                            "pending_action": {
+                                "type": "test_drive",
+                                "collected_fields": ["car_id"],
+                                "missing_fields": [
+                                    "customer_name",
+                                    "phone",
+                                    "preferred_date",
+                                    "preferred_time",
+                                ],
+                            }
+                        },
+                        "intent": "general",
+                        "expected_preferences": {},
+                        "pending_field": "customer_name",
+                    },
+                    {
+                        "name": "Scenario 9 (Visible Cheapest Reference)",
+                        "message": "الأرخص عاجباني",
+                        "preferences": {},
+                        "context": {
+                            "visible_recommendations": [
+                                {
+                                    "position": 1,
+                                    "brand": "Kia",
+                                    "model": "Sportage",
+                                    "price_egp": 1800000,
+                                },
+                                {
+                                    "position": 2,
+                                    "brand": "Nissan",
+                                    "model": "Sunny",
+                                    "price_egp": 900000,
+                                },
+                                {
+                                    "position": 3,
+                                    "brand": "Toyota",
+                                    "model": "Corolla",
+                                    "price_egp": 1300000,
+                                },
+                            ]
+                        },
+                        "intent": "car_selection",
+                        "expected_preferences": {},
+                        "selector": {"field": "price_egp", "operator": "min"},
+                    },
+                    {
+                        "name": "Scenario 10 (Visible Attribute Reference)",
+                        "message": "هات تفاصيل الأوتوماتيك",
+                        "preferences": {},
+                        "context": {
+                            "visible_recommendations": [
+                                {
+                                    "position": 1,
+                                    "brand": "Kia",
+                                    "model": "Sportage",
+                                    "transmission": "Automatic",
+                                },
+                                {
+                                    "position": 2,
+                                    "brand": "Nissan",
+                                    "model": "Sunny",
+                                    "transmission": "Manual",
+                                },
+                            ]
+                        },
+                        "intent": "car_details",
+                        "expected_preferences": {},
+                        "selector": {
+                            "field": "transmission",
+                            "operator": "equals",
+                            "value": "Automatic",
+                        },
+                    },
+                ]
+
+                for scenario in semantic_scenarios:
+                    name = str(scenario["name"])
+                    msg = str(scenario["message"])
+                    prefs = dict(scenario["preferences"])
+                    context = dict(scenario["context"])
+                    click.echo(f"\n--- {name} ---")
+                    click.echo(f"input: {msg}")
+                    raw = llm.understand_with_context(
+                        msg,
+                        recent_messages=[],
+                        preferences=prefs,
+                        conversation_context=context,
+                    )
+                    sanitized = sanitize_understanding(raw, msg)
+                    click.echo(f"sanitized intent: {sanitized.intent}")
+                    click.echo(
+                        "sanitized preferences: "
+                        f"{sanitized.preference_updates.model_dump(exclude_none=True)}"
+                    )
+                    click.echo(f"dialogue action: {sanitized.dialogue_action}")
+                    click.echo(f"preference clears: {sanitized.preference_clears}")
+                    click.echo(f"pending field: {sanitized.pending_field_answer}")
+                    click.echo(
+                        "visible selector: "
+                        f"{sanitized.visible_reference_selector.model_dump()}"
+                    )
+                    assert_semantics(
+                        name,
+                        sanitized,
+                        str(scenario["intent"]),
+                        dict(scenario["expected_preferences"]),
+                    )
+                    assert_conversational_semantics(
+                        name,
+                        sanitized,
+                        expected_actions=scenario.get("actions"),
+                        required_clears=scenario.get("required_clears"),
+                        forbidden_clears=scenario.get("forbidden_clears"),
+                        expected_pending_field=scenario.get("pending_field"),
+                        expected_selector=scenario.get("selector"),
+                    )
+                    click.echo("conversational semantic validation: PASS")
 
                 click.echo("\n--- Composition Test ---")
                 comp = llm.compose_general("شكراً", verified_context={"topic": "general_closing"})

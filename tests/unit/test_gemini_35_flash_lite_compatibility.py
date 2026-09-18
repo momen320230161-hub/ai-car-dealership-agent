@@ -39,6 +39,57 @@ class PassingSmokeGemini:
             return RequestUnderstanding(intent="knowledge_question")
         return RequestUnderstanding(intent="general")
 
+    def understand_with_context(
+        self,
+        message: str,
+        *,
+        recent_messages,
+        preferences,
+        conversation_context,
+    ) -> RequestUnderstanding:
+        del recent_messages, conversation_context
+        if "مش فارق معايا سيدان" in message:
+            return RequestUnderstanding(
+                intent="catalog_search",
+                preference_updates={"condition": "new"},
+                dialogue_action="refine",
+                preference_clears=["body_type"],
+            )
+        if "أي حاجة أوتوماتيك" in message:
+            return RequestUnderstanding(
+                intent="catalog_search",
+                preference_updates={"transmission": "Automatic"},
+                dialogue_action="recommend",
+                preference_clears=["condition", "body_type"],
+            )
+        if message.strip() == "مؤمن":
+            return RequestUnderstanding(
+                intent="general",
+                pending_field_answer="customer_name",
+            )
+        if "الأرخص" in message:
+            return RequestUnderstanding(
+                intent="car_selection",
+                visible_reference_selector={
+                    "field": "price_egp",
+                    "operator": "min",
+                },
+            )
+        if "تفاصيل الأوتوماتيك" in message:
+            return RequestUnderstanding(
+                intent="car_details",
+                visible_reference_selector={
+                    "field": "transmission",
+                    "operator": "equals",
+                    "value": "Automatic",
+                },
+            )
+        return self.understand(
+            message,
+            recent_messages=[],
+            preferences=preferences,
+        )
+
     def compose_general(self, message: str, *, verified_context) -> str:
         del message, verified_context
         return "العفو، أنا تحت أمرك."
@@ -107,7 +158,9 @@ def test_agent_llm_smoke_all_scenarios_enforces_expected_semantics(app, monkeypa
     result = runner.invoke(args=["agent-llm-smoke", "--all-scenarios"])
 
     assert result.exit_code == 0, result.output
-    assert result.output.count("semantic validation: PASS") == 5
+    output_lines = result.output.splitlines()
+    assert output_lines.count("semantic validation: PASS") == 5
+    assert output_lines.count("conversational semantic validation: PASS") == 5
     assert "status: PASS" in result.output
 
 
