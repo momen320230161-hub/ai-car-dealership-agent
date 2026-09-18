@@ -186,6 +186,50 @@ def test_single_useful_preference_is_enough_for_semantic_recommendation() -> Non
     assert update["turn_semantics"]["force_catalog_search"] is True
 
 
+
+def test_llm_semantic_path_does_not_inherit_legacy_more_results_flag() -> None:
+    orchestrator = object.__new__(ConversationalSalesOrchestrator)
+    orchestrator.llm = _SemanticLLM(
+        RequestUnderstanding(
+            intent="catalog_search",
+            preference_updates=PreferenceUpdates(max_price=800_000),
+            dialogue_action="refine",
+        )
+    )
+
+    update = orchestrator._understand_request(
+        _state("مفيش غير دول؟", preferences={"max_price": 800_000})
+    )
+
+    assert update["turn_semantics"]["source"] == "llm"
+    assert update["turn_semantics"]["more_results_question"] is False
+    assert update["turn_semantics"]["pagination_requested"] is False
+
+
+def test_semantic_condition_fallback_order_replaces_hard_condition_filter() -> None:
+    orchestrator = object.__new__(ConversationalSalesOrchestrator)
+    orchestrator.llm = _SemanticLLM(
+        RequestUnderstanding(
+            intent="catalog_search",
+            preference_updates=PreferenceUpdates(condition="used"),
+            dialogue_action="recommend",
+            condition_preference_order=["new", "used"],
+        )
+    )
+
+    update = orchestrator._understand_request(
+        _state(
+            "هاتها زيرو ولو مفيش استعمال",
+            preferences={"max_price": 800_000, "condition": "new"},
+        )
+    )
+
+    assert update["extracted_preferences"]["condition"] is None
+    assert update["turn_semantics"]["soft_condition_order"] == ["new", "used"]
+    assert update["turn_semantics"]["force_catalog_search"] is True
+    assert update["turn_semantics"]["source"] == "llm"
+
+
 def test_semantic_continue_resumes_pending_action_without_resume_keyword() -> None:
     orchestrator = object.__new__(ConversationalSalesOrchestrator)
     state = {
