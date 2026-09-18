@@ -16,6 +16,22 @@
 6. Completed Test Drive contact data was not reused by a later Sales Lead request, including a new conversation owned by the same authenticated user.
 7. Response composition could repeat canned openings, bundle multiple qualification questions, or describe merely matching catalog options as objectively "best".
 
+## Prototype behavior port
+
+The old Langflow prototype remains a behavioral reference only. Its strongest conversation
+patterns were ported into the required LangGraph/Flask architecture:
+
+- bounded raw recent-message context is supplied to Gemini understanding;
+- budget plus one useful preference is enough for an initial catalog search;
+- previously shown vehicles may be resolved from recent conversation history;
+- a single visible car can be resolved from a deictic reaction such as `اوف حلوة ديه`;
+- ambiguous deictic references across multiple visible cars are never guessed;
+- only missing business-action fields are requested;
+- greeting/boilerplate repetition is rejected after the first assistant turn.
+
+The prototype's Langflow, SQLite-direct architecture and weak ID/ordinal guarantees were not
+ported.
+
 ## Implemented architecture
 
 ```text
@@ -102,12 +118,21 @@ Automated coverage now includes:
 
 ## CI evidence
 
-Final conversational-composition refactor HEAD `014fa9015ab94b5418a24e074a3e80a765959ded` passed AutoDrive CI run `35289242769` on 18 September 2026:
+Prototype-behavior port HEAD `c6a249736ae634409c6d6e3c4ccc6af413259701` plus
+the sanitizer safety fix `f54eeca4aaf0db928864a59369e7301494ef1398` passed
+AutoDrive CI run `35290972694` on 18 September 2026:
 - Ruff lint: PASS
 - Alembic upgrade/downgrade/upgrade lifecycle: PASS
 - Unit + PostgreSQL integration tests: PASS
 - Production Docker image build: PASS
 - Migration packaging verification: PASS
+
+Regression coverage includes the live failures:
+- `معايا مليون ومية وعايز عربية SUV` no longer requires a new/used form question before an initial search.
+- one visible car followed by `اوف حلوة ديه` resolves to that visible position from recent history.
+- multiple visible cars plus ambiguous `دي/ديه` do not get guessed.
+- greetings such as `يا هلا بيك` are rejected after an assistant turn has already occurred.
+- budget/model-year numbers cannot leak into visible recommendation positions.
 
 ## Evidence status
 
