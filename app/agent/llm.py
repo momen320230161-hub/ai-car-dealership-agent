@@ -358,9 +358,23 @@ class DeterministicAgentLLM:
         if references and not updates and intent == "general":
             intent = "car_details"
 
+        dialogue_action = None
+        if intent == "catalog_search":
+            asks_for_more = (
+                "غيرهم" in lower
+                or "more options" in lower
+                or (
+                    "تاني" in lower
+                    and any(word in lower for word in ("غير", "حاجات", "اختيارات"))
+                )
+            )
+            if asks_for_more:
+                dialogue_action = "paginate"
+
         return RequestUnderstanding(
             intent=intent,
             preference_updates=updates,
+            dialogue_action=dialogue_action,
             car_reference=references[0] if len(references) == 1 else None,
             comparison_references=references if intent == "car_compare" else [],
         )
