@@ -69,10 +69,6 @@ class BusinessActionWorkflowService:
             pending = existing if same_attempt else self._new_pending(intent)
             fields = dict(pending.get("fields") or {})
 
-            # Pre-fill customer_name from conversation preferences if available
-            if not fields.get("customer_name") and conversation.preferences.get("customer_name"):
-                fields["customer_name"] = conversation.preferences["customer_name"]
-
             allow_bare_name = (
                 intent in {"test_drive", "sales_lead"}
                 and same_attempt
@@ -85,13 +81,6 @@ class BusinessActionWorkflowService:
             )
             parsed_fields = parsed.as_json_fields()
             fields.update(parsed_fields)
-
-            # Save customer_name into preferences for future turns
-            if fields.get("customer_name"):
-                prefs = dict(conversation.preferences or {})
-                if prefs.get("customer_name") != fields["customer_name"]:
-                    prefs["customer_name"] = fields["customer_name"]
-                    conversation.preferences = prefs
 
             if intent == "test_drive":
                 self._resolve_action_car(
