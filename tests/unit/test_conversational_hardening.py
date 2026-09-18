@@ -161,6 +161,36 @@ def test_legacy_customer_fields_are_removed_from_catalog_preferences(db_session)
     assert conversation.preferences == {"brand": "BMW", "condition": "used"}
 
 
+
+def test_brand_pivot_clears_only_stale_model_and_preserves_other_constraints(db_session) -> None:
+    conversation = ConversationSession(
+        id=uuid.uuid4(),
+        preferences={
+            "brand": "Renault",
+            "model": "Logan",
+            "max_price": 1_000_000,
+            "body_type": "Sedan",
+            "condition": "used",
+            "transmission": "Automatic",
+        },
+    )
+    db_session.add(conversation)
+    db_session.commit()
+
+    result = CatalogPreferenceStateService(db_session).update_preferences(
+        conversation.id,
+        {"brand": "BMW"},
+    )
+
+    assert result.preferences == {
+        "brand": "BMW",
+        "max_price": 1_000_000,
+        "body_type": "Sedan",
+        "condition": "used",
+        "transmission": "Automatic",
+    }
+
+
 def test_pending_action_allows_catalog_and_rag_side_questions() -> None:
     orchestrator = object.__new__(ConversationalSalesOrchestrator)
     pending = {
