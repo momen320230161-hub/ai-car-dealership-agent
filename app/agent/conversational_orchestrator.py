@@ -404,7 +404,15 @@ class ConversationalSalesOrchestrator(SalesOrchestrator):
         missing = {name for name in required if fields.get(name) in (None, "")}
 
         allow_bare_name = intent == "general" and "customer_name" in missing
-        parsed = parse_business_fields(message, allow_bare_name=allow_bare_name)
+        field_hint = str(state.get("pending_field_answer") or "none")
+        parsed = parse_business_fields(
+            message,
+            allow_bare_name=allow_bare_name,
+            allow_single_name=(
+                allow_bare_name
+                and field_hint == "customer_name"
+            ),
+        )
         explicit = set(parsed.as_json_fields())
         if explicit & required:
             return True
