@@ -7,7 +7,7 @@ from decimal import Decimal
 
 import pytest
 
-from app.agent.graph import SalesOrchestrator
+from app.agent.conversational_orchestrator import ConversationalSalesOrchestrator
 from app.agent.llm import DeterministicAgentLLM
 from app.models.car import Car
 from app.rag.embeddings import DeterministicEmbeddingProvider
@@ -45,7 +45,7 @@ def _seed_car(
 
 @pytest.fixture
 def orchestrator(db_session):
-    return SalesOrchestrator(
+    return ConversationalSalesOrchestrator(
         session=db_session,
         llm=DeterministicAgentLLM(),
         embedding_provider=DeterministicEmbeddingProvider(),
