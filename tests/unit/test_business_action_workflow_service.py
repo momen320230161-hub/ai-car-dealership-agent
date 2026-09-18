@@ -14,6 +14,7 @@ from app.models.lead import SalesLead
 from app.models.test_drive import TestDriveRequest
 from app.services.business_action_parsing import parse_business_fields
 from app.services.business_action_workflow_service import BusinessActionWorkflowService
+from app.services.recommendation_service import RecommendationService
 from app.services.test_drive_service import TestDriveService as DriveService
 
 
@@ -234,6 +235,129 @@ def test_base_workflow_does_not_reuse_legacy_name_from_catalog_preferences(db_se
     assert pending["status"] == "missing_fields"
     assert pending["missing_fields"] == ["customer_name"]
     assert "customer_name" not in pending["fields"]
+
+
+
+def test_ambiguous_same_brand_visible_cars_do_not_auto_select_first(db_session) -> None:
+    sunny = Car(
+        brand="Nissan",
+        model="Sunny",
+        year=2025,
+        condition="used",
+        price_egp=Decimal("950000"),
+        source="business-reference-test",
+        source_id="nissan-sunny-ambiguous",
+        active=True,
+    )
+    qashqai = Car(
+        brand="Nissan",
+        model="Qashqai",
+        year=2025,
+        condition="used",
+        price_egp=Decimal("1800000"),
+        source="business-reference-test",
+        source_id="nissan-qashqai-ambiguous",
+        active=True,
+    )
+    conversation = ConversationSession(id=uuid.uuid4())
+    db_session.add_all([sunny, qashqai, conversation])
+    db_session.commit()
+    RecommendationService(db_session).create_visible_snapshot(
+        conversation.id,
+        [sunny.id, qashqai.id],
+    )
+
+    plan = _workflow(db_session).prepare_action(
+        conversation.id,
+        "test_drive",
+        "عايز أجرب النيسان، اسمي عمر أحمد ورقمي 01012345678 السبت الساعة 5 مساء",
+    )
+
+    assert plan["status"] == "missing_fields"
+    assert plan["missing_fields"] == ["car_id"]
+    assert "car_id" not in plan["fields"]
+    db_session.refresh(conversation)
+    assert conversation.selected_car_id is None
+
+
+def test_specific_model_wins_over_ambiguous_same_brand(db_session) -> None:
+    sunny = Car(
+        brand="Nissan",
+        model="Sunny",
+        year=2025,
+        condition="used",
+        price_egp=Decimal("950000"),
+        source="business-reference-test",
+        source_id="nissan-sunny-specific",
+        active=True,
+    )
+    qashqai = Car(
+        brand="Nissan",
+        model="Qashqai",
+        year=2025,
+        condition="used",
+        price_egp=Decimal("1800000"),
+        source="business-reference-test",
+        source_id="nissan-qashqai-specific",
+        active=True,
+    )
+    conversation = ConversationSession(id=uuid.uuid4())
+    db_session.add_all([sunny, qashqai, conversation])
+    db_session.commit()
+    RecommendationService(db_session).create_visible_snapshot(
+        conversation.id,
+        [qashqai.id, sunny.id],
+    )
+
+    plan = _workflow(db_session).prepare_action(
+        conversation.id,
+        "test_drive",
+        "عايز أجرب Nissan Sunny، اسمي عمر أحمد ورقمي 01012345678 السبت الساعة 5 مساء",
+    )
+
+    assert plan["status"] == "ready"
+    assert plan["fields"]["car_id"] == sunny.id
+    db_session.refresh(conversation)
+    assert conversation.selected_car_id == sunny.id
+
+
+def test_unique_brand_visible_car_still_resolves(db_session) -> None:
+    nissan = Car(
+        brand="Nissan",
+        model="Sunny",
+        year=2025,
+        condition="used",
+        price_egp=Decimal("950000"),
+        source="business-reference-test",
+        source_id="nissan-unique",
+        active=True,
+    )
+    chery = Car(
+        brand="Chery",
+        model="Tiggo 4",
+        year=2025,
+        condition="used",
+        price_egp=Decimal("1000000"),
+        source="business-reference-test",
+        source_id="chery-unique",
+        active=True,
+    )
+    conversation = ConversationSession(id=uuid.uuid4())
+    db_session.add_all([nissan, chery, conversation])
+    db_session.commit()
+    RecommendationService(db_session).create_visible_snapshot(
+        conversation.id,
+        [nissan.id, chery.id],
+    )
+
+    plan = _workflow(db_session).prepare_action(
+        conversation.id,
+        "test_drive",
+        "عايز أجرب النيسان، اسمي عمر أحمد ورقمي 01012345678 السبت الساعة 5 مساء",
+    )
+
+    assert plan["status"] == "ready"
+    assert plan["fields"]["car_id"] == nissan.id
 
 
 def test_sales_lead_pending_requires_only_name_and_phone(db_session) -> None:
