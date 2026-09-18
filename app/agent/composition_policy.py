@@ -40,6 +40,7 @@ def build_response_plan(state: Mapping[str, Any]) -> dict[str, Any]:
         "allow_evaluative_superlatives": bool(
             isinstance(result, Mapping) and result.get("ranking_evidence")
         ),
+        "allow_greeting": not _has_recent_assistant_message(state.get("recent_messages")),
         "avoid_openings": _recent_openings(state.get("recent_messages")),
     }
 
@@ -62,9 +63,34 @@ def composition_policy_allows(
         if any(term in lowered for term in _SUPERLATIVES):
             return False
     opening = _opening(text)
+    if not policy.get("allow_greeting", True) and _looks_like_greeting(opening):
+        return False
     if opening.startswith(("حسب البيانات", "في الكتالوج", "المقارنة حسب")):
         return True
     return opening not in {_opening(item) for item in policy.get("avoid_openings", [])}
+
+
+def _has_recent_assistant_message(value: Any) -> bool:
+    return isinstance(value, list) and any(
+        isinstance(item, Mapping) and item.get("role") == "assistant"
+        for item in value
+    )
+
+
+def _looks_like_greeting(opening: str) -> bool:
+    return opening.startswith(
+        (
+            "يا هلا",
+            "اهلا",
+            "أهلا",
+            "أهلاً",
+            "مرحبا",
+            "مرحباً",
+            "صباح الخير",
+            "مساء الخير",
+            "تسلم يا غالي",
+        )
+    )
 
 
 def _recent_openings(value: Any) -> list[str]:
