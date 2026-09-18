@@ -7,7 +7,7 @@ from typing import Literal
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
-from app.agent.catalog_qualification import (
+from app.domain.catalog_language import (
     explicit_body_type_from_message,
     explicit_brand_from_message,
     explicit_fuel_type_from_message,

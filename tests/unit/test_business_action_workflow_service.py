@@ -360,6 +360,48 @@ def test_unique_brand_visible_car_still_resolves(db_session) -> None:
     assert plan["fields"]["car_id"] == nissan.id
 
 
+
+def test_shared_alias_resolver_handles_toyota_arabic_in_business_action(db_session) -> None:
+    toyota = Car(
+        brand="Toyota",
+        model="Corolla",
+        year=2025,
+        condition="used",
+        price_egp=Decimal("1250000"),
+        source="business-reference-test",
+        source_id="toyota-shared-alias",
+        active=True,
+    )
+    kia = Car(
+        brand="Kia",
+        model="Sportage",
+        year=2025,
+        condition="used",
+        price_egp=Decimal("1600000"),
+        source="business-reference-test",
+        source_id="kia-shared-alias",
+        active=True,
+    )
+    conversation = ConversationSession(id=uuid.uuid4())
+    db_session.add_all([toyota, kia, conversation])
+    db_session.commit()
+    RecommendationService(db_session).create_visible_snapshot(
+        conversation.id,
+        [kia.id, toyota.id],
+    )
+
+    plan = _workflow(db_session).prepare_action(
+        conversation.id,
+        "test_drive",
+        "عايز أجرب التويوتا، اسمي عمر أحمد ورقمي 01012345678 السبت الساعة 5 مساء",
+    )
+
+    assert plan["status"] == "ready"
+    assert plan["fields"]["car_id"] == toyota.id
+    db_session.refresh(conversation)
+    assert conversation.selected_car_id == toyota.id
+
+
 def test_sales_lead_pending_requires_only_name_and_phone(db_session) -> None:
     conversation, car = _conversation_with_selected_car(db_session, source_id="pending-lead")
     workflow = _workflow(db_session)
