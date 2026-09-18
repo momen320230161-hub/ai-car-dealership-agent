@@ -244,7 +244,26 @@ def sanitize_understanding(
         data["car_reference"] = references[0]
     elif understanding.car_reference is not None:
         reference_text = str(understanding.car_reference).translate(_ARABIC_DIGITS)
-        if isinstance(understanding.car_reference, int) or reference_text not in normalized:
+        contextual_intent = understanding.intent in {
+            "car_selection",
+            "car_details",
+            "test_drive",
+            "sales_lead",
+        }
+        try:
+            contextual_position = int(reference_text)
+        except (TypeError, ValueError):
+            contextual_position = None
+        contextual_reference = (
+            contextual_intent
+            and contextual_position is not None
+            and 1 <= contextual_position <= 20
+        )
+        if contextual_reference:
+            # A small visible position may be inferred from bounded conversation
+            # history. The active recommendation snapshot validates it downstream.
+            data["car_reference"] = contextual_position
+        elif reference_text not in normalized:
             data["car_reference"] = None
 
     # High-value business-action fallback: direct requests to try/drive a car are actions,
