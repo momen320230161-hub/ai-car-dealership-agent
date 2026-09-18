@@ -330,7 +330,10 @@ class BusinessActionWorkflowService:
                 for item, car in visible
                 if car.model
                 and (
-                    (explicit_model is not None and car.model.casefold() == explicit_model.casefold())
+                    (
+                        explicit_model is not None
+                        and car.model.casefold() == explicit_model.casefold()
+                    )
                     or car.model.casefold() in message_lower
                 )
             ]
@@ -348,7 +351,10 @@ class BusinessActionWorkflowService:
                 for item, car in visible
                 if car.brand
                 and (
-                    (explicit_brand is not None and car.brand.casefold() == explicit_brand.casefold())
+                    (
+                        explicit_brand is not None
+                        and car.brand.casefold() == explicit_brand.casefold()
+                    )
                     or car.brand.casefold() in message_lower
                 )
             ]
