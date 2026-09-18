@@ -70,7 +70,17 @@ current message:
   identifying a different visible car, use car_details and leave car_reference unresolved.
   The application will resolve the persisted selected car deterministically.
 - Visible recommendation facts such as price/transmission/fuel/mileage are context for
-  understanding only. Do not invent a position from a vague comparative description.
+  understanding only. For a customer reference based on a visible attribute/comparison, use
+  visible_reference_selector instead of guessing a position:
+  - "الأرخص" / "cheapest" => field=price_egp, operator=min.
+  - "الأعلى سعر" => field=price_egp, operator=max.
+  - "عدادها أقل" => field=mileage_km, operator=min.
+  - "الأحدث" => field=year, operator=max.
+  - "الأوتوماتيك" => field=transmission, operator=equals, value="Automatic".
+  - "الجديدة" => field=condition, operator=equals, value="new".
+  This selector refers ONLY to the current visible recommendation list. Leave car_reference
+  unresolved for these descriptions. Python will resolve a position only when the visible data
+  determines exactly one car; otherwise the application will ask for clarification.
 - Use car_details when the user asks for details or specifications of a car
   (e.g. تفاصيلها, مواصفاتها, العربية دي, الأولى).
 - Use car_compare when the user asks to compare cars (e.g. قارن, compare, قارن أول اتنين).

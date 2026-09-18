@@ -7,7 +7,11 @@ from decimal import Decimal
 
 from app.agent.conversational_orchestrator import ConversationalSalesOrchestrator
 from app.agent.graph import SalesOrchestrator
-from app.agent.schemas import PreferenceUpdates, RequestUnderstanding
+from app.agent.schemas import (
+    PreferenceUpdates,
+    RequestUnderstanding,
+    VisibleReferenceSelector,
+)
 from app.models.car import Car
 from app.models.conversation import ConversationSession
 from app.rag.embeddings import DeterministicEmbeddingProvider
@@ -187,6 +191,173 @@ def test_single_useful_preference_is_enough_for_semantic_recommendation() -> Non
 
 
 
+
+
+
+def _visible_state(message: str) -> dict:
+    return {
+        "normalized_message": message,
+        "preferences": {},
+        "dialogue_state": {},
+        "active_snapshot": {
+            "items": [
+                {
+                    "position": 1,
+                    "car_id": 101,
+                    "car": {
+                        "brand": "Kia",
+                        "model": "Sportage",
+                        "year": 2024,
+                        "condition": "used",
+                        "body_type": "SUV",
+                        "transmission": "Automatic",
+                        "fuel_type": "Gasoline",
+                        "price_egp": 1_800_000,
+                        "mileage_km": 18_000,
+                    },
+                },
+                {
+                    "position": 2,
+                    "car_id": 102,
+                    "car": {
+                        "brand": "Nissan",
+                        "model": "Sunny",
+                        "year": 2025,
+                        "condition": "new",
+                        "body_type": "Sedan",
+                        "transmission": "Manual",
+                        "fuel_type": "Gasoline",
+                        "price_egp": 900_000,
+                        "mileage_km": 0,
+                    },
+                },
+                {
+                    "position": 3,
+                    "car_id": 103,
+                    "car": {
+                        "brand": "Toyota",
+                        "model": "Corolla",
+                        "year": 2023,
+                        "condition": "used",
+                        "body_type": "Sedan",
+                        "transmission": "Manual",
+                        "fuel_type": "Gasoline",
+                        "price_egp": 1_300_000,
+                        "mileage_km": 30_000,
+                    },
+                },
+            ]
+        },
+        "selected_car_id": None,
+        "recent_messages": [],
+        "errors": [],
+        "trace": [],
+    }
+
+
+def test_semantic_cheapest_reference_resolves_from_verified_visible_facts() -> None:
+    orchestrator = object.__new__(ConversationalSalesOrchestrator)
+    orchestrator.llm = _SemanticLLM(
+        RequestUnderstanding(
+            intent="car_selection",
+            visible_reference_selector=VisibleReferenceSelector(
+                field="price_egp",
+                operator="min",
+            ),
+        )
+    )
+
+    update = orchestrator._understand_request(_visible_state("الأرخص عاجباني"))
+
+    assert update["car_reference"] == 2
+    assert update["turn_semantics"]["resolved_visible_reference"] == 2
+
+
+def test_semantic_unique_transmission_reference_resolves_without_phrase_rule() -> None:
+    orchestrator = object.__new__(ConversationalSalesOrchestrator)
+    orchestrator.llm = _SemanticLLM(
+        RequestUnderstanding(
+            intent="car_details",
+            visible_reference_selector=VisibleReferenceSelector(
+                field="transmission",
+                operator="equals",
+                value="Automatic",
+            ),
+        )
+    )
+
+    update = orchestrator._understand_request(_visible_state("هات تفاصيل الأوتوماتيك"))
+
+    assert update["car_reference"] == 1
+
+
+def test_semantic_visible_selector_never_breaks_ties_by_guessing() -> None:
+    orchestrator = object.__new__(ConversationalSalesOrchestrator)
+    state = _visible_state("الأرخص")
+    state["active_snapshot"]["items"][2]["car"]["price_egp"] = 900_000
+
+    position = orchestrator._resolve_visible_selector(
+        state,
+        {"field": "price_egp", "operator": "min", "value": ""},
+    )
+
+    assert position is None
+
+
+
+def test_semantic_selector_is_ignored_for_catalog_search_scope() -> None:
+    orchestrator = object.__new__(ConversationalSalesOrchestrator)
+    orchestrator.llm = _SemanticLLM(
+        RequestUnderstanding(
+            intent="catalog_search",
+            dialogue_action="recommend",
+            preference_updates=PreferenceUpdates(max_price=1_000_000),
+            visible_reference_selector=VisibleReferenceSelector(
+                field="price_egp",
+                operator="min",
+            ),
+        )
+    )
+
+    state = _visible_state("عايز أرخص عربية تحت مليون")
+    update = orchestrator._understand_request(state)
+
+    assert update["intent"] == "catalog_search"
+    assert update.get("car_reference") is None
+
+
+def test_ambiguous_selection_returns_clarification_instead_of_catalog_error() -> None:
+    orchestrator = object.__new__(ConversationalSalesOrchestrator)
+    state = _visible_state("الأرخص عاجباني")
+    state.update(
+        {
+            "intent": "car_selection",
+            "car_reference": None,
+            "selected_car_id": None,
+        }
+    )
+
+    update = orchestrator._catalog_node(state)
+
+    assert update["catalog_result"]["type"] == "clarification"
+    assert "تقصد رقم كام من القائمة؟" in update["catalog_result"]["message"]
+
+
+def test_explicit_visible_ordinal_beats_semantic_selector() -> None:
+    orchestrator = object.__new__(ConversationalSalesOrchestrator)
+    orchestrator.llm = _SemanticLLM(
+        RequestUnderstanding(
+            intent="car_selection",
+            visible_reference_selector=VisibleReferenceSelector(
+                field="price_egp",
+                operator="min",
+            ),
+        )
+    )
+
+    update = orchestrator._understand_request(_visible_state("أنا عايز الأولى"))
+
+    assert update["car_reference"] == 1
 
 
 def test_budget_discussion_cannot_apply_accidental_vehicle_updates() -> None:
