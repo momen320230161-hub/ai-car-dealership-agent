@@ -158,8 +158,9 @@ def test_agent_llm_smoke_all_scenarios_enforces_expected_semantics(app, monkeypa
     result = runner.invoke(args=["agent-llm-smoke", "--all-scenarios"])
 
     assert result.exit_code == 0, result.output
-    assert result.output.count("semantic validation: PASS") == 5
-    assert result.output.count("conversational semantic validation: PASS") == 5
+    output_lines = result.output.splitlines()
+    assert output_lines.count("semantic validation: PASS") == 5
+    assert output_lines.count("conversational semantic validation: PASS") == 5
     assert "status: PASS" in result.output
 
 
