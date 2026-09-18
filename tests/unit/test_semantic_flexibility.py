@@ -262,7 +262,10 @@ def test_safe_understanding_context_never_exposes_pending_contact_values() -> No
 
     assert context["dialogue_goal"] == "recommend"
     assert context["visible_recommendations"][0]["position"] == 2
+    assert context["visible_recommendations"][0]["transmission"] is None
     assert context["selected_car"]["model"] == "Sunny"
+    assert "price_egp" in context["selected_car"]
+    assert "mileage_km" in context["selected_car"]
     assert set(context["pending_action"]["collected_fields"]) == {
         "car_id",
         "customer_name",
@@ -274,6 +277,21 @@ def test_safe_understanding_context_never_exposes_pending_contact_values() -> No
     }
     assert "محمد جمال" not in serialized
     assert "01012345678" not in serialized
+
+
+
+def test_selected_car_marker_survives_without_active_snapshot() -> None:
+    context = SalesOrchestrator._safe_understanding_context(
+        {
+            "dialogue_state": {},
+            "selected_car_id": 77,
+            "active_snapshot": None,
+            "pending_action": None,
+        }
+    )
+
+    assert context["visible_recommendations"] == []
+    assert context["selected_car"] == {"selected": True}
 
 
 def test_context_aware_llm_receives_structured_state_when_supported() -> None:

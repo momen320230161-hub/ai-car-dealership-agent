@@ -311,6 +311,10 @@ class SalesOrchestrator:
                     "year": car.get("year"),
                     "condition": car.get("condition"),
                     "body_type": car.get("body_type"),
+                    "transmission": car.get("transmission"),
+                    "fuel_type": car.get("fuel_type"),
+                    "price_egp": car.get("price_egp"),
+                    "mileage_km": car.get("mileage_km"),
                 }
             )
 
@@ -330,8 +334,19 @@ class SalesOrchestrator:
                     "brand": car.get("brand"),
                     "model": car.get("model"),
                     "year": car.get("year"),
+                    "condition": car.get("condition"),
+                    "body_type": car.get("body_type"),
+                    "transmission": car.get("transmission"),
+                    "fuel_type": car.get("fuel_type"),
+                    "price_egp": car.get("price_egp"),
+                    "mileage_km": car.get("mileage_km"),
                 }
                 break
+        if selected_car_id is not None and selected is None:
+            # The durable selected-car state remains authoritative even when no
+            # active visible snapshot is available. Do not expose/guess a car ID;
+            # the catalog node resolves the persisted ID deterministically later.
+            selected = {"selected": True}
 
         pending = state.get("pending_action") or {}
         pending_type = str(pending.get("type") or "")
