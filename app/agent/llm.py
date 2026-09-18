@@ -86,7 +86,7 @@ class GeminiAgentLLM:
             payload = {
                 "current_message": message,
                 "current_structured_preferences": dict(preferences),
-                "recent_messages_for_language_context": list(recent_messages)[-6:],
+                "recent_messages_for_language_context": list(recent_messages)[-12:],
             }
             client = self._client()
             response = client.models.generate_content(
