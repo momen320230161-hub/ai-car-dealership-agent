@@ -65,3 +65,24 @@ def test_advice_style_budget_turn_forces_catalog_search() -> None:
     )
 
     assert semantics.force_catalog_search is True
+
+
+def test_greeting_is_rejected_after_first_assistant_turn() -> None:
+    plan = build_response_plan(
+        {
+            "route": "catalog",
+            "catalog_result": {"type": "recommendations", "cars": []},
+            "recent_messages": [
+                {
+                    "role": "assistant",
+                    "content": "حسب البيانات المتاحة عندي، عندي اختيار مناسب.",
+                }
+            ],
+        }
+    )
+
+    assert plan["allow_greeting"] is False
+    assert not composition_policy_allows(
+        "يا هلا بيك! حسب البيانات المتاحة عندي عندي اختيار مناسب.",
+        plan,
+    )
