@@ -279,6 +279,7 @@ class SalesOrchestrator:
                     "llm_dialogue_action": understanding.dialogue_action,
                     "llm_preference_clears": list(understanding.preference_clears),
                     "llm_budget_change": understanding.budget_change,
+                    "pending_field_answer": understanding.pending_field_answer,
                     "car_reference": understanding.car_reference,
                     "comparison_references": understanding.comparison_references,
                     "explicit_car_id": understanding.explicit_car_id,
@@ -649,6 +650,7 @@ class SalesOrchestrator:
                 intent,
                 message,
                 car_reference=car_reference,
+                field_hint=state.get("pending_field_answer"),
             )
             if plan.get("status") == "ready":
                 result = self.business_actions.execute_action(session_id, plan)
