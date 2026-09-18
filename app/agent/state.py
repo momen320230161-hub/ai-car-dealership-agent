@@ -17,6 +17,9 @@ class AgentState(TypedDict, total=False):
     pending_action: dict[str, Any] | None
     intent: str
     extracted_preferences: dict[str, Any]
+    llm_dialogue_action: str | None
+    llm_preference_clears: list[str]
+    llm_budget_change: str
     turn_semantics: dict[str, Any]
     car_reference: str | int | None
     comparison_references: list[str | int]
