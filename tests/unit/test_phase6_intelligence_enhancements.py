@@ -172,10 +172,40 @@ def test_dialect_condition_extraction_and_pagination(orchestrator, db_session) -
     page1_ids = [c["car"]["id"] for c in res1.visible_recommendations]
     assert len(page1_ids) == 3
 
-    # 2. User says "في حاجات تاني غير ال انت عارضهم دول" -> return page 2 (cars 4, 5)
-    res2 = orchestrator.handle_message(session_id, "في حاجات تاني غير ال انت عارضهم دول")
+    # 2. User asks for a different page using a natural follow-up.
+    followup = "في حاجات تاني غير ال انت عارضهم دول"
+    understood = orchestrator.llm.understand(
+        followup,
+        recent_messages=[],
+        preferences=ctx1.preferences,
+    )
+    assert understood.dialogue_action == "paginate"
+
+    state = {
+        "normalized_message": followup,
+        **orchestrator._context_update(context_service.load(session_id)),
+        "errors": [],
+        "trace": [],
+    }
+    semantic_update = orchestrator._understand_request(state)
+    assert semantic_update["turn_semantics"]["pagination_requested"] is True
+
+    seen_before = orchestrator.recommendations.get_seen_car_ids(session_id)
+    assert seen_before == set(page1_ids)
+    next_cars = orchestrator.catalog.recommend(
+        ctx1.preferences,
+        limit=3,
+        exclude_car_ids=seen_before,
+    )
+    assert len(next_cars) == 2
+
+    res2 = orchestrator.handle_message(session_id, followup)
     assert res2.errors == ()
     assert res2.route == "catalog"
     page2_ids = [c["car"]["id"] for c in res2.visible_recommendations]
-    assert len(page2_ids) >= 1
+    assert len(page2_ids) >= 1, {
+        "response": res2.response,
+        "trace": res2.graph_trace,
+        "seen_after": sorted(orchestrator.recommendations.get_seen_car_ids(session_id)),
+    }
     assert set(page1_ids).isdisjoint(set(page2_ids))
