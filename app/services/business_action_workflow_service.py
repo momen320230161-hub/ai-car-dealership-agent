@@ -307,37 +307,72 @@ class BusinessActionWorkflowService:
             except Exception:
                 pass
 
-        # 5. Check active recommendation snapshot if available
+        # 5. Check active recommendation snapshot if available.
+        # Never choose the first same-brand vehicle. A textual fallback is allowed
+        # only when the customer's wording uniquely identifies one visible car.
         snapshot = self.recommendations.get_active_snapshot(conversation.id)
         if snapshot and snapshot.items:
-            # If snapshot has only 1 car, auto-select it
             if len(snapshot.items) == 1:
                 fields["car_id"] = snapshot.items[0].car_id
                 conversation.selected_car_id = snapshot.items[0].car_id
                 return
 
-            # Match brand or model in customer message against active snapshot items
-            for item in snapshot.items:
-                car = self.session.get(Car, item.car_id)
-                if car and (
-                    car.brand.casefold() in message_lower
-                    or car.model.casefold() in message_lower
-                    or (car.brand == "Chery" and "شيري" in message_lower)
-                    or (
-                        car.brand == "BYD"
-                        and ("بيوايدي" in message_lower or "بي واي دي" in message_lower)
-                    )
-                    or (car.brand == "Nissan" and "نيسان" in message_lower)
-                    or (car.brand == "Renault" and "رينو" in message_lower)
-                    or (car.brand == "BMW" and "بي ام" in message_lower)
-                    or (car.brand == "Mercedes-Benz" and "مرسيدس" in message_lower)
-                ):
-                    fields["car_id"] = item.car_id
-                    conversation.selected_car_id = item.car_id
-                    return
+            visible = [
+                (item, self.session.get(Car, item.car_id))
+                for item in snapshot.items
+            ]
+            visible = [(item, car) for item, car in visible if car is not None]
+
+            model_matches = [
+                (item, car)
+                for item, car in visible
+                if car.model and car.model.casefold() in message_lower
+            ]
+            if len(model_matches) == 1:
+                item, _ = model_matches[0]
+                fields["car_id"] = item.car_id
+                conversation.selected_car_id = item.car_id
+                return
+            if len(model_matches) > 1:
+                return
+
+            brand_matches = [
+                (item, car)
+                for item, car in visible
+                if self._message_mentions_brand(message_lower, car.brand)
+            ]
+            if len(brand_matches) == 1:
+                item, _ = brand_matches[0]
+                fields["car_id"] = item.car_id
+                conversation.selected_car_id = item.car_id
+                return
 
         if not required:
             return
+
+    @staticmethod
+    def _message_mentions_brand(message_lower: str, brand: str) -> bool:
+        """Conservative legacy fallback for a visible brand mention.
+
+        The conversational layer normally resolves visible references before this
+        service is called. This fallback stays deterministic and, critically, is
+        consumed only when it identifies exactly one visible vehicle.
+        """
+        brand_folded = str(brand or "").casefold()
+        if brand_folded and brand_folded in message_lower:
+            return True
+        aliases = {
+            "chery": ("شيري",),
+            "byd": ("بيوايدي", "بي واي دي"),
+            "nissan": ("نيسان",),
+            "renault": ("رينو",),
+            "bmw": ("بي ام", "بي إم", "بى ام"),
+            "mercedes-benz": ("مرسيدس",),
+        }
+        return any(
+            alias in message_lower
+            for alias in aliases.get(brand_folded, ())
+        )
 
     @staticmethod
     def _prepare_required_action(
