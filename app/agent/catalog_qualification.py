@@ -199,13 +199,6 @@ def qualify_catalog_search(
     wants_recommendation = explicitly_requests_recommendation(message)
 
     if model:
-        if not condition:
-            return CatalogQualification(
-                False,
-                f"تمام، فهمت إنك بتدور على {brand + ' ' if brand else ''}{model}. "
-                "تحبها جديدة ولا مستعملة؟",
-                ("condition",),
-            )
         return CatalogQualification(True)
 
     if brand:
@@ -223,15 +216,27 @@ def qualify_catalog_search(
                 f"ولا تحب أرشحلك من الموجود في الكتالوج؟{suffix}",
                 tuple(missing),
             )
-        if not condition:
-            return CatalogQualification(
-                False,
-                f"تمام، أرشحلك من {brand}. تحبها جديدة ولا مستعملة؟",
-                ("condition",),
-            )
-        return CatalogQualification(True)
+        if condition or prefs.get("max_price") is not None or body_type:
+            return CatalogQualification(True)
+        return CatalogQualification(
+            False,
+            f"تمام، أرشحلك من {brand}. تحبها جديدة ولا مستعملة؟",
+            ("condition",),
+        )
 
     if condition and not body_type and set(prefs) == {"condition"}:
+        return CatalogQualification(True)
+
+    # Prototype behavior: budget plus one useful preference is enough for an
+    # initial search. Do not turn the conversation into a form when the catalog
+    # can safely search across new + used and let the customer refine afterward.
+    if prefs.get("max_price") is not None and any(
+        prefs.get(field) is not None
+        for field in ("body_type", "condition", "fuel_type", "transmission", "brand")
+    ):
+        return CatalogQualification(True)
+
+    if condition and body_type:
         return CatalogQualification(True)
 
     missing: list[str] = []
