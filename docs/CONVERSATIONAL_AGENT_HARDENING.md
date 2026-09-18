@@ -14,6 +14,7 @@
 4. `customer_name` was written into vehicle catalog preferences and could later break strict `CatalogFilters` validation.
 5. A pending business action could capture unrelated side questions instead of allowing the customer to temporarily ask about a car/policy and then resume.
 6. Completed Test Drive contact data was not reused by a later Sales Lead request, including a new conversation owned by the same authenticated user.
+7. Response composition could repeat canned openings, bundle multiple qualification questions, or describe merely matching catalog options as objectively "best".
 
 ## Implemented architecture
 
@@ -21,9 +22,10 @@
 User message
   -> LangGraph understanding/routing
   -> deterministic catalog/RAG/business services
-  -> verified result + recent conversation + safe customer memory
+  -> verified result + recent conversation
+  -> response plan (dialogue act / shape / question policy / recent openings)
   -> grounded conversational LLM composer
-  -> deterministic validation
+  -> grounding + composition-policy validation
        -> accepted natural reply
        -> or deterministic renderer fallback
   -> persist turn
@@ -66,13 +68,15 @@ The LLM may vary language, but not facts. It receives:
 - bounded recent messages,
 - vehicle preferences,
 - selected car/pending action metadata,
-- masked customer contact memory.
+- a response plan describing dialogue act, preferred response shape, question policy and recent openings to avoid.
 
-The deterministic fallback remains authoritative. Generated output is rejected when it introduces unsupported numeric claims or violates business-action success requirements (for example omitting the real committed request/lead ID or claiming a test-drive appointment is finally confirmed).
+Customer contact memory remains internal to deterministic business actions and is not exposed to ordinary response composition.
+
+The deterministic fallback remains authoritative. Generated output is rejected when it introduces unsupported numeric claims, repeats a recent canned opening, asks more than one follow-up question, uses unsupported evaluative superlatives such as "أفضل", or violates business-action success requirements. Advice-style purchase language such as "لو انت مكاني ومعاك مليون ونص هتشتري ايه" now counts as recommendation/search control instead of falling back to a multi-question form.
 
 ## Affected files/layers
 
-- `app/agent/` — production orchestrator composition/routing and prompt.
+- `app/agent/` — response planning policy, Gemini composition boundary, search-control semantics, production orchestrator routing and prompt.
 - `app/services/` — reusable customer memory, catalog-preference cleanup, business-action memory prefill.
 - `tests/unit/` — cross-action/cross-session contact reuse, preference separation, interruption routing, grounded composer fallback.
 - `tests/integration/` and Phase 6 browser regression coverage were aligned with the current auth/migration/demo-dataset state.
@@ -89,15 +93,21 @@ Automated coverage now includes:
 - Pending Test Drive + warranty/details question routes to RAG/catalog instead of re-asking a slot.
 - Pending Test Drive + phone/date/time follows the business branch.
 - Unsupported generated numeric claims are rejected in favor of deterministic fallback.
+- Repeated social openings such as `تسلم يا غالي` are rejected when they repeat a recent assistant opening.
+- Unsupported `أفضل`/`أحسن` recommendation language is rejected without ranking evidence.
+- Multi-question qualification replies are rejected; deterministic broad qualification asks one high-value question at a time.
+- Advice-style budget turns force a useful catalog search instead of the old questionnaire path.
 - Repeated action execution remains idempotent.
 - Browser business-flow regression now proves Test Drive contact is reused by Sales Lead.
 
 ## CI evidence
 
-Code commit `683e74c8d9e1537a686c18fc3b422d225cca5ca2` passed AutoDrive CI run `35038818512` on 16 September 2026:
+Final conversational-composition refactor HEAD `014fa9015ab94b5418a24e074a3e80a765959ded` passed AutoDrive CI run `35289242769` on 18 September 2026:
 - Ruff lint: PASS
 - Alembic upgrade/downgrade/upgrade lifecycle: PASS
 - Unit + PostgreSQL integration tests: PASS
+- Production Docker image build: PASS
+- Migration packaging verification: PASS
 
 ## Evidence status
 
