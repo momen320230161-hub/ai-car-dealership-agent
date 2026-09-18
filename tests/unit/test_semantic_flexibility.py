@@ -304,6 +304,45 @@ def test_semantic_visible_selector_never_breaks_ties_by_guessing() -> None:
     assert position is None
 
 
+
+def test_semantic_selector_is_ignored_for_catalog_search_scope() -> None:
+    orchestrator = object.__new__(ConversationalSalesOrchestrator)
+    orchestrator.llm = _SemanticLLM(
+        RequestUnderstanding(
+            intent="catalog_search",
+            dialogue_action="recommend",
+            preference_updates=PreferenceUpdates(max_price=1_000_000),
+            visible_reference_selector=VisibleReferenceSelector(
+                field="price_egp",
+                operator="min",
+            ),
+        )
+    )
+
+    state = _visible_state("عايز أرخص عربية تحت مليون")
+    update = orchestrator._understand_request(state)
+
+    assert update["intent"] == "catalog_search"
+    assert update.get("car_reference") is None
+
+
+def test_ambiguous_selection_returns_clarification_instead_of_catalog_error() -> None:
+    orchestrator = object.__new__(ConversationalSalesOrchestrator)
+    state = _visible_state("الأرخص عاجباني")
+    state.update(
+        {
+            "intent": "car_selection",
+            "car_reference": None,
+            "selected_car_id": None,
+        }
+    )
+
+    update = orchestrator._catalog_node(state)
+
+    assert update["catalog_result"]["type"] == "clarification"
+    assert "تقصد رقم كام من القائمة؟" in update["catalog_result"]["message"]
+
+
 def test_explicit_visible_ordinal_beats_semantic_selector() -> None:
     orchestrator = object.__new__(ConversationalSalesOrchestrator)
     orchestrator.llm = _SemanticLLM(
