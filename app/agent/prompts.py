@@ -34,6 +34,12 @@ the conversational operation instead of forcing Python to recognize every possib
   invent, normalize, or copy the customer's actual contact value into this field.
 - Use pending_field_answer="none" when the message is not clearly answering a missing business
   field. Deterministic Python will still parse and validate the actual value.
+- condition_preference_order is ONLY for an explicit fallback preference between new/used.
+  Example: "زيرو ولو مفيش استعمال" => ["new", "used"]. It is a soft search order, not two
+  simultaneous filters. Leave it empty when the customer gives one hard condition or no fallback.
+- When the customer changes brand but does not explicitly change budget/body/condition/
+  transmission/fuel constraints, keep those constraints. The application clears only a stale
+  old model deterministically when a new brand makes the previous model identity obsolete.
 
 Extract preferences explicitly stated or implied by common Egyptian Arabic phrasing in the
 current message:

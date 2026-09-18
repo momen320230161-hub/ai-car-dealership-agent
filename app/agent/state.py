@@ -21,6 +21,7 @@ class AgentState(TypedDict, total=False):
     llm_preference_clears: list[str]
     llm_budget_change: str
     pending_field_answer: str
+    llm_condition_preference_order: list[str]
     turn_semantics: dict[str, Any]
     car_reference: str | int | None
     comparison_references: list[str | int]

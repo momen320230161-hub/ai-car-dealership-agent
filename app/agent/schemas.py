@@ -63,6 +63,7 @@ PendingFieldAnswer = Literal[
     "preferred_time",
     "request_id",
 ]
+ConditionPreference = Literal["new", "used"]
 
 
 class PreferenceUpdates(BaseModel):
@@ -99,6 +100,10 @@ class RequestUnderstanding(BaseModel):
     preference_clears: list[PreferenceField] = Field(default_factory=list, max_length=11)
     budget_change: BudgetChange = "none"
     pending_field_answer: PendingFieldAnswer = "none"
+    condition_preference_order: list[ConditionPreference] = Field(
+        default_factory=list,
+        max_length=2,
+    )
     car_reference: str | int | None = None
     comparison_references: list[str | int] = Field(default_factory=list, max_length=5)
     explicit_car_id: int | None = Field(default=None, ge=1)

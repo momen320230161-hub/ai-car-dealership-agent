@@ -44,6 +44,21 @@ class CatalogPreferenceStateService(ConversationStateService):
             self.session.flush()
 
         clean_updates = catalog_only_preferences(updates)
+
+        # A brand pivot invalidates only the old model identity when the customer
+        # did not supply a replacement model in the same turn. Other explicit
+        # constraints (budget/body/condition/transmission/fuel) remain valid until
+        # the customer changes or waives them.
+        incoming_brand = clean_updates.get("brand")
+        existing_brand = clean_existing.get("brand")
+        if (
+            incoming_brand not in (None, "")
+            and existing_brand not in (None, "")
+            and str(incoming_brand).casefold() != str(existing_brand).casefold()
+            and "model" not in clean_updates
+        ):
+            clean_updates["model"] = None
+
         return super().update_preferences(session_id, clean_updates)
 
     def strip_legacy_contact_preferences(self, session_id: uuid.UUID) -> bool:
