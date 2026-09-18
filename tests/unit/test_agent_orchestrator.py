@@ -173,6 +173,8 @@ def test_gemini_schema_omits_unsupported_additional_properties():
 def test_conversational_other_is_not_misread_as_visible_second():
     assert explicit_visible_references("في حاجات تاني غير ال انت عارضهم دول") == []
     assert explicit_visible_references("وريني اختيارات تاني") == []
+    assert explicit_visible_references("this is my second time buying a car") == []
+    assert explicit_visible_references("first time shopping for a car") == []
 
 
 @pytest.mark.parametrize(
@@ -184,6 +186,9 @@ def test_conversational_other_is_not_misread_as_visible_second():
         ("العربية تاني", [2]),
         ("اول عربية", [1]),
         ("تالت اختيار", [3]),
+        ("second", [2]),
+        ("second option", [2]),
+        ("first car", [1]),
     ],
 )
 def test_explicit_vehicle_ordinals_still_resolve(message, expected):
