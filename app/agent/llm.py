@@ -9,7 +9,7 @@ from typing import Any, Protocol
 
 from app.agent.composition_policy import build_response_plan, composition_policy_allows
 from app.agent.prompts import GENERAL_COMPOSITION_SYSTEM_PROMPT, UNDERSTANDING_SYSTEM_PROMPT
-from app.agent.schemas import RequestUnderstanding
+from app.agent.schemas import RequestUnderstanding, explicit_visible_references
 
 
 class AgentLLMError(RuntimeError):
@@ -69,15 +69,18 @@ _CONTEXTUAL_REFERENCE_INTENTS = {
 def _with_history_reference(
     understanding: RequestUnderstanding,
     recent_messages: Sequence[Mapping[str, Any]],
+    message: str,
 ) -> RequestUnderstanding:
-    if understanding.car_reference is not None:
-        return understanding
     if understanding.intent not in _CONTEXTUAL_REFERENCE_INTENTS:
+        return understanding
+    if explicit_visible_references(message):
         return understanding
 
     position = _single_visible_position_from_recent_history(recent_messages)
     if position is None:
-        return understanding
+        # Never trust an LLM guess for an ambiguous deictic reference. Dynamic
+        # visible-name/selected-car resolution still happens deterministically later.
+        return understanding.model_copy(update={"car_reference": None})
     return understanding.model_copy(update={"car_reference": position})
 
 
@@ -151,7 +154,7 @@ class GeminiAgentLLM:
                 if not response.text:
                     raise AgentLLMError("Gemini returned no structured understanding")
                 understanding = RequestUnderstanding.model_validate_json(response.text)
-            return _with_history_reference(understanding, recent_messages)
+            return _with_history_reference(understanding, recent_messages, message)
         except AgentLLMError:
             raise
         except Exception as exc:
