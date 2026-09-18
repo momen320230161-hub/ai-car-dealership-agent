@@ -2,9 +2,15 @@
 
 from __future__ import annotations
 
+import uuid
+from decimal import Decimal
+
 from app.agent.conversational_orchestrator import ConversationalSalesOrchestrator
 from app.agent.graph import SalesOrchestrator
 from app.agent.schemas import PreferenceUpdates, RequestUnderstanding
+from app.models.car import Car
+from app.models.conversation import ConversationSession
+from app.rag.embeddings import DeterministicEmbeddingProvider
 
 
 class _SemanticLLM:
@@ -16,6 +22,10 @@ class _SemanticLLM:
     def understand(self, message, *, recent_messages, preferences):
         del message, recent_messages, preferences
         return self.understanding
+
+    def compose_general(self, message, *, verified_context):
+        del message
+        return str(verified_context.get("authoritative_fallback") or "تمام.")
 
 
 def _state(message: str, *, preferences: dict | None = None) -> dict:
@@ -241,3 +251,64 @@ def test_context_aware_llm_receives_structured_state_when_supported() -> None:
     assert update["intent"] == "general"
     assert captured["dialogue_goal"] == "recommend"
     assert captured["visible_recommendations"][0]["model"] == "Sportage"
+
+
+def test_production_orchestrator_applies_semantic_relaxation_end_to_end(db_session) -> None:
+    cars = [
+        Car(
+            brand="Nissan",
+            model="Sunny",
+            year=2025,
+            condition="used",
+            price_egp=Decimal("900000"),
+            body_type="Sedan",
+            transmission="Automatic",
+            fuel_type="Gasoline",
+            mileage_km=20_000,
+            source="semantic-e2e",
+            source_id="semantic-e2e-1",
+            active=True,
+        ),
+        Car(
+            brand="Chery",
+            model="Tiggo 4",
+            year=2025,
+            condition="new",
+            price_egp=Decimal("1200000"),
+            body_type="SUV",
+            transmission="Automatic",
+            fuel_type="Gasoline",
+            mileage_km=0,
+            source="semantic-e2e",
+            source_id="semantic-e2e-2",
+            active=True,
+        ),
+    ]
+    conversation = ConversationSession(
+        id=uuid.uuid4(),
+        preferences={"condition": "used", "body_type": "Sedan"},
+    )
+    db_session.add_all([*cars, conversation])
+    db_session.commit()
+
+    llm = _SemanticLLM(
+        RequestUnderstanding(
+            intent="catalog_search",
+            preference_updates=PreferenceUpdates(transmission="Automatic"),
+            dialogue_action="recommend",
+            preference_clears=["condition", "body_type"],
+        )
+    )
+    orchestrator = ConversationalSalesOrchestrator(
+        db_session,
+        llm,
+        DeterministicEmbeddingProvider(),
+    )
+
+    result = orchestrator.handle_message(conversation.id, "أي حاجة أوتوماتيك بس")
+
+    db_session.refresh(conversation)
+    assert result.errors == ()
+    assert result.route == "catalog"
+    assert conversation.preferences == {"transmission": "Automatic"}
+    assert len(result.visible_recommendations) == 2
