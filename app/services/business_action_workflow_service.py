@@ -52,6 +52,7 @@ class BusinessActionWorkflowService:
         message: str,
         *,
         car_reference: str | int | None = None,
+        field_hint: str | None = None,
     ) -> dict[str, Any]:
         """Merge only explicit current-message fields into one persisted pending action."""
         try:
@@ -77,6 +78,7 @@ class BusinessActionWorkflowService:
             parsed = parse_business_fields(
                 message,
                 allow_bare_name=allow_bare_name,
+                allow_single_name=(field_hint == "customer_name"),
                 today=self.today_provider(),
             )
             parsed_fields = parsed.as_json_fields()

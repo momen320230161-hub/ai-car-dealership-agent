@@ -65,6 +65,63 @@ def test_action_parser_extracts_explicit_fields_without_inventing_phone() -> Non
     assert date_only.preferred_date == date(2026, 9, 19)
 
 
+
+def test_single_token_name_requires_semantic_field_hint() -> None:
+    hinted = parse_business_fields(
+        "مؤمن",
+        allow_bare_name=True,
+        allow_single_name=True,
+        today=date(2026, 9, 14),
+    )
+    unhinted = parse_business_fields(
+        "مؤمن",
+        allow_bare_name=True,
+        allow_single_name=False,
+        today=date(2026, 9, 14),
+    )
+    question = parse_business_fields(
+        "بكام؟",
+        allow_bare_name=True,
+        allow_single_name=True,
+        today=date(2026, 9, 14),
+    )
+
+    assert hinted.customer_name == "مؤمن"
+    assert unhinted.customer_name is None
+    assert question.customer_name is None
+
+
+def test_pending_test_drive_accepts_single_name_only_with_field_hint(db_session) -> None:
+    conversation, _ = _conversation_with_selected_car(
+        db_session,
+        source_id="single-name-hint",
+    )
+    workflow = _workflow(db_session)
+
+    started = workflow.prepare_action(
+        conversation.id,
+        "test_drive",
+        "عايز احجز تست درايف",
+    )
+    assert "customer_name" in started["missing_fields"]
+
+    without_hint = workflow.prepare_action(
+        conversation.id,
+        "general",
+        "مؤمن",
+    )
+    assert without_hint["fields"].get("customer_name") is None
+
+    with_hint = workflow.prepare_action(
+        conversation.id,
+        "general",
+        "مؤمن",
+        field_hint="customer_name",
+    )
+    assert with_hint["fields"]["customer_name"] == "مؤمن"
+    assert "customer_name" not in with_hint["missing_fields"]
+
+
 def test_test_drive_pending_collects_only_missing_fields_before_insert(db_session) -> None:
     conversation, car = _conversation_with_selected_car(db_session, source_id="pending-test-drive")
     workflow = _workflow(db_session)

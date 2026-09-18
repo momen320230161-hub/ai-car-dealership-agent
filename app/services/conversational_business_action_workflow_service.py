@@ -66,6 +66,7 @@ class ConversationalBusinessActionWorkflowService(BusinessActionWorkflowService)
         message: str,
         *,
         car_reference: str | int | None = None,
+        field_hint: str | None = None,
     ) -> dict[str, Any]:
         # Clean rows polluted by older builds before strict CatalogFilters sees them again.
         self.preference_state.strip_legacy_contact_preferences(session_id)
@@ -82,6 +83,7 @@ class ConversationalBusinessActionWorkflowService(BusinessActionWorkflowService)
             requested_intent,
             effective_message,
             car_reference=car_reference,
+            field_hint=field_hint,
         )
         intent = str(result.get("intent") or requested_intent)
         ambiguous_hour = bare_ambiguous_hour
@@ -138,6 +140,7 @@ class ConversationalBusinessActionWorkflowService(BusinessActionWorkflowService)
             intent,
             "",
             car_reference=car_reference,
+            field_hint=None,
         )
         if result.get("ambiguous_time"):
             refreshed = self._remove_ambiguous_time(

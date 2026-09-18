@@ -55,6 +55,14 @@ BudgetChange = Literal[
     "decrease_unspecified",
     "remove_limit",
 ]
+PendingFieldAnswer = Literal[
+    "none",
+    "customer_name",
+    "phone",
+    "preferred_date",
+    "preferred_time",
+    "request_id",
+]
 
 
 class PreferenceUpdates(BaseModel):
@@ -90,6 +98,7 @@ class RequestUnderstanding(BaseModel):
     dialogue_action: DialogueAction | None = None
     preference_clears: list[PreferenceField] = Field(default_factory=list, max_length=11)
     budget_change: BudgetChange = "none"
+    pending_field_answer: PendingFieldAnswer = "none"
     car_reference: str | int | None = None
     comparison_references: list[str | int] = Field(default_factory=list, max_length=5)
     explicit_car_id: int | None = Field(default=None, ge=1)

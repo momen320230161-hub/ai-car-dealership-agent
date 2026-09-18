@@ -196,6 +196,41 @@ def test_pending_action_allows_catalog_and_rag_side_questions() -> None:
     assert orchestrator._route_request(phone_state)["selected_route"] == "business_gate"
 
 
+
+def test_pending_single_name_uses_semantic_field_hint_for_routing() -> None:
+    orchestrator = object.__new__(ConversationalSalesOrchestrator)
+    state = {
+        "intent": "general",
+        "pending_field_answer": "customer_name",
+        "normalized_message": "مؤمن",
+        "pending_action": {
+            "type": "test_drive",
+            "fields": {"car_id": 5},
+        },
+        "errors": [],
+        "trace": [],
+    }
+
+    assert orchestrator._route_request(state)["selected_route"] == "business_gate"
+
+
+def test_pending_side_question_is_not_consumed_as_single_name() -> None:
+    orchestrator = object.__new__(ConversationalSalesOrchestrator)
+    state = {
+        "intent": "car_details",
+        "pending_field_answer": "none",
+        "normalized_message": "بكام؟",
+        "pending_action": {
+            "type": "test_drive",
+            "fields": {"car_id": 5},
+        },
+        "errors": [],
+        "trace": [],
+    }
+
+    assert orchestrator._route_request(state)["selected_route"] == "catalog_node"
+
+
 def test_grounded_composer_rejects_unsupported_numbers_and_falls_back() -> None:
     class UnsafeLLM:
         model_name = "unsafe-test"

@@ -27,6 +27,13 @@ the conversational operation instead of forcing Python to recognize every possib
   condition=new.
 - budget_change=increase_unspecified/decrease_unspecified when direction is clear but no new
   amount is supplied; remove_limit only when the user explicitly removes the price ceiling.
+- If conversation_context.pending_action exists, use its missing_fields to understand very short
+  replies. Set pending_field_answer to the ONE missing field the current message is clearly
+  answering. Example: if customer_name is missing, "مؤمن" can mean customer_name. A side question
+  such as "بكام؟" or "الضمان إيه؟" is not a field answer. Return only the field TYPE here; never
+  invent, normalize, or copy the customer's actual contact value into this field.
+- Use pending_field_answer="none" when the message is not clearly answering a missing business
+  field. Deterministic Python will still parse and validate the actual value.
 
 Extract preferences explicitly stated or implied by common Egyptian Arabic phrasing in the
 current message:
