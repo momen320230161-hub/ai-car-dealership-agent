@@ -58,6 +58,50 @@ def gemini_sampling_kwargs(model_name: str, temperature: float) -> dict[str, flo
     return {"temperature": float(temperature)}
 
 
+_CONTEXTUAL_REFERENCE_INTENTS = {
+    "car_selection",
+    "car_details",
+    "test_drive",
+    "sales_lead",
+}
+
+
+def _with_history_reference(
+    understanding: RequestUnderstanding,
+    recent_messages: Sequence[Mapping[str, Any]],
+) -> RequestUnderstanding:
+    if understanding.car_reference is not None:
+        return understanding
+    if understanding.intent not in _CONTEXTUAL_REFERENCE_INTENTS:
+        return understanding
+
+    position = _single_visible_position_from_recent_history(recent_messages)
+    if position is None:
+        return understanding
+    return understanding.model_copy(update={"car_reference": position})
+
+
+def _single_visible_position_from_recent_history(
+    recent_messages: Sequence[Mapping[str, Any]],
+) -> int | None:
+    latest_assistant = next(
+        (
+            str(item.get("content") or "")
+            for item in reversed(list(recent_messages))
+            if item.get("role") == "assistant"
+        ),
+        "",
+    )
+    positions = {
+        int(value)
+        for value in re.findall(
+            r"(?<!\d)([1-9][0-9]?)\.\s+(?=[A-Za-z\u0600-\u06ff])",
+            latest_assistant,
+        )
+    }
+    return next(iter(positions)) if len(positions) == 1 else None
+
+
 class GeminiAgentLLM:
     """Official Google Gen AI adapter; credentials are checked only on an actual call."""
 
@@ -100,12 +144,14 @@ class GeminiAgentLLM:
                 ),
             )
             if isinstance(response.parsed, RequestUnderstanding):
-                return response.parsed
-            if response.parsed is not None:
-                return RequestUnderstanding.model_validate(response.parsed)
-            if not response.text:
-                raise AgentLLMError("Gemini returned no structured understanding")
-            return RequestUnderstanding.model_validate_json(response.text)
+                understanding = response.parsed
+            elif response.parsed is not None:
+                understanding = RequestUnderstanding.model_validate(response.parsed)
+            else:
+                if not response.text:
+                    raise AgentLLMError("Gemini returned no structured understanding")
+                understanding = RequestUnderstanding.model_validate_json(response.text)
+            return _with_history_reference(understanding, recent_messages)
         except AgentLLMError:
             raise
         except Exception as exc:
