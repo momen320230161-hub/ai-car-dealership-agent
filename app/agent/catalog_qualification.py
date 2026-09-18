@@ -1,12 +1,6 @@
 """Deterministic catalog-language normalization and sales qualification."""
 
-from app.domain.catalog_language import (
-    explicit_body_type_from_message,
-    explicit_brand_from_message,
-    explicit_fuel_type_from_message,
-    explicit_model_from_message,
-    normalize_catalog_text,
-)
+from app.domain.catalog_language import normalize_catalog_text
 
 _RECOMMENDATION_MARKERS = (
     "رشح",
