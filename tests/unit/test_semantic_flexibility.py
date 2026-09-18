@@ -134,6 +134,58 @@ def test_social_semantics_cannot_clear_persistent_catalog_preferences() -> None:
     assert "brand" not in update["extracted_preferences"]
     assert update["turn_semantics"]["clear_fields"] == []
 
+
+
+
+def test_social_semantics_cannot_apply_accidental_preference_updates() -> None:
+    orchestrator = object.__new__(ConversationalSalesOrchestrator)
+    orchestrator.llm = _SemanticLLM(
+        RequestUnderstanding(
+            intent="general",
+            preference_updates=PreferenceUpdates(brand="BMW"),
+            dialogue_action="social",
+        )
+    )
+
+    update = orchestrator._understand_request(
+        _state("تسلم يا باشا", preferences={"body_type": "SUV"})
+    )
+
+    assert update["extracted_preferences"] == {}
+    assert update["turn_semantics"]["source"] == "llm"
+
+
+def test_empty_recommendation_does_not_force_random_catalog_search() -> None:
+    orchestrator = object.__new__(ConversationalSalesOrchestrator)
+    orchestrator.llm = _SemanticLLM(
+        RequestUnderstanding(
+            intent="catalog_search",
+            dialogue_action="recommend",
+        )
+    )
+
+    update = orchestrator._understand_request(_state("عايز عربية"))
+
+    assert update["intent"] == "catalog_search"
+    assert update["turn_semantics"]["force_catalog_search"] is False
+
+
+def test_single_useful_preference_is_enough_for_semantic_recommendation() -> None:
+    orchestrator = object.__new__(ConversationalSalesOrchestrator)
+    orchestrator.llm = _SemanticLLM(
+        RequestUnderstanding(
+            intent="catalog_search",
+            preference_updates=PreferenceUpdates(transmission="Automatic"),
+            dialogue_action="recommend",
+        )
+    )
+
+    update = orchestrator._understand_request(_state("عايز أي عربية أوتوماتيك"))
+
+    assert update["extracted_preferences"]["transmission"] == "Automatic"
+    assert update["turn_semantics"]["force_catalog_search"] is True
+
+
 def test_semantic_continue_resumes_pending_action_without_resume_keyword() -> None:
     orchestrator = object.__new__(ConversationalSalesOrchestrator)
     state = {
