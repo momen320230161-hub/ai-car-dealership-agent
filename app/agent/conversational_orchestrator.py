@@ -10,11 +10,8 @@ from typing import Any
 from sqlalchemy.exc import SQLAlchemyError
 
 from app.agent.business_rendering import render_business_action
-from app.agent.catalog_qualification import (
-    explicit_brand_from_message,
-    explicit_model_from_message,
-    qualify_catalog_search,
-)
+from app.agent.catalog_qualification import qualify_catalog_search
+from app.domain.catalog_language import explicit_brand_from_message, explicit_model_from_message
 from app.agent.graph import SalesOrchestrator
 from app.agent.llm import AgentLLMError, DeterministicAgentLLM
 from app.agent.rendering import render_catalog, render_error, render_knowledge
