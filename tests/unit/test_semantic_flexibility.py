@@ -187,6 +187,25 @@ def test_single_useful_preference_is_enough_for_semantic_recommendation() -> Non
 
 
 
+
+def test_non_catalog_turn_cannot_apply_condition_fallback_order() -> None:
+    orchestrator = object.__new__(ConversationalSalesOrchestrator)
+    orchestrator.llm = _SemanticLLM(
+        RequestUnderstanding(
+            intent="general",
+            dialogue_action="social",
+            condition_preference_order=["new", "used"],
+        )
+    )
+
+    update = orchestrator._understand_request(
+        _state("تسلم يا باشا", preferences={"condition": "new"})
+    )
+
+    assert "condition" not in update["extracted_preferences"]
+    assert update["turn_semantics"]["soft_condition_order"] == []
+
+
 def test_llm_semantic_path_does_not_inherit_legacy_more_results_flag() -> None:
     orchestrator = object.__new__(ConversationalSalesOrchestrator)
     orchestrator.llm = _SemanticLLM(
