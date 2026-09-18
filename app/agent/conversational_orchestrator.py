@@ -11,13 +11,13 @@ from sqlalchemy.exc import SQLAlchemyError
 
 from app.agent.business_rendering import render_business_action
 from app.agent.catalog_qualification import qualify_catalog_search
-from app.domain.catalog_language import explicit_brand_from_message, explicit_model_from_message
 from app.agent.graph import SalesOrchestrator
 from app.agent.llm import AgentLLMError, DeterministicAgentLLM
 from app.agent.rendering import render_catalog, render_error, render_knowledge
 from app.agent.schemas import explicit_visible_references
 from app.agent.state import AgentState
 from app.agent.turn_semantics import analyze_turn
+from app.domain.catalog_language import explicit_brand_from_message, explicit_model_from_message
 from app.services.business_action_parsing import parse_business_fields
 from app.services.catalog_preference_state_service import CatalogPreferenceStateService
 from app.services.conversation_context_service import (
