@@ -263,7 +263,9 @@ def sanitize_understanding(
             # A small visible position may be inferred from bounded conversation
             # history. The active recommendation snapshot validates it downstream.
             data["car_reference"] = contextual_position
-        elif reference_text not in normalized:
+        else:
+            # Explicit ordinals/numbers were already recovered above from the
+            # current message. Everything else is an untrusted LLM reference.
             data["car_reference"] = None
 
     # High-value business-action fallback: direct requests to try/drive a car are actions,
