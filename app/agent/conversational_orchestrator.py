@@ -18,6 +18,7 @@ from app.agent.catalog_qualification import (
 from app.agent.graph import SalesOrchestrator
 from app.agent.llm import AgentLLMError, DeterministicAgentLLM
 from app.agent.rendering import render_catalog, render_error, render_knowledge
+from app.agent.schemas import explicit_visible_references
 from app.agent.state import AgentState
 from app.agent.turn_semantics import analyze_turn
 from app.services.business_action_parsing import parse_business_fields
@@ -308,10 +309,23 @@ class ConversationalSalesOrchestrator(SalesOrchestrator):
         # First trust an LLM ordinal only if that exact visible position exists; otherwise
         # resolve deterministic ordinals or unique visible brand/model references. This keeps
         # reference turns from mutating filters and invalidating the list before resolution.
-        resolved_reference = self._validated_llm_visible_reference(
-            state,
-            update.get("car_reference"),
-        )
+        explicit_positions = explicit_visible_references(message)
+        resolved_reference = None
+        if explicit_positions:
+            resolved_reference = self._validated_llm_visible_reference(
+                state,
+                explicit_positions[0],
+            )
+        if resolved_reference is None:
+            resolved_reference = self._resolve_visible_selector(
+                state,
+                update.get("visible_reference_selector"),
+            )
+        if resolved_reference is None:
+            resolved_reference = self._validated_llm_visible_reference(
+                state,
+                update.get("car_reference"),
+            )
         if resolved_reference is None:
             resolved_reference = self._resolve_visible_reference(
                 state,
@@ -782,6 +796,63 @@ class ConversationalSalesOrchestrator(SalesOrchestrator):
             if any(claim in response for claim in unsafe_confirmation):
                 return False
         return True
+
+    def _resolve_visible_selector(
+        self,
+        state: AgentState,
+        selector: Any,
+    ) -> int | None:
+        """Resolve semantic visible-car descriptions against verified snapshot facts only."""
+        if not isinstance(selector, dict):
+            return None
+        field = str(selector.get("field") or "none")
+        operator = str(selector.get("operator") or "none")
+        value = str(selector.get("value") or "").strip()
+        if field == "none" or operator == "none":
+            return None
+
+        snapshot = state.get("active_snapshot") or {}
+        items = list(snapshot.get("items") or [])
+        if not items:
+            return None
+
+        numeric_fields = {"price_egp", "mileage_km", "year"}
+        categorical_fields = {
+            "condition",
+            "transmission",
+            "body_type",
+            "fuel_type",
+        }
+        if field in numeric_fields and operator in {"min", "max"}:
+            candidates: list[tuple[int, float]] = []
+            for item in items:
+                car = item.get("car") or {}
+                raw = car.get(field)
+                try:
+                    numeric = float(raw)
+                except (TypeError, ValueError):
+                    continue
+                candidates.append((int(item["position"]), numeric))
+            if not candidates:
+                return None
+            target = (
+                min(number for _, number in candidates)
+                if operator == "min"
+                else max(number for _, number in candidates)
+            )
+            matches = [position for position, number in candidates if number == target]
+            return matches[0] if len(matches) == 1 else None
+
+        if field in categorical_fields and operator == "equals" and value:
+            wanted = self._entity_norm(value)
+            matches: list[int] = []
+            for item in items:
+                car = item.get("car") or {}
+                actual = str(car.get(field) or "")
+                if self._entity_norm(actual) == wanted:
+                    matches.append(int(item["position"]))
+            return matches[0] if len(matches) == 1 else None
+        return None
 
     def _validated_llm_visible_reference(
         self,
