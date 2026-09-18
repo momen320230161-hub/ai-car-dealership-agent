@@ -118,7 +118,6 @@ def test_test_drive_pending_collects_only_missing_fields_before_insert(db_sessio
     assert refreshed.pending_action is None
 
 
-
 def test_customer_name_stays_in_pending_action_not_catalog_preferences(db_session) -> None:
     conversation, _ = _conversation_with_selected_car(
         db_session,
@@ -178,6 +177,7 @@ def test_base_workflow_does_not_reuse_legacy_name_from_catalog_preferences(db_se
     assert pending["status"] == "missing_fields"
     assert pending["missing_fields"] == ["customer_name"]
     assert "customer_name" not in pending["fields"]
+
 
 def test_sales_lead_pending_requires_only_name_and_phone(db_session) -> None:
     conversation, car = _conversation_with_selected_car(db_session, source_id="pending-lead")
