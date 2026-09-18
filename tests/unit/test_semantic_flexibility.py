@@ -116,6 +116,24 @@ def test_semantic_brand_waiver_clears_old_identity_without_phrase_rule() -> None
     assert update["turn_semantics"]["mode"] == "broaden"
 
 
+
+def test_social_semantics_cannot_clear_persistent_catalog_preferences() -> None:
+    orchestrator = object.__new__(ConversationalSalesOrchestrator)
+    orchestrator.llm = _SemanticLLM(
+        RequestUnderstanding(
+            intent="general",
+            dialogue_action="social",
+            preference_clears=["brand"],
+        )
+    )
+
+    update = orchestrator._understand_request(
+        _state("تسلم يا باشا", preferences={"brand": "BMW"})
+    )
+
+    assert "brand" not in update["extracted_preferences"]
+    assert update["turn_semantics"]["clear_fields"] == []
+
 def test_semantic_continue_resumes_pending_action_without_resume_keyword() -> None:
     orchestrator = object.__new__(ConversationalSalesOrchestrator)
     state = {
