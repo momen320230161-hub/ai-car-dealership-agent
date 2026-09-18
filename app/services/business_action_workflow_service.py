@@ -11,6 +11,7 @@ from sqlalchemy import select
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.orm import Session
 
+from app.agent.catalog_qualification import explicit_brand_from_message, explicit_model_from_message
 from app.models.car import Car
 from app.models.conversation import ConversationSession
 from app.services.business_action_parsing import cairo_today, parse_business_fields
@@ -323,10 +324,15 @@ class BusinessActionWorkflowService:
             ]
             visible = [(item, car) for item, car in visible if car is not None]
 
+            explicit_model = explicit_model_from_message(message)
             model_matches = [
                 (item, car)
                 for item, car in visible
-                if car.model and car.model.casefold() in message_lower
+                if car.model
+                and (
+                    (explicit_model is not None and car.model.casefold() == explicit_model.casefold())
+                    or car.model.casefold() in message_lower
+                )
             ]
             if len(model_matches) == 1:
                 item, _ = model_matches[0]
@@ -336,10 +342,15 @@ class BusinessActionWorkflowService:
             if len(model_matches) > 1:
                 return
 
+            explicit_brand = explicit_brand_from_message(message)
             brand_matches = [
                 (item, car)
                 for item, car in visible
-                if self._message_mentions_brand(message_lower, car.brand)
+                if car.brand
+                and (
+                    (explicit_brand is not None and car.brand.casefold() == explicit_brand.casefold())
+                    or car.brand.casefold() in message_lower
+                )
             ]
             if len(brand_matches) == 1:
                 item, _ = brand_matches[0]
@@ -349,30 +360,6 @@ class BusinessActionWorkflowService:
 
         if not required:
             return
-
-    @staticmethod
-    def _message_mentions_brand(message_lower: str, brand: str) -> bool:
-        """Conservative legacy fallback for a visible brand mention.
-
-        The conversational layer normally resolves visible references before this
-        service is called. This fallback stays deterministic and, critically, is
-        consumed only when it identifies exactly one visible vehicle.
-        """
-        brand_folded = str(brand or "").casefold()
-        if brand_folded and brand_folded in message_lower:
-            return True
-        aliases = {
-            "chery": ("شيري",),
-            "byd": ("بيوايدي", "بي واي دي"),
-            "nissan": ("نيسان",),
-            "renault": ("رينو",),
-            "bmw": ("بي ام", "بي إم", "بى ام"),
-            "mercedes-benz": ("مرسيدس",),
-        }
-        return any(
-            alias in message_lower
-            for alias in aliases.get(brand_folded, ())
-        )
 
     @staticmethod
     def _prepare_required_action(
