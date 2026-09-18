@@ -183,7 +183,6 @@ class ConversationalSalesOrchestrator(SalesOrchestrator):
                 update["intent"] = "catalog_search"
 
         legacy_semantics = analyze_turn(message, state.get("preferences", {}), extracted)
-        semantics_data = legacy_semantics.as_dict()
 
         llm_action = str(update.get("llm_dialogue_action") or "")
         llm_clears = {
@@ -192,25 +191,55 @@ class ConversationalSalesOrchestrator(SalesOrchestrator):
             if str(field)
         }
         llm_budget_change = str(update.get("llm_budget_change") or "none")
+        llm_condition_order = list(
+            dict.fromkeys(
+                str(value)
+                for value in (update.get("llm_condition_preference_order") or [])
+                if str(value) in {"new", "used"}
+            )
+        )
+        if len(llm_condition_order) != 2:
+            llm_condition_order = []
+
         catalog_semantic_action = llm_action in {
             "recommend",
             "refine",
             "broaden",
             "reset",
+            "paginate",
         }
         effective_llm_clears = (
-            llm_clears
+            set(llm_clears)
             if catalog_semantic_action or update.get("intent") == "catalog_search"
             else set()
         )
+        if llm_condition_order:
+            effective_llm_clears.add("condition")
+
         has_llm_semantics = bool(
-            llm_action or llm_clears or llm_budget_change != "none"
+            llm_action
+            or llm_clears
+            or llm_budget_change != "none"
+            or llm_condition_order
         )
 
         if has_llm_semantics:
-            # Semantic language understanding is primary. Legacy phrase rules remain only as
-            # a fallback for fixtures/older adapters, so alternate customer phrasing does not
-            # depend on a growing Python keyword list.
+            # Once the LLM returns semantic control data, build the control plane from
+            # that schema only. Legacy phrase analysis remains a compatibility fallback,
+            # never a hidden second decision-maker.
+            semantics_data = {
+                "source": "llm",
+                "mode": llm_action or "refine",
+                "clear_fields": sorted(effective_llm_clears),
+                "force_clear_fields": sorted(effective_llm_clears),
+                "soft_condition_order": llm_condition_order,
+                "force_catalog_search": False,
+                "pagination_requested": False,
+                "more_results_question": False,
+                "budget_change_unspecified": False,
+                "budget_change": llm_budget_change,
+            }
+
             control_only_turn = (
                 llm_action in {"social", "continue"}
                 or (
@@ -222,19 +251,8 @@ class ConversationalSalesOrchestrator(SalesOrchestrator):
                 )
             )
             if control_only_turn:
-                # Social/resume/budget-discussion turns cannot mutate durable catalog filters,
-                # even if the model accidentally emitted preference_updates.
                 extracted = {}
 
-            semantics_data.update(
-                {
-                    "source": "llm",
-                    "mode": llm_action or "refine",
-                    "clear_fields": sorted(effective_llm_clears),
-                    "force_clear_fields": sorted(effective_llm_clears),
-                    "budget_change": llm_budget_change,
-                }
-            )
             for field in effective_llm_clears:
                 extracted[field] = None
 
@@ -247,8 +265,6 @@ class ConversationalSalesOrchestrator(SalesOrchestrator):
             elif llm_action == "broaden":
                 semantics_data["force_catalog_search"] = True
             elif llm_action == "recommend":
-                # Do not surface arbitrary cars when the customer supplied no usable
-                # constraint at all. One useful follow-up is better than a random shortlist.
                 semantics_data["force_catalog_search"] = bool(
                     state.get("preferences") or extracted or effective_llm_clears
                 )
@@ -270,17 +286,23 @@ class ConversationalSalesOrchestrator(SalesOrchestrator):
                 and not semantics_data.get("budget_change_unspecified")
             ):
                 update["intent"] = "catalog_search"
-        elif legacy_semantics.budget_change_unspecified:
-            update["intent"] = "general"
-            extracted = {}
-            semantics_data["budget_change"] = "increase_unspecified"
         else:
-            forced = set(legacy_semantics.force_clear_fields)
-            for field in legacy_semantics.clear_fields:
-                if field in forced or field not in extracted:
-                    extracted[field] = None
-            if legacy_semantics.force_catalog_search and update.get("intent") == "general":
-                update["intent"] = "catalog_search"
+            # Offline fixtures and older adapters retain the deterministic fallback.
+            semantics_data = legacy_semantics.as_dict()
+            if legacy_semantics.budget_change_unspecified:
+                update["intent"] = "general"
+                extracted = {}
+                semantics_data["budget_change"] = "increase_unspecified"
+            else:
+                forced = set(legacy_semantics.force_clear_fields)
+                for field in legacy_semantics.clear_fields:
+                    if field in forced or field not in extracted:
+                        extracted[field] = None
+                if (
+                    legacy_semantics.force_catalog_search
+                    and update.get("intent") == "general"
+                ):
+                    update["intent"] = "catalog_search"
 
         # Resolve references while the previous visible snapshot is still authoritative.
         # First trust an LLM ordinal only if that exact visible position exists; otherwise
