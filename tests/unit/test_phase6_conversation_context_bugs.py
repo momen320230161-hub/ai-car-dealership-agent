@@ -6,7 +6,7 @@ from decimal import Decimal
 
 from sqlalchemy import func, select
 
-from app.agent.graph import SalesOrchestrator
+from app.agent.conversational_orchestrator import ConversationalSalesOrchestrator
 from app.agent.llm import DeterministicAgentLLM
 from app.models.car import Car
 from app.models.conversation import ConversationSession
@@ -34,8 +34,8 @@ def _car(
     )
 
 
-def _orchestrator(db_session, **kwargs) -> SalesOrchestrator:
-    return SalesOrchestrator(
+def _orchestrator(db_session, **kwargs) -> ConversationalSalesOrchestrator:
+    return ConversationalSalesOrchestrator(
         db_session,
         DeterministicAgentLLM(),
         DeterministicEmbeddingProvider(),
@@ -98,10 +98,17 @@ def test_pending_test_drive_separate_messages_decreases_missing_fields_and_inser
     assert "اسمك" not in r4.response
     assert db_session.scalar(select(func.count(TestDriveRequest.id))) == 0
 
-    # Turn 5: Time only ("الساعة 4")
+    # Turn 5: A bare 12-hour clock is ambiguous in the production workflow.
     r5 = orchestrator.handle_message(session.id, "الساعة 4")
     assert r5.route == "business_gate"
-    assert "تم تسجيل طلب تجربة القيادة برقم" in r5.response
+    assert "صباح" in r5.response
+    assert "عصر" in r5.response or "مساء" in r5.response
+    assert db_session.scalar(select(func.count(TestDriveRequest.id))) == 0
+
+    # Turn 6: Resolve the same pending attempt with an explicit daypart.
+    r6 = orchestrator.handle_message(session.id, "العصر")
+    assert r6.route == "business_gate"
+    assert "تم تسجيل طلب تجربة القيادة برقم" in r6.response
     assert db_session.scalar(select(func.count(TestDriveRequest.id))) == 1
 
     created = db_session.scalar(
@@ -118,9 +125,9 @@ def test_pending_test_drive_separate_messages_decreases_missing_fields_and_inser
     s_reloaded = db_session.get(ConversationSession, session.id)
     assert s_reloaded.pending_action is None
 
-    # Turn 6: Duplicate confirmation does not insert another row
-    r6 = orchestrator.handle_message(session.id, "تمام شكرا")
-    assert r6.route == "general"
+    # Turn 7: Duplicate/social confirmation does not insert another row.
+    r7 = orchestrator.handle_message(session.id, "تمام شكرا")
+    assert r7.route == "general"
     assert db_session.scalar(select(func.count(TestDriveRequest.id))) == 1
 
 
@@ -265,10 +272,15 @@ def test_pending_action_retains_car_when_followup_message_contains_numeric_date_
     r3 = orchestrator.handle_message(session.id, "01099887766")
     assert r3.route == "business_gate"
 
-    # Turn 4: "السبت الساعة 5" (Numeric 5)
+    # Turn 4: Numeric date/time text keeps the car, but 5 is ambiguous.
     r4 = orchestrator.handle_message(session.id, "السبت الساعة 5")
     assert r4.route == "business_gate"
-    assert "تم تسجيل طلب تجربة القيادة برقم" in r4.response
+    assert db_session.scalar(select(func.count(TestDriveRequest.id))) == 0
+
+    # Turn 5: Resolve the daypart without losing the selected car/contact fields.
+    r5 = orchestrator.handle_message(session.id, "مساء")
+    assert r5.route == "business_gate"
+    assert "تم تسجيل طلب تجربة القيادة برقم" in r5.response
 
     created = db_session.scalar(
         select(TestDriveRequest).where(TestDriveRequest.session_id == session.id)
