@@ -182,18 +182,83 @@ class ConversationalSalesOrchestrator(SalesOrchestrator):
                 extracted["model"] = token
                 update["intent"] = "catalog_search"
 
-        semantics = analyze_turn(message, state.get("preferences", {}), extracted)
-        semantics_data = semantics.as_dict()
+        legacy_semantics = analyze_turn(message, state.get("preferences", {}), extracted)
+        semantics_data = legacy_semantics.as_dict()
 
-        if semantics.budget_change_unspecified:
+        llm_action = str(update.get("llm_dialogue_action") or "")
+        llm_clears = {
+            str(field)
+            for field in (update.get("llm_preference_clears") or [])
+            if str(field)
+        }
+        llm_budget_change = str(update.get("llm_budget_change") or "none")
+        catalog_semantic_action = llm_action in {
+            "recommend",
+            "refine",
+            "broaden",
+            "reset",
+        }
+        effective_llm_clears = (
+            llm_clears
+            if catalog_semantic_action or update.get("intent") == "catalog_search"
+            else set()
+        )
+        has_llm_semantics = bool(
+            llm_action or llm_clears or llm_budget_change != "none"
+        )
+
+        if has_llm_semantics:
+            # Semantic language understanding is primary. Legacy phrase rules remain only as
+            # a fallback for fixtures/older adapters, so alternate customer phrasing does not
+            # depend on a growing Python keyword list.
+            semantics_data.update(
+                {
+                    "source": "llm",
+                    "mode": llm_action or "refine",
+                    "clear_fields": sorted(effective_llm_clears),
+                    "force_clear_fields": sorted(effective_llm_clears),
+                    "budget_change": llm_budget_change,
+                }
+            )
+            for field in effective_llm_clears:
+                extracted[field] = None
+
+            if llm_action == "reset":
+                for field in state.get("preferences", {}):
+                    extracted[field] = None
+            if llm_action == "paginate":
+                semantics_data["pagination_requested"] = True
+                semantics_data["force_catalog_search"] = True
+            elif llm_action in {"recommend", "broaden"}:
+                semantics_data["force_catalog_search"] = True
+            elif llm_action == "refine" and (state.get("preferences") or extracted):
+                semantics_data["force_catalog_search"] = True
+
+            if llm_budget_change == "remove_limit":
+                extracted["min_price"] = None
+                extracted["max_price"] = None
+            elif llm_budget_change in {"increase_unspecified", "decrease_unspecified"}:
+                extracted.pop("min_price", None)
+                extracted.pop("max_price", None)
+                semantics_data["budget_change_unspecified"] = True
+                update["intent"] = "general"
+
+            if (
+                semantics_data.get("force_catalog_search")
+                and update.get("intent") == "general"
+                and not semantics_data.get("budget_change_unspecified")
+            ):
+                update["intent"] = "catalog_search"
+        elif legacy_semantics.budget_change_unspecified:
             update["intent"] = "general"
             extracted = {}
+            semantics_data["budget_change"] = "increase_unspecified"
         else:
-            forced = set(semantics.force_clear_fields)
-            for field in semantics.clear_fields:
+            forced = set(legacy_semantics.force_clear_fields)
+            for field in legacy_semantics.clear_fields:
                 if field in forced or field not in extracted:
                     extracted[field] = None
-            if semantics.force_catalog_search and update.get("intent") == "general":
+            if legacy_semantics.force_catalog_search and update.get("intent") == "general":
                 update["intent"] = "catalog_search"
 
         # Resolve references while the previous visible snapshot is still authoritative.
@@ -233,10 +298,13 @@ class ConversationalSalesOrchestrator(SalesOrchestrator):
         resolved_intent = str(update.get("intent") or "general")
         if resolved_intent in _BUSINESS_INTENTS or resolved_intent == "car_selection":
             semantics_data["catalog_goal_operation"] = "clear"
-        elif self._explicit_recommendation_goal(message) and resolved_intent in {
-            "catalog_search",
-            "general",
-        }:
+        elif (
+            llm_action == "recommend"
+            or (
+                not has_llm_semantics
+                and self._explicit_recommendation_goal(message)
+            )
+        ) and resolved_intent in {"catalog_search", "general"}:
             semantics_data["catalog_goal_operation"] = "recommend"
             if resolved_intent == "general" and (state.get("preferences") or extracted):
                 update["intent"] = "catalog_search"
@@ -245,7 +313,7 @@ class ConversationalSalesOrchestrator(SalesOrchestrator):
             current_goal == "recommend"
             and extracted
             and resolved_intent in {"catalog_search", "general"}
-            and not semantics.budget_change_unspecified
+            and not semantics_data.get("budget_change_unspecified")
         ):
             update["intent"] = "catalog_search"
             semantics_data["force_catalog_search"] = True
@@ -320,6 +388,8 @@ class ConversationalSalesOrchestrator(SalesOrchestrator):
         if explicit & required:
             return True
         if self._looks_like_pending_time_answer(pending, missing, message):
+            return True
+        if intent == "general" and state.get("llm_dialogue_action") == "continue":
             return True
 
         text = message.casefold()
@@ -511,7 +581,16 @@ class ConversationalSalesOrchestrator(SalesOrchestrator):
         semantics = dict(state.get("turn_semantics") or {})
         if semantics.get("budget_change_unspecified"):
             current_budget = (state.get("preferences") or {}).get("max_price")
-            if current_budget is not None:
+            direction = str(semantics.get("budget_change") or "increase_unspecified")
+            if direction == "decrease_unspecified":
+                if current_budget is not None:
+                    update["response"] = (
+                        f"تمام، نقدر نقلل الميزانية عن {float(current_budget):,.0f} جنيه. "
+                        "تحب تخلي الحد الجديد كام تقريبًا؟"
+                    )
+                else:
+                    update["response"] = "تمام، تحب نخلي الحد الأقصى للميزانية كام تقريبًا؟"
+            elif current_budget is not None:
                 update["response"] = (
                     f"أكيد، ممكن نزود الميزانية عن {float(current_budget):,.0f} جنيه. "
                     "تحب تخلي الحد الجديد كام تقريبًا؟"
