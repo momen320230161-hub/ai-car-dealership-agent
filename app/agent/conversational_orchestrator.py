@@ -316,7 +316,14 @@ class ConversationalSalesOrchestrator(SalesOrchestrator):
                 state,
                 explicit_positions[0],
             )
-        if resolved_reference is None:
+        selector_intent = str(update.get("intent") or "general")
+        if resolved_reference is None and selector_intent in {
+            "general",
+            "car_selection",
+            "car_details",
+            "test_drive",
+            "sales_lead",
+        }:
             resolved_reference = self._resolve_visible_selector(
                 state,
                 update.get("visible_reference_selector"),
@@ -471,6 +478,17 @@ class ConversationalSalesOrchestrator(SalesOrchestrator):
                 if details is not None:
                     update["catalog_result"] = {"type": "selection", "car": details}
                     return update
+
+            active = state.get("active_snapshot") or {}
+            items = list(active.get("items") or [])
+            if items:
+                update = self._trace(state, "catalog_node")
+                positions = " ولا ".join(str(item["position"]) for item in items)
+                update["catalog_result"] = {
+                    "type": "clarification",
+                    "message": f"تقصد رقم كام من القائمة؟ {positions}؟",
+                }
+                return update
         if intent != "catalog_search":
             return super()._catalog_node(state)
 
