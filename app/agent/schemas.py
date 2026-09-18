@@ -148,11 +148,22 @@ class RequestUnderstanding(BaseModel):
 
 _ARABIC_DIGITS = str.maketrans("٠١٢٣٤٥٦٧٨٩", "0123456789")
 _ORDINAL_REFERENCES = (
-    (r"\b(?:الأولى|الاولى|الأول|الاول|أول|اول|الأولانية|الاولانية|first)\b", 1),
-    (r"\b(?:التانية|التانيه|الثاني|الثانية|الثانيه|تاني|تانيه|second)\b", 2),
-    (r"\b(?:التالتة|التالته|التالت|الثالثة|الثالثه|الثالث|third)\b", 3),
-    (r"\b(?:الرابعة|الرابعه|الرابع|fourth)\b", 4),
-    (r"\b(?:الخامسة|الخامسه|الخامس|fifth)\b", 5),
+    (r"\b(?:الأولى|الاولى|الأول|الاول|الأولانية|الاولانية)\b", 1),
+    (r"\b(?:التانية|التانيه|التاني|الثاني|الثانية|الثانيه)\b", 2),
+    (r"\b(?:التالتة|التالته|التالت|الثالثة|الثالثه|الثالث)\b", 3),
+    (r"\b(?:الرابعة|الرابعه|الرابع)\b", 4),
+    (r"\b(?:الخامسة|الخامسه|الخامس)\b", 5),
+)
+_BARE_ORDINAL_REFERENCES = (
+    (r"(?:أول|اول|first)", 1),
+    (r"(?:تاني|تانيه|second)", 2),
+    (r"(?:تالت|تالته|third)", 3),
+    (r"(?:رابع|fourth)", 4),
+    (r"(?:خامس|fifth)", 5),
+)
+_REFERENCE_NOUN = (
+    r"(?:عربية|العربية|سيارة|السيارة|اختيار|الاختيار|واحدة|واحد|"
+    r"نتيجة|النتيجة|car|option|one|listing|result)"
 )
 _EXPLICIT_CAR_ID_RE = re.compile(
     r"(?:\bcar\s*id\b|\bid\b|رقم\s+العربية|العربية\s+(?:رقم|id))"
@@ -215,17 +226,39 @@ _TEST_DRIVE_ACTION_PATTERNS = (
 
 
 def explicit_visible_references(message: str) -> list[int]:
-    """Extract only ordinals visibly present in the current user message."""
-    normalized = message.translate(_ARABIC_DIGITS).casefold()
+    """Extract visible positions without confusing "more/again" language with ordinals.
+
+    Bare forms such as "تاني"/"second" are references only when they are the whole
+    reply or directly attached to a vehicle/option noun. Definite Arabic ordinals
+    such as "التانية" remain safe references anywhere in the turn.
+    """
+    normalized = " ".join(message.translate(_ARABIC_DIGITS).casefold().split())
     if re.search(r"(?:أول|اول|first)\s+(?:اتنين|اثنين|two)", normalized):
         return [1, 2]
+
     references: list[tuple[int, int]] = []
     for pattern, position in _ORDINAL_REFERENCES:
         match = re.search(pattern, normalized)
         if match:
             references.append((match.start(), position))
-    for match in re.finditer(r"(?:#|رقم\s*|(?:العربية|السيارة)\s*#?)([1-9][0-9]*)", normalized):
+
+    for bare_pattern, position in _BARE_ORDINAL_REFERENCES:
+        standalone = re.fullmatch(rf"(?:{bare_pattern})", normalized)
+        contextual = re.search(
+            rf"(?<!\w)(?:{bare_pattern})\s+{_REFERENCE_NOUN}(?!\w)"
+            rf"|(?<!\w){_REFERENCE_NOUN}\s+(?:{bare_pattern})(?!\w)",
+            normalized,
+        )
+        match = standalone or contextual
+        if match:
+            references.append((match.start(), position))
+
+    for match in re.finditer(
+        r"(?:#|رقم\s*|(?:العربية|السيارة)\s*#?)([1-9][0-9]*)",
+        normalized,
+    ):
         references.append((match.start(), int(match.group(1))))
+
     comparison = re.search(
         r"(?:قارن|compare).*?\b([1-9][0-9]*)\b\s*(?:و|and|,)\s*\b([1-9][0-9]*)\b",
         normalized,
@@ -237,12 +270,14 @@ def explicit_visible_references(message: str) -> list[int]:
                 (comparison.start(2), int(comparison.group(2))),
             ]
         )
+
     single = re.search(
         r"(?:تفاصيل|اختار|details|select)\s+(?:رقم\s*)?#?([1-9][0-9]?)\b",
         normalized,
     )
     if single:
         references.append((single.start(1), int(single.group(1))))
+
     ordered = [position for _, position in sorted(set(references))]
     return list(dict.fromkeys(ordered))
 
