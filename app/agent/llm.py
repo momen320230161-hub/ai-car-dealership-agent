@@ -249,32 +249,7 @@ class DeterministicAgentLLM:
         elif re.search(r"(?:تحت|أقل من|اقل من|under)\s+مليون", lower):
             updates["max_price"] = 1_000_000
 
-        references: list[int] = []
-        if re.search(r"(?:أول|اول|first)\s+(?:اتنين|اثنين|two)", lower):
-            references = [1, 2]
-        elif any(
-            word in lower
-            for word in ("التانية", "التانيه", "الثاني", "الثانية", "الثانيه", "second")
-        ):
-            references = [2]
-        elif any(
-            word in lower
-            for word in (
-                "الأولى",
-                "الاولى",
-                "الاول",
-                "الأول",
-                "الأولانية",
-                "الاولانية",
-                "first",
-            )
-        ):
-            references = [1]
-        elif any(
-            word in lower
-            for word in ("التالتة", "التالته", "الثالث", "الثالثة", "الثالثه", "third")
-        ):
-            references = [3]
+        references = explicit_visible_references(message)
 
         test_drive_language = any(
             word in lower for word in ("تست درايف", "تجربة قيادة", "test drive")
@@ -358,9 +333,23 @@ class DeterministicAgentLLM:
         if references and not updates and intent == "general":
             intent = "car_details"
 
+        dialogue_action = None
+        if intent == "catalog_search":
+            asks_for_more = (
+                "غيرهم" in lower
+                or "more options" in lower
+                or (
+                    "تاني" in lower
+                    and any(word in lower for word in ("غير", "حاجات", "اختيارات"))
+                )
+            )
+            if asks_for_more:
+                dialogue_action = "paginate"
+
         return RequestUnderstanding(
             intent=intent,
             preference_updates=updates,
+            dialogue_action=dialogue_action,
             car_reference=references[0] if len(references) == 1 else None,
             comparison_references=references if intent == "car_compare" else [],
         )
