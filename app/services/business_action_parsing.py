@@ -162,6 +162,7 @@ def parse_business_fields(
     message: str,
     *,
     allow_bare_name: bool = False,
+    allow_single_name: bool = False,
     today: date | None = None,
 ) -> ParsedBusinessFields:
     """Extract only fields explicitly present in the current customer message."""
@@ -178,6 +179,7 @@ def parse_business_fields(
     customer_name = explicit_customer_name(
         normalized,
         allow_bare=allow_bare_name,
+        allow_single=allow_single_name,
         phone=phone,
         email=email,
     )
@@ -293,6 +295,7 @@ def explicit_customer_name(
     message: str,
     *,
     allow_bare: bool,
+    allow_single: bool = False,
     phone: str | None,
     email: str | None,
 ) -> str | None:
@@ -341,6 +344,15 @@ def explicit_customer_name(
     folded_tokens = {token.casefold() for token in tokens}
     if folded_tokens & _BARE_NAME_BLOCKLIST:
         return None
+    if allow_single and len(tokens) == 1:
+        # Single-token names are accepted only when the semantic layer explicitly
+        # identified the turn as an answer to a missing customer_name field.
+        # Obvious questions stay out even if punctuation is present.
+        if "?" in message or "؟" in message:
+            return None
+        token = tokens[0]
+        if len(token) >= 2:
+            return candidate
     if 2 <= len(tokens) <= 4 and all(len(token) >= 2 for token in tokens):
         return candidate
     return None
