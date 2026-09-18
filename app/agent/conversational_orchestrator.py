@@ -211,6 +211,21 @@ class ConversationalSalesOrchestrator(SalesOrchestrator):
             # Semantic language understanding is primary. Legacy phrase rules remain only as
             # a fallback for fixtures/older adapters, so alternate customer phrasing does not
             # depend on a growing Python keyword list.
+            control_only_turn = (
+                llm_action in {"social", "continue"}
+                or (
+                    llm_action == "discuss_budget"
+                    and llm_budget_change in {
+                        "increase_unspecified",
+                        "decrease_unspecified",
+                    }
+                )
+            )
+            if control_only_turn:
+                # Social/resume/budget-discussion turns cannot mutate durable catalog filters,
+                # even if the model accidentally emitted preference_updates.
+                extracted = {}
+
             semantics_data.update(
                 {
                     "source": "llm",
@@ -229,8 +244,14 @@ class ConversationalSalesOrchestrator(SalesOrchestrator):
             if llm_action == "paginate":
                 semantics_data["pagination_requested"] = True
                 semantics_data["force_catalog_search"] = True
-            elif llm_action in {"recommend", "broaden"}:
+            elif llm_action == "broaden":
                 semantics_data["force_catalog_search"] = True
+            elif llm_action == "recommend":
+                # Do not surface arbitrary cars when the customer supplied no usable
+                # constraint at all. One useful follow-up is better than a random shortlist.
+                semantics_data["force_catalog_search"] = bool(
+                    state.get("preferences") or extracted or effective_llm_clears
+                )
             elif llm_action == "refine" and (state.get("preferences") or extracted):
                 semantics_data["force_catalog_search"] = True
 

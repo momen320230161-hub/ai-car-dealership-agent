@@ -198,6 +198,13 @@ def qualify_catalog_search(
     body_type = str(prefs.get("body_type") or "").strip()
     wants_recommendation = explicitly_requests_recommendation(message)
 
+    if not prefs:
+        return CatalogQualification(
+            False,
+            "تمام، أقدر أرشحلك. ميزانيتك تقريبًا كام؟",
+            ("budget",),
+        )
+
     if model:
         return CatalogQualification(True)
 
