@@ -245,16 +245,11 @@ class ConversationalSalesOrchestrator(SalesOrchestrator):
                 "budget_change": llm_budget_change,
             }
 
-            control_only_turn = (
-                llm_action in {"social", "continue"}
-                or (
-                    llm_action == "discuss_budget"
-                    and llm_budget_change in {
-                        "increase_unspecified",
-                        "decrease_unspecified",
-                    }
-                )
-            )
+            control_only_turn = llm_action in {
+                "social",
+                "continue",
+                "discuss_budget",
+            }
             if control_only_turn:
                 extracted = {}
 
