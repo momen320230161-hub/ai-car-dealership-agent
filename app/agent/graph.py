@@ -283,6 +283,9 @@ class SalesOrchestrator:
                     "llm_condition_preference_order": list(
                         understanding.condition_preference_order
                     ),
+                    "visible_reference_selector": (
+                        understanding.visible_reference_selector.model_dump()
+                    ),
                     "car_reference": understanding.car_reference,
                     "comparison_references": understanding.comparison_references,
                     "explicit_car_id": understanding.explicit_car_id,
