@@ -188,6 +188,30 @@ def test_single_useful_preference_is_enough_for_semantic_recommendation() -> Non
 
 
 
+
+def test_budget_discussion_cannot_apply_accidental_vehicle_updates() -> None:
+    orchestrator = object.__new__(ConversationalSalesOrchestrator)
+    orchestrator.llm = _SemanticLLM(
+        RequestUnderstanding(
+            intent="general",
+            preference_updates=PreferenceUpdates(brand="BMW", body_type="SUV"),
+            dialogue_action="discuss_budget",
+            budget_change="increase_unspecified",
+        )
+    )
+
+    update = orchestrator._understand_request(
+        _state(
+            "ممكن أزود الميزانية شوية",
+            preferences={"brand": "Renault", "max_price": 800_000},
+        )
+    )
+
+    assert update["intent"] == "general"
+    assert update["extracted_preferences"] == {}
+    assert update["turn_semantics"]["budget_change_unspecified"] is True
+
+
 def test_non_catalog_turn_cannot_apply_condition_fallback_order() -> None:
     orchestrator = object.__new__(ConversationalSalesOrchestrator)
     orchestrator.llm = _SemanticLLM(
