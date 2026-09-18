@@ -118,6 +118,67 @@ def test_test_drive_pending_collects_only_missing_fields_before_insert(db_sessio
     assert refreshed.pending_action is None
 
 
+def test_customer_name_stays_in_pending_action_not_catalog_preferences(db_session) -> None:
+    conversation, _ = _conversation_with_selected_car(
+        db_session,
+        source_id="identity-boundary-pending",
+    )
+    conversation.preferences = {"brand": "BMW"}
+    db_session.commit()
+    workflow = _workflow(db_session)
+
+    pending = workflow.prepare_action(
+        conversation.id,
+        "test_drive",
+        "اسمي عمر أحمد ورقمي 01012345678",
+    )
+
+    assert pending["status"] == "missing_fields"
+    assert pending["fields"]["customer_name"] == "عمر أحمد"
+    assert pending["fields"]["phone"] == "01012345678"
+
+    db_session.expire_all()
+    refreshed = db_session.get(ConversationSession, conversation.id)
+    assert refreshed.preferences == {"brand": "BMW"}
+    assert refreshed.pending_action["fields"]["customer_name"] == "عمر أحمد"
+
+    continued = workflow.prepare_action(
+        conversation.id,
+        "general",
+        "السبت الساعة 5",
+    )
+    assert continued["status"] == "ready"
+    assert continued["fields"]["customer_name"] == "عمر أحمد"
+    assert continued["fields"]["phone"] == "01012345678"
+
+    db_session.expire_all()
+    refreshed = db_session.get(ConversationSession, conversation.id)
+    assert refreshed.preferences == {"brand": "BMW"}
+
+
+def test_base_workflow_does_not_reuse_legacy_name_from_catalog_preferences(db_session) -> None:
+    conversation, _ = _conversation_with_selected_car(
+        db_session,
+        source_id="identity-boundary-legacy",
+    )
+    conversation.preferences = {
+        "brand": "BMW",
+        "customer_name": "Legacy Name",
+    }
+    db_session.commit()
+    workflow = _workflow(db_session)
+
+    pending = workflow.prepare_action(
+        conversation.id,
+        "sales_lead",
+        "رقمي 01012345678",
+    )
+
+    assert pending["status"] == "missing_fields"
+    assert pending["missing_fields"] == ["customer_name"]
+    assert "customer_name" not in pending["fields"]
+
+
 def test_sales_lead_pending_requires_only_name_and_phone(db_session) -> None:
     conversation, car = _conversation_with_selected_car(db_session, source_id="pending-lead")
     workflow = _workflow(db_session)

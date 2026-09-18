@@ -83,10 +83,6 @@ class ConversationalBusinessActionWorkflowService(BusinessActionWorkflowService)
             effective_message,
             car_reference=car_reference,
         )
-        # The legacy base workflow temporarily mirrors customer_name into preferences.
-        # Remove it immediately so customer identity never becomes a car filter.
-        self.preference_state.strip_legacy_contact_preferences(session_id)
-
         intent = str(result.get("intent") or requested_intent)
         ambiguous_hour = bare_ambiguous_hour
         if ambiguous_hour is None and self._has_ambiguous_clock_time(effective_message):
@@ -143,7 +139,6 @@ class ConversationalBusinessActionWorkflowService(BusinessActionWorkflowService)
             "",
             car_reference=car_reference,
         )
-        self.preference_state.strip_legacy_contact_preferences(session_id)
         if result.get("ambiguous_time"):
             refreshed = self._remove_ambiguous_time(
                 session_id,
