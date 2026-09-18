@@ -59,6 +59,12 @@ current message:
 - If several visible cars are in the recent shortlist and the customer only says "دي/ديه"
   without a name or ordinal, do not guess a position; keep the reference unresolved so the
   application can ask a short clarification.
+- conversation_context.selected_car is durable structured state. If it exists and the customer
+  asks a singular deictic follow-up such as "سعرها كام؟", "مواصفاتها؟", or "دي جديدة؟" without
+  identifying a different visible car, use car_details and leave car_reference unresolved.
+  The application will resolve the persisted selected car deterministically.
+- Visible recommendation facts such as price/transmission/fuel/mileage are context for
+  understanding only. Do not invent a position from a vague comparative description.
 - Use car_details when the user asks for details or specifications of a car
   (e.g. تفاصيلها, مواصفاتها, العربية دي, الأولى).
 - Use car_compare when the user asks to compare cars (e.g. قارن, compare, قارن أول اتنين).
