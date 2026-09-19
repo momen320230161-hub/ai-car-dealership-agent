@@ -50,10 +50,8 @@ def _state_payload(state: CustomerChatState) -> dict[str, Any]:
     selected_car = state.selected_car
     if selected_car is not None:
         selected_car = {
-            "id": selected_car.get("id"),
-            "brand": selected_car.get("brand"),
-            "model": selected_car.get("model"),
-            "year": selected_car.get("year"),
+            key: selected_car.get(key)
+            for key in ("id", "brand", "model", "year", "condition", "body_type", "price_egp")
         }
     return {
         "session_id": str(state.session_id),
@@ -126,6 +124,7 @@ def send_message():
         "errors": errors,
         "recommendation_snapshot_id": result.recommendation_snapshot_id,
         "visible_recommendations": result.visible_recommendations,
+        "messages": state.messages,
         "state": _state_payload(state),
     }
     return jsonify(response_payload), status_code
@@ -136,9 +135,25 @@ def send_message():
 def new_session():
     require_browser_csrf()
     service = _service()
-    browser_session.pop(_BROWSER_SESSION_KEY, None)
     try:
-        context = _ensure_browser_conversation(service)
+        current_id = browser_session.get(_BROWSER_SESSION_KEY)
+        if current_id:
+            try:
+                current_state = service.chat_state(current_id, user_id=_user_id())
+            except (ConversationContextError, ValueError):
+                current_state = None
+            if current_state is not None:
+                if (
+                    not current_state.messages
+                    and current_state.selected_car is None
+                    and current_state.pending_action_type is None
+                    and not current_state.visible_recommendations
+                ):
+                    return jsonify({"ok": True, "state": _state_payload(current_state)})
+
+        browser_session.pop(_BROWSER_SESSION_KEY, None)
+        context = service.ensure_conversation(None, user_id=_user_id())
+        browser_session[_BROWSER_SESSION_KEY] = str(context.session_id)
         state = service.chat_state(context.session_id, user_id=_user_id())
     except (ConversationContextError, SQLAlchemyError, ValueError):
         db.session.rollback()

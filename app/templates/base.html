@@ -6,9 +6,9 @@
   <meta name="theme-color" content="#0b1220">
   <title>{% block title %}AutoDrive Egypt{% endblock %}</title>
   <meta name="description" content="AutoDrive Egypt AI Car Dealership">
-  <link rel="stylesheet" href="{{ url_for('static', filename='css/ui-v2.css') }}">
+  <link rel="stylesheet" href="{{ static_asset('css/ui-v2.css') }}">
   {% if request.endpoint == 'chat.chat_page' %}
-    <link rel="stylesheet" href="{{ url_for('static', filename='css/chat-v2.css') }}">
+    <link rel="stylesheet" href="{{ static_asset('css/chat-v2.css') }}">
   {% endif %}
   {% block head %}{% endblock %}
 </head>
@@ -85,7 +85,7 @@
   </a>
   {% endif %}
 
-  <script src="{{ url_for('static', filename='js/site.js') }}" defer></script>
+  <script src="{{ static_asset('js/site.js') }}" defer></script>
   {% block scripts %}{% endblock %}
 </body>
 </html>

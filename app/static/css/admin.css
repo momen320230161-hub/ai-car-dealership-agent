@@ -512,3 +512,10 @@
   .admin-heading h1{font-size:30px}
   .admin-button{min-height:36px}
 }
+
+/* Operations-console readability and keyboard affordances */
+.admin-shell{font-size:14px}
+.status-badge{font-size:11px!important}
+.admin-shell :is(a,button,input,select,textarea):focus-visible{outline:3px solid rgba(37,99,235,.28);outline-offset:2px}
+.table-wrap{overflow-x:auto;overscroll-behavior-inline:contain}
+@media(prefers-reduced-motion:reduce){*,*::before,*::after{animation-duration:.01ms!important;animation-iteration-count:1!important;transition-duration:.01ms!important}}

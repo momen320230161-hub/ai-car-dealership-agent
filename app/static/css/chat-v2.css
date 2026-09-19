@@ -1215,3 +1215,59 @@
     max-width:145px;
   }
 }
+
+/* Production readability and interaction pass */
+.chat-body .site-header{display:none}
+.chat-app{height:100dvh;min-height:560px;padding:14px 0}
+.chat-app>.chat-layout{width:min(1440px,calc(100% - 28px));max-width:none}
+.chat-layout{grid-template-columns:288px minmax(0,1fr);gap:14px}
+.chat-sidebar{border-radius:22px;padding:18px}
+.sidebar-workspace-label{display:grid;grid-template-columns:36px minmax(0,1fr) auto}
+.sidebar-close{display:none;width:38px;height:38px;border:0;border-radius:10px;background:rgba(255,255,255,.08);color:#fff;font-size:24px;cursor:pointer}
+.sidebar-section-title small,.sidebar-workspace-label small{font-size:11px}
+.sidebar-section-title>span,.history-title,.sidebar-footer-copy strong,.sidebar-account .profile-copy strong{font-size:12px}
+.sidebar-footer-copy small,.sidebar-account .profile-copy small{font-size:10px}
+.history-item{min-height:46px}
+.sidebar-logout{min-height:40px;font-size:11px}
+.chat-sidebar-footer .sidebar-trust strong{font-size:11px}
+.chat-sidebar-footer .sidebar-trust small{font-size:10px}
+.context-copy>span,.selected-car-meta span,.pending-summary p{font-size:11px}
+.chat-intro span,.recommendations-kicker,.recommendations-head span{font-size:10px!important}
+.chat-intro p{font-size:13px}
+.recommendations-head strong,.rec-content h3,.rec-price{font-size:15px}
+.rec-position,.rec-meta span{font-size:11px}
+.rec-action,.compare-visible,.prompt-chips button,.typing-message>span{font-size:12px}
+.rec-action,.compare-visible{min-height:42px}
+.prompt-chips button{min-height:36px}
+.composer-note{font-size:10px}
+.rec-card.selected{border-color:#2563eb;box-shadow:0 0 0 2px rgba(37,99,235,.14),0 14px 34px rgba(15,23,42,.08)}
+.rec-card.selected .rec-position{background:#2563eb}
+.sidebar-backdrop{display:none;position:fixed;inset:0;z-index:44;border:0;background:rgba(2,6,23,.54);backdrop-filter:blur(3px)}
+.sidebar-backdrop.visible{display:block}
+.composer-form button.loading svg{animation:sendPulse .8s ease-in-out infinite alternate}
+@keyframes sendPulse{to{transform:translateX(-2px);opacity:.55}}
+.visually-hidden{position:absolute!important;width:1px!important;height:1px!important;padding:0!important;margin:-1px!important;overflow:hidden!important;clip:rect(0,0,0,0)!important;white-space:nowrap!important;border:0!important}
+.chat-app :focus-visible{outline:3px solid rgba(96,165,250,.65);outline-offset:2px}
+
+@media(max-width:1100px){.chat-layout{grid-template-columns:252px minmax(0,1fr)}}
+@media(max-width:900px){
+  .chat-app{padding:0}
+  .chat-app>.chat-layout{width:100%}
+  .chat-layout{grid-template-columns:minmax(0,1fr)}
+  .chat-panel{border-radius:0}
+  .chat-sidebar{position:fixed;inset:0 0 0 auto;width:min(88vw,330px);z-index:45;border-radius:0;transform:translateX(105%);transition:transform .2s ease}
+  .chat-sidebar.open{transform:translateX(0)}
+  .sidebar-close{display:grid;place-items:center}
+  .chat-drawer-open{overflow:hidden}
+}
+@media(max-width:650px){
+  .chat-agent-heading p{font-size:10px}
+  .chat-intro p{font-size:12px}
+  .msg{font-size:14px;padding:11px 13px}
+  .composer-form textarea{font-size:14px}
+  .chat-context-strip{grid-template-columns:1fr}
+  .context-card.action-context{display:none}
+}
+@media(prefers-reduced-motion:reduce){
+  *,*::before,*::after{scroll-behavior:auto!important;animation-duration:.01ms!important;animation-iteration-count:1!important;transition-duration:.01ms!important}
+}

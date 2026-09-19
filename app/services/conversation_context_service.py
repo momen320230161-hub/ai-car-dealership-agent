@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import re
 import uuid
 from dataclasses import dataclass
 from decimal import Decimal
@@ -11,6 +12,7 @@ from sqlalchemy import select
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.orm import Session
 
+from app.models.base import utc_now
 from app.models.conversation import ConversationSession
 from app.models.message import ChatMessage
 from app.services.catalog_service import CatalogService
@@ -153,7 +155,8 @@ class ConversationContextService:
         if not isinstance(response, str) or not response.strip():
             raise ValueError("Assistant response must not be blank")
         try:
-            if self.session.get(ConversationSession, resolved) is None:
+            conversation = self.session.get(ConversationSession, resolved)
+            if conversation is None:
                 raise ConversationContextError("Conversation session was not found")
             messages = []
             if isinstance(user_message, str) and user_message.strip():
@@ -164,6 +167,8 @@ class ConversationContextService:
                 ChatMessage(session_id=resolved, role="assistant", content=response.strip())
             )
             self.session.add_all(messages)
+            # A message changes recency even though it lives in a child table.
+            conversation.updated_at = utc_now()
             self.session.commit()
         except (ConversationContextError, ValueError):
             self.session.rollback()
@@ -185,10 +190,11 @@ class ConversationContextService:
                 select(ConversationSession)
                 .where(ConversationSession.user_id == resolved_user)
                 .order_by(ConversationSession.updated_at.desc())
-                .limit(limit)
+                .limit(max(limit * 2, limit))
             )
         )
         results = []
+        included_empty = False
         for s in sessions:
             first_msg = self.session.scalar(
                 select(ChatMessage.content)
@@ -196,11 +202,15 @@ class ConversationContextService:
                 .order_by(ChatMessage.created_at.asc())
                 .limit(1)
             )
-            title = (
-                (first_msg[:40] + "...")
-                if first_msg and len(first_msg) > 40
-                else (first_msg or "محادثة جديدة")
-            )
+            if first_msg:
+                title = self._conversation_title(first_msg)
+            elif included_empty:
+                # Legacy versions could create a blank row on every click. Keep
+                # one useful draft in the UI while preserving database history.
+                continue
+            else:
+                title = "محادثة جديدة"
+                included_empty = True
             results.append(
                 {
                     "id": str(s.id),
@@ -209,7 +219,23 @@ class ConversationContextService:
                     "updated_at": s.updated_at.isoformat(),
                 }
             )
+            if len(results) >= limit:
+                break
         return results
+
+    @staticmethod
+    def _conversation_title(message: str, max_length: int = 52) -> str:
+        """Build a compact deterministic title from the first meaningful message."""
+
+        normalized = re.sub(r"\s+", " ", message).strip(" .،,:؛!?؟-_")
+        if not normalized:
+            return "محادثة جديدة"
+        if len(normalized) <= max_length:
+            return normalized
+        shortened = normalized[: max_length - 1].rstrip()
+        if " " in shortened:
+            shortened = shortened.rsplit(" ", 1)[0] or shortened
+        return f"{shortened}…"
 
     @staticmethod
     def _parse_session_id(value: uuid.UUID | str | None) -> uuid.UUID | None:

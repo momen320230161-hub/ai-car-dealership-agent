@@ -25,6 +25,9 @@
   const historyList = document.getElementById("history-list");
   const mobileToggle = document.getElementById("mobile-side-toggle");
   const sidebar = document.getElementById("chat-sidebar");
+  const sidebarClose = document.getElementById("sidebar-close");
+  const sidebarBackdrop = document.getElementById("sidebar-backdrop");
+  const chatIntro = document.getElementById("chat-intro");
 
   if (!form || !input || !sendButton || !messageList || !chatWindow) return;
 
@@ -65,6 +68,8 @@
   function setBusy(busy) {
     sendButton.disabled = busy;
     input.disabled = busy;
+    app.setAttribute("aria-busy", String(busy));
+    sendButton.classList.toggle("loading", busy);
     if (typingRow) typingRow.classList.toggle("hidden", !busy);
     if (busy) scrollBottom();
   }
@@ -101,7 +106,19 @@
     stack.appendChild(bubble);
     row.appendChild(stack);
     messageList.appendChild(row);
+    if (chatIntro) chatIntro.classList.add("hidden");
     scrollBottom();
+    return row;
+  }
+
+  function renderMessages(messages, emptyMessage) {
+    messageList.replaceChildren();
+    if (Array.isArray(messages) && messages.length) {
+      for (const message of messages) addMessage(message.role, message.content);
+      return;
+    }
+    if (chatIntro) chatIntro.classList.remove("hidden");
+    addMessage("assistant", emptyMessage || "أهلاً بيك 👋 قولي بتدور على عربية بإيه وأنا أساعدك حسب البيانات المتاحة.");
   }
 
   function formatPrice(value) {
@@ -137,6 +154,9 @@
       const position = Number(item.position) || 1;
       const card = document.createElement("article");
       card.className = "rec-card";
+      if (car.id && selectedContainer && selectedContainer.dataset.selectedCarId === String(car.id)) {
+        card.classList.add("selected");
+      }
 
       const visual = document.createElement("div");
       visual.className = "rec-visual";
@@ -192,6 +212,7 @@
     selectedContainer.replaceChildren();
 
     if (!selected || !selected.brand) {
+      delete selectedContainer.dataset.selectedCarId;
       const empty = document.createElement("div");
       empty.className = "context-empty";
       empty.textContent = "اختار عربية من النتائج علشان تثبت هنا.";
@@ -214,6 +235,7 @@
       wrapper.appendChild(price);
     }
     selectedContainer.appendChild(wrapper);
+    selectedContainer.dataset.selectedCarId = String(selected.id || "");
   }
 
   function renderState(state) {
@@ -250,7 +272,7 @@
     }
 
     clearError();
-    addMessage("user", message);
+    const optimisticRow = addMessage("user", message);
     input.value = "";
     input.style.height = "auto";
     setBusy(true);
@@ -265,7 +287,9 @@
         signal: controller.signal,
       });
       const payload = await parseJson(response);
-      if (payload && typeof payload.response === "string" && payload.response.trim()) {
+      if (payload && Array.isArray(payload.messages)) {
+        renderMessages(payload.messages);
+      } else if (payload && typeof payload.response === "string" && payload.response.trim()) {
         addMessage("assistant", payload.response);
       }
       if (payload && payload.state) renderState(payload.state);
@@ -273,11 +297,13 @@
         renderRecommendations(payload.visible_recommendations);
       }
       if (!response.ok) {
+        if (!payload || !Array.isArray(payload.messages)) optimisticRow.remove();
         showError(payload && typeof payload.message === "string" ? payload.message : "حصلت مشكلة مؤقتة. جرّب تاني بعد لحظات.");
       } else {
         refreshHistory();
       }
     } catch (error) {
+      optimisticRow.remove();
       showError(error && error.name === "AbortError" ? "الرد أخد وقت أطول من المتوقع. تقدر تعيد المحاولة." : "تعذر الاتصال بالخدمة. جرّب تاني بعد لحظات.");
     } finally {
       window.clearTimeout(timeout);
@@ -305,7 +331,10 @@
         const button = document.createElement("button");
         button.type = "button";
         button.className = "history-item";
-        if (String(item.id) === activeSessionId) button.classList.add("active");
+        if (String(item.id) === activeSessionId) {
+          button.classList.add("active");
+          button.setAttribute("aria-current", "page");
+        }
         button.dataset.historyId = item.id;
         const icon = document.createElement("span");
         icon.className = "history-icon";
@@ -333,16 +362,11 @@
       });
       const payload = await parseJson(response);
       if (!response.ok || !payload || !payload.ok) throw new Error("switch failed");
-      messageList.replaceChildren();
-      if (Array.isArray(payload.messages) && payload.messages.length) {
-        for (const message of payload.messages) addMessage(message.role, message.content);
-      } else {
-        addMessage("assistant", "أهلاً بيك في المحادثة دي. نكمّل من هنا.");
-      }
+      renderMessages(payload.messages, "أهلاً بيك في المحادثة دي. نكمّل من هنا.");
       renderRecommendations([]);
       renderState(payload.state);
       refreshHistory();
-      if (sidebar) sidebar.classList.remove("open");
+      setDrawerOpen(false);
     } catch {
       showError("تعذر الانتقال للمحادثة. جرّب تاني بعد لحظات.");
     } finally {
@@ -374,13 +398,14 @@
     });
   });
 
-  document.addEventListener("click", (event) => {
+  if (historyList) historyList.addEventListener("click", (event) => {
     const historyButton = event.target.closest("[data-history-id]");
     if (historyButton && !sendButton.disabled) {
       switchToSession(historyButton.dataset.historyId);
-      return;
     }
+  });
 
+  if (recommendationSection) recommendationSection.addEventListener("click", (event) => {
     const actionButton = event.target.closest("[data-action]");
     if (!actionButton || sendButton.disabled) return;
     const action = actionButton.dataset.action;
@@ -403,12 +428,11 @@
         });
         const payload = await parseJson(response);
         if (!response.ok || !payload || !payload.ok) throw new Error("session reset failed");
-        messageList.replaceChildren();
+        renderMessages([], "بدأنا محادثة جديدة. قولّي بتدور على عربية بإيه، وأنا أساعدك حسب البيانات المتاحة.");
         renderRecommendations([]);
         renderState(payload.state);
-        addMessage("assistant", "بدأنا محادثة جديدة. قولّي بتدور على عربية بإيه، وأنا أساعدك حسب البيانات المتاحة.");
         refreshHistory();
-        if (sidebar) sidebar.classList.remove("open");
+        setDrawerOpen(false);
       } catch {
         showError("تعذر بدء محادثة جديدة دلوقتي. جرّب تاني بعد لحظات.");
       } finally {
@@ -417,9 +441,26 @@
     });
   }
 
-  if (mobileToggle && sidebar) {
-    mobileToggle.addEventListener("click", () => sidebar.classList.toggle("open"));
+  function setDrawerOpen(open) {
+    if (!sidebar) return;
+    sidebar.classList.toggle("open", open);
+    document.body.classList.toggle("chat-drawer-open", open);
+    if (sidebarBackdrop) sidebarBackdrop.classList.toggle("visible", open);
+    if (mobileToggle) mobileToggle.setAttribute("aria-expanded", String(open));
+    if (open && sidebarClose) sidebarClose.focus();
   }
+
+  if (mobileToggle && sidebar) {
+    mobileToggle.addEventListener("click", () => setDrawerOpen(!sidebar.classList.contains("open")));
+  }
+  if (sidebarClose) sidebarClose.addEventListener("click", () => setDrawerOpen(false));
+  if (sidebarBackdrop) sidebarBackdrop.addEventListener("click", () => setDrawerOpen(false));
+  document.addEventListener("keydown", (event) => {
+    if (event.key === "Escape" && sidebar && sidebar.classList.contains("open")) {
+      setDrawerOpen(false);
+      if (mobileToggle) mobileToggle.focus();
+    }
+  });
 
   const query = new URLSearchParams(window.location.search).get("q");
   if (query && query.trim()) {

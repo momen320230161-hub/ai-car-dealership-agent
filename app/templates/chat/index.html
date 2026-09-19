@@ -12,7 +12,7 @@
          data-active-session-id="{{ chat_state.session_id }}"
          data-max-message-length="{{ config.AGENT_MAX_MESSAGE_LENGTH }}">
   <div class="container chat-layout">
-    <aside class="chat-sidebar" id="chat-sidebar">
+    <aside class="chat-sidebar" id="chat-sidebar" aria-label="المحادثات والحساب">
       <div class="chat-sidebar-top">
         <div class="sidebar-workspace-label">
           <span class="workspace-mark" aria-hidden="true">A</span>
@@ -20,6 +20,7 @@
             <strong>AutoDrive Assistant</strong>
             <small>مساحة محادثاتك</small>
           </div>
+          <button class="sidebar-close" id="sidebar-close" type="button" aria-label="إغلاق قائمة المحادثات">×</button>
         </div>
 
         <button class="new-chat-button" id="new-chat-button" type="button">
@@ -37,7 +38,8 @@
           {% if user_history %}
             {% for item in user_history %}
               <button class="history-item {% if item.id == chat_state.session_id|string %}active{% endif %}"
-                      type="button" data-history-id="{{ item.id }}">
+                      type="button" data-history-id="{{ item.id }}"
+                      {% if item.id == chat_state.session_id|string %}aria-current="page"{% endif %}>
                 <span class="history-icon" aria-hidden="true">◫</span>
                 <span class="history-title">{{ item.title }}</span>
               </button>
@@ -90,6 +92,8 @@
       </div>
     </aside>
 
+    <button class="sidebar-backdrop" id="sidebar-backdrop" type="button" aria-label="إغلاق قائمة المحادثات" tabindex="-1"></button>
+
     <main class="chat-panel">
       <header class="chat-panel-header">
         <div class="chat-agent-heading">
@@ -104,7 +108,7 @@
         </div>
         <div class="chat-header-actions">
           <a class="catalog-shortcut" href="{{ url_for('site.cars') }}">الكتالوج</a>
-          <button class="mobile-side-toggle" id="mobile-side-toggle" type="button" aria-label="فتح المحادثات">☰</button>
+          <button class="mobile-side-toggle" id="mobile-side-toggle" type="button" aria-label="فتح المحادثات" aria-controls="chat-sidebar" aria-expanded="false">☰</button>
         </div>
       </header>
 
@@ -160,7 +164,7 @@
       </section>
 
       <div class="chat-window" id="chat-window">
-        <div class="chat-intro" id="chat-intro">
+        <div class="chat-intro {% if chat_state.messages %}hidden{% endif %}" id="chat-intro">
           <div class="intro-icon">✦</div>
           <div>
             <span>AutoDrive AI Assistant</span>
@@ -199,7 +203,7 @@
             {% if chat_state.visible_recommendations %}
               {% for item in chat_state.visible_recommendations %}
                 {% set car = item.car %}
-                <article class="rec-card">
+                <article class="rec-card {% if chat_state.selected_car and chat_state.selected_car.id == car.id %}selected{% endif %}">
                   <div class="rec-visual">
                     <span class="rec-position">#{{ item.position }}</span>
                     <span class="rec-car-icon" aria-hidden="true"></span>
@@ -238,14 +242,15 @@
           <button type="button" data-prompt="عايز احجز تست درايف">احجز Test Drive</button>
         </div>
         <form class="composer-form" id="chat-form">
+          <label class="visually-hidden" for="chat-input">رسالتك إلى مساعد AutoDrive</label>
           <textarea id="chat-input" rows="1" maxlength="{{ config.AGENT_MAX_MESSAGE_LENGTH }}"
                     placeholder="اكتب رسالتك... مثال: معايا مليون ونص وعايزها جديدة"
-                    autocomplete="off"></textarea>
+                    autocomplete="off" aria-describedby="composer-help"></textarea>
           <button id="chat-send" type="submit" aria-label="إرسال الرسالة">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="m5 12 14-7-5 14-2-6-7-1Z"/><path d="m12 13 7-8"/></svg>
           </button>
         </form>
-        <div class="composer-note">
+        <div class="composer-note" id="composer-help">
           <span>Enter للإرسال · Shift + Enter لسطر جديد</span>
           <span>الأسعار والمواصفات حسب البيانات المسجلة</span>
         </div>
@@ -255,4 +260,4 @@
 </section>
 {% endblock %}
 
-{% block scripts %}<script src="{{ url_for('static', filename='js/chat.js') }}" defer></script>{% endblock %}
+{% block scripts %}<script src="{{ static_asset('js/chat.js') }}" defer></script>{% endblock %}

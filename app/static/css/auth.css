@@ -580,3 +580,9 @@ button,input{font:inherit}
     animation-iteration-count:1!important;
   }
 }
+
+/* Accessible production type scale */
+.auth-kicker,.auth-capabilities span,.secure-indicator{font-size:11px}
+.auth-capabilities small,.auth-visual-footer p,.google-button-copy small,.first-time-note p,.auth-security-note p,.auth-panel-footer{font-size:11px}
+.auth-action-group a:focus-visible,.auth-panel a:focus-visible{outline:3px solid rgba(37,99,235,.3);outline-offset:3px}
+@media(max-width:680px){.auth-panel{min-height:100dvh}.auth-card-heading p,.first-time-note p,.auth-security-note p{font-size:12px}}

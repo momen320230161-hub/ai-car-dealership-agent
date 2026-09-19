@@ -86,3 +86,9 @@
     animation-iteration-count:1!important;
   }
 }
+
+/* Shared production readability and accessibility guardrails */
+.car-image-note,.price-line span,.filter-header small,.assistant-filter-cta small,.detail-spec span,.detail-price-note,.detail-trust p{font-size:10px}
+.car-tag,.catalog-id,.chip,.intelligence-features span,.stack-card small{font-size:11px}
+.filter-group label,.filter-group input,.filter-group select,.card-link,.breadcrumbs,.detail-title-row p{font-size:12px}
+:is(a,button,input,select,textarea):focus-visible{outline:3px solid rgba(37,99,235,.28);outline-offset:2px}

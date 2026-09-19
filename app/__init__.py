@@ -3,10 +3,13 @@
 from __future__ import annotations
 
 import uuid
+from functools import lru_cache
+from hashlib import sha256
+from pathlib import Path
 from typing import Any
 
 import click
-from flask import Flask
+from flask import Flask, url_for
 from sqlalchemy import event
 
 from app.config import Config
@@ -54,8 +57,30 @@ def create_app(config_overrides: dict[str, Any] | None = None) -> Flask:
     app.register_blueprint(auth_bp)
     app.register_blueprint(chat_bp)
     app.register_blueprint(health_bp)
+    _register_asset_versioning(app)
     _register_cli(app)
     return app
+
+
+def _register_asset_versioning(app: Flask) -> None:
+    """Expose content-hashed static URLs without disabling browser caching."""
+
+    static_root = Path(app.static_folder or "")
+
+    @lru_cache(maxsize=128)
+    def asset_version(filename: str) -> str:
+        path = static_root / filename
+        try:
+            return sha256(path.read_bytes()).hexdigest()[:12]
+        except OSError:
+            return "missing"
+
+    @app.context_processor
+    def inject_static_asset_url():
+        def static_asset(filename: str) -> str:
+            return url_for("static", filename=filename, v=asset_version(filename))
+
+        return {"static_asset": static_asset}
 
 
 def _validate_required_config(app: Flask) -> None:

@@ -10,6 +10,7 @@ from app.models.car import Car
 from app.models.conversation import ConversationSession
 from app.models.message import ChatMessage
 from app.models.test_drive import TestDriveRequest
+from app.services.customer_web_service import CustomerWebService
 
 
 def _configure_deterministic_runtime(app) -> None:
@@ -184,7 +185,15 @@ def test_new_chat_and_separate_clients_are_session_isolated(app, db_session) -> 
     reset = first_client.post("/api/chat/session", headers=_csrf_headers(first_client))
     assert reset.status_code == 200 and reset.get_json()["ok"] is True
     after_ids = {row.id for row in db_session.query(ConversationSession).all()}
-    assert len(after_ids) == 3 and before_ids < after_ids
+    assert after_ids == before_ids
+
+    service = CustomerWebService(db_session)
+    current_id = reset.get_json()["state"]["session_id"]
+    service.context.persist_turn(current_id, "عايز عربية عائلية", "تمام، خلينا نحدد احتياجك.")
+    created = first_client.post("/api/chat/session", headers=_csrf_headers(first_client))
+    assert created.status_code == 200 and created.get_json()["ok"] is True
+    assert db_session.query(ConversationSession).count() == 3
+    assert created.get_json()["state"]["session_id"] != current_id
 
 
 def test_blank_chat_input_is_rejected_without_persistence(app, client, db_session) -> None:
@@ -197,6 +206,18 @@ def test_blank_chat_input_is_rejected_without_persistence(app, client, db_sessio
     )
     assert response.status_code == 400 and response.get_json()["ok"] is False
     assert db_session.query(ChatMessage).count() == 0
+
+
+def test_conversation_titles_are_compact_and_deterministic() -> None:
+    # Title generation lives on the context service used by CustomerWebService.
+    from app.services.conversation_context_service import ConversationContextService
+
+    result = ConversationContextService._conversation_title(
+        "  عايز عربية عائلية\nواسعة وتكون اقتصادية في البنزين ومناسبة للسفر الطويل جدًا  "
+    )
+    assert "\n" not in result
+    assert len(result) <= 52
+    assert result.endswith("…")
 
 
 def test_chat_dependency_failure_returns_safe_error(app, client, db_session) -> None:
