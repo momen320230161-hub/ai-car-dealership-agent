@@ -7,6 +7,7 @@ under the deterministic storage_path recorded in the manifest.
 Usage:
     uv run --with pillow python scripts/sync_car_images.py --download-only
     uv run --with pillow python scripts/sync_car_images.py --upload
+    uv run --with pillow python scripts/sync_car_images.py --upload --missing-only
     uv run --with pillow python scripts/sync_car_images.py --upload --limit 10
 
 Required for upload:
@@ -21,8 +22,10 @@ from __future__ import annotations
 import argparse
 import csv
 import hashlib
+import html
 import io
 import os
+import re
 import sys
 from dataclasses import dataclass
 from pathlib import Path
@@ -118,18 +121,7 @@ def _source_cache_path(cache_dir: Path, source_url: str) -> Path:
     return cache_dir / f"{digest}.source"
 
 
-def _download_source(
-    client: httpx.Client,
-    source_url: str,
-    *,
-    cache_dir: Path,
-    force: bool,
-) -> bytes:
-    cache_path = _source_cache_path(cache_dir, source_url)
-    if cache_path.exists() and not force:
-        return cache_path.read_bytes()
-
-    response = client.get(source_url)
+def _validate_image_response(response: httpx.Response) -> bytes:
     response.raise_for_status()
     content = response.content
     if not content:
@@ -142,6 +134,66 @@ def _download_source(
     content_type = response.headers.get("content-type", "").lower()
     if content_type and "image" not in content_type:
         raise ValueError(f"Source returned non-image content type: {content_type}")
+    return content
+
+
+def _fetch_image(
+    client: httpx.Client,
+    image_url: str,
+    *,
+    referer: str | None = None,
+) -> bytes:
+    headers = {}
+    if referer:
+        headers["Referer"] = referer
+    response = client.get(image_url, headers=headers)
+    return _validate_image_response(response)
+
+
+def _extract_page_image_url(page_html: str) -> str | None:
+    patterns = (
+        r'<meta[^>]+property=["\']og:image["\'][^>]+content=["\']([^"\']+)["\']',
+        r'<meta[^>]+content=["\']([^"\']+)["\'][^>]+property=["\']og:image["\']',
+        r'<meta[^>]+name=["\']twitter:image(?::src)?["\'][^>]+content=["\']([^"\']+)["\']',
+        r'<meta[^>]+content=["\']([^"\']+)["\'][^>]+name=["\']twitter:image(?::src)?["\']',
+    )
+    for pattern in patterns:
+        match = re.search(pattern, page_html, flags=re.IGNORECASE)
+        if match:
+            return html.unescape(match.group(1).strip())
+    return None
+
+
+def _download_source(
+    client: httpx.Client,
+    source_url: str,
+    *,
+    source_page: str,
+    cache_dir: Path,
+    force: bool,
+) -> bytes:
+    cache_path = _source_cache_path(cache_dir, source_url)
+    if cache_path.exists() and not force:
+        return cache_path.read_bytes()
+
+    first_error: Exception | None = None
+    try:
+        content = _fetch_image(client, source_url, referer=source_page or None)
+    except (httpx.HTTPError, ValueError) as exc:
+        first_error = exc
+        if not source_page:
+            raise
+
+        page_response = client.get(
+            source_page,
+            headers={"Referer": source_page},
+        )
+        page_response.raise_for_status()
+        candidate = _extract_page_image_url(page_response.text)
+        if not candidate:
+            raise first_error
+
+        content = _fetch_image(client, candidate, referer=source_page)
 
     cache_path.parent.mkdir(parents=True, exist_ok=True)
     cache_path.write_bytes(content)
@@ -264,6 +316,11 @@ def _parse_args() -> argparse.Namespace:
         help="Sync one manifest row. Repeat to select multiple rows.",
     )
     parser.add_argument("--force", action="store_true")
+    parser.add_argument(
+        "--missing-only",
+        action="store_true",
+        help="When uploading, skip objects that already exist in the public bucket.",
+    )
     parser.add_argument("--max-width", type=int, default=DEFAULT_MAX_WIDTH)
     parser.add_argument("--max-height", type=int, default=DEFAULT_MAX_HEIGHT)
     parser.add_argument("--quality", type=int, default=DEFAULT_WEBP_QUALITY)
@@ -313,9 +370,30 @@ def main() -> int:
         for index, row in enumerate(rows, start=1):
             label = f"[{index}/{len(rows)}] row {row.row_no} {row.brand} {row.model} {row.year}"
             try:
+                if args.upload and args.missing_only:
+                    existing_url = public_image_url(
+                        supabase_url,
+                        args.bucket,
+                        row.storage_path,
+                    )
+                    existing_response = client.head(existing_url)
+                    if existing_response.status_code == 200:
+                        print(f"{label}: skipped existing -> {row.storage_path}")
+                        results.append(
+                            SyncResult(
+                                row_no=row.row_no,
+                                storage_path=row.storage_path,
+                                local_path=None,
+                                uploaded=True,
+                                error=None,
+                            )
+                        )
+                        continue
+
                 source_bytes = _download_source(
                     client,
                     row.image_source_url,
+                    source_page=row.image_source_page,
                     cache_dir=cache_dir,
                     force=args.force,
                 )
