@@ -5,9 +5,9 @@ downloads each mapped source image, converts it to bounded WebP, and uploads it
 under the deterministic storage_path recorded in the manifest.
 
 Usage:
-    uv run python scripts/sync_car_images.py --download-only
-    uv run python scripts/sync_car_images.py --upload
-    uv run python scripts/sync_car_images.py --upload --limit 10
+    uv run --with pillow python scripts/sync_car_images.py --download-only
+    uv run --with pillow python scripts/sync_car_images.py --upload
+    uv run --with pillow python scripts/sync_car_images.py --upload --limit 10
 
 Required for upload:
     SUPABASE_URL
