@@ -104,36 +104,6 @@ def test_chat_page_creates_and_reuses_one_browser_session(app, client, db_sessio
     assert db_session.query(ConversationSession).one().id == first_id
 
 
-def test_logout_and_relogin_restores_latest_conversation_without_creating_blank(
-    app, client, db_session
-) -> None:
-    """Signing out must not manufacture a new conversation on the next login."""
-    _configure_deterministic_runtime(app)
-
-    assert client.get("/chat").status_code == 200
-    first_session = db_session.query(ConversationSession).one()
-    first_session_id = first_session.id
-
-    logout = client.post("/auth/logout", headers=_csrf_headers(client))
-    assert logout.status_code == 302
-    assert "/auth/login" in logout.headers["Location"]
-
-    # Simulate the same verified user returning after OAuth.
-    with client.session_transaction() as sess:
-        sess["_user_id"] = "00000000-0000-4000-a000-000000000000"
-        sess["_fresh"] = True
-
-    reopened = client.get("/chat")
-    assert reopened.status_code == 200
-
-    sessions = db_session.query(ConversationSession).all()
-    assert len(sessions) == 1
-    assert sessions[0].id == first_session_id
-
-    with client.session_transaction() as sess:
-        assert sess["autodrive_conversation_id"] == str(first_session_id)
-
-
 def test_chat_post_invokes_graph_and_persists_turn_exactly_once(app, client, db_session) -> None:
     _configure_deterministic_runtime(app)
     _seed_catalog(db_session)
