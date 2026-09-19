@@ -44,7 +44,7 @@
     <table class="admin-table">
       <thead>
         <tr>
-          <th>ID</th><th>العربية</th><th>السنة</th><th>الحالة</th><th>السعر المسجل</th>
+          <th>ID</th><th>صورة</th><th>العربية</th><th>السنة</th><th>الحالة</th><th>السعر المسجل</th>
           <th>المصدر</th><th>Active</th><th>إدارة</th>
         </tr>
       </thead>
@@ -52,6 +52,14 @@
       {% for car in page.items %}
         <tr>
           <td>{{ car.id }}</td>
+          <td>
+            {% set image_url = car|car_image_url %}
+            {% if image_url %}
+              <img class="admin-car-thumb" src="{{ image_url }}" alt="{{ car.brand }} {{ car.model }}" loading="lazy" decoding="async">
+            {% else %}
+              <span class="admin-image-empty">—</span>
+            {% endif %}
+          </td>
           <td><strong>{{ car.brand }} {{ car.model }}</strong><small>{{ car.trim or car.body_type or '—' }}</small></td>
           <td>{{ car.year }}</td>
           <td>{{ 'جديدة' if car.condition == 'new' else 'مستعملة' }}</td>
@@ -71,7 +79,7 @@
           </td>
         </tr>
       {% else %}
-        <tr><td colspan="8" class="empty-state">لا توجد سيارات مطابقة للفلاتر الحالية.</td></tr>
+        <tr><td colspan="9" class="empty-state">لا توجد سيارات مطابقة للفلاتر الحالية.</td></tr>
       {% endfor %}
       </tbody>
     </table>
