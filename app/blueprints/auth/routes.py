@@ -12,6 +12,7 @@ from app.blueprints.auth import bp
 from app.common.security import require_browser_csrf
 from app.extensions import db
 from app.services.auth_service import AuthError, AuthService, AuthUserInactiveError
+from app.services.customer_web_service import CustomerWebService
 
 _CODE_VERIFIER_SESSION_KEY = "oauth_code_verifier"
 _AUTH_NEXT_SESSION_KEY = "oauth_next"
@@ -145,6 +146,22 @@ def callback():
 
     session.clear()
     login_user(user, remember=True)
+
+    # Restore the user's most recently updated owned conversation so signing out
+    # and back in never manufactures an empty chat. A new conversation is still
+    # created only when the user explicitly chooses "New Chat" or has no history.
+    try:
+        history_service = CustomerWebService(
+            db.session,
+            recent_message_limit=current_app.config["AGENT_RECENT_MESSAGE_LIMIT"],
+        )
+        recent = history_service.user_conversations(user.id, limit=1)
+        if recent:
+            session[_CONVERSATION_SESSION_KEY] = recent[0]["id"]
+    except SQLAlchemyError:
+        db.session.rollback()
+        current_app.logger.exception("Could not restore latest conversation after login")
+
     return redirect(next_page or url_for("chat.chat_page"))
 
 
