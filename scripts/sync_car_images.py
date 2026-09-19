@@ -29,6 +29,7 @@ from pathlib import Path
 from urllib.parse import quote
 
 import httpx
+from dotenv import load_dotenv
 from PIL import Image, ImageOps, UnidentifiedImageError
 
 DEFAULT_MANIFEST = Path("data/car_image_manifest.csv")
@@ -270,6 +271,7 @@ def _parse_args() -> argparse.Namespace:
 
 
 def main() -> int:
+    load_dotenv()
     args = _parse_args()
     if args.limit is not None and args.limit < 1:
         raise SystemExit("--limit must be positive")
