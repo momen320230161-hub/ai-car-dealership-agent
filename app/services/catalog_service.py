@@ -10,6 +10,7 @@ from sqlalchemy.orm import Session
 from app.domain.catalog_filters import CatalogFilters
 from app.models.car import Car
 from app.repositories.catalog_repository import CatalogRepository
+from app.services.car_image_service import image_url_for_car
 
 
 class CatalogService:
@@ -207,5 +208,7 @@ class CatalogService:
 
     @classmethod
     def serialize_details(cls, car: Car) -> dict[str, Any]:
-        """Expose recorded fields verbatim; unknown optional values remain ``None``."""
-        return {field: getattr(car, field) for field in cls.DETAIL_FIELDS}
+        """Expose recorded fields verbatim plus deterministic presentation metadata."""
+        payload = {field: getattr(car, field) for field in cls.DETAIL_FIELDS}
+        payload["image_url"] = image_url_for_car(car)
+        return payload

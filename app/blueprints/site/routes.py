@@ -10,6 +10,7 @@ from sqlalchemy.exc import SQLAlchemyError
 from app.blueprints.site import bp
 from app.domain.catalog_filters import CatalogFilters
 from app.extensions import db
+from app.services.car_image_service import image_url_for_car
 from app.services.customer_web_service import CustomerWebService
 
 _SORTS = {
@@ -61,6 +62,11 @@ def format_egp(value) -> str:
 @bp.app_template_filter("condition_ar")
 def condition_ar(value: str | None) -> str:
     return {"new": "جديدة", "used": "مستعملة"}.get(str(value or "").lower(), "—")
+
+@bp.app_template_filter("car_image_url")
+def car_image_url(car) -> str | None:
+    """Resolve a catalog car to its public Supabase image URL."""
+    return image_url_for_car(car, supabase_url=current_app.config.get("SUPABASE_URL"))
 
 
 @bp.app_template_filter("compact_number")

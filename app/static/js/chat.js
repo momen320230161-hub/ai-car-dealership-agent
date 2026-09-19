@@ -170,7 +170,27 @@
       const glyph = document.createElement("span");
       glyph.className = "rec-car-icon";
       glyph.textContent = "⌁";
-      visual.append(badge, glyph);
+      visual.appendChild(badge);
+      if (car.image_url) {
+        const image = document.createElement("img");
+        image.className = "rec-car-photo";
+        image.src = String(car.image_url);
+        image.alt = [car.brand, car.model, car.year].filter(Boolean).join(" ");
+        image.loading = "lazy";
+        image.decoding = "async";
+        glyph.classList.add("hidden");
+        image.addEventListener(
+          "error",
+          () => {
+            image.remove();
+            glyph.classList.remove("hidden");
+          },
+          { once: true },
+        );
+        visual.append(image, glyph);
+      } else {
+        visual.appendChild(glyph);
+      }
 
       const content = document.createElement("div");
       content.className = "rec-content";
@@ -226,6 +246,20 @@
 
     const wrapper = document.createElement("div");
     wrapper.className = "selected-car-summary";
+
+    if (selected.image_url) {
+      const image = document.createElement("img");
+      image.className = "selected-car-thumb";
+      image.src = String(selected.image_url);
+      image.alt = [selected.brand, selected.model].filter(Boolean).join(" ");
+      image.loading = "lazy";
+      image.decoding = "async";
+      image.addEventListener("error", () => image.remove(), { once: true });
+      wrapper.appendChild(image);
+    }
+
+    const copy = document.createElement("div");
+    copy.className = "selected-car-summary-copy";
     const title = document.createElement("strong");
     title.dir = "auto";
     title.textContent = [selected.brand, selected.model].filter(Boolean).join(" ");
@@ -233,12 +267,13 @@
     meta.className = "selected-car-meta";
     appendMeta(meta, selected.year);
     appendMeta(meta, formatCondition(selected.condition));
-    wrapper.append(title, meta);
+    copy.append(title, meta);
     if (selected.price_egp !== null && selected.price_egp !== undefined) {
       const price = document.createElement("b");
       price.textContent = formatPrice(selected.price_egp);
-      wrapper.appendChild(price);
+      copy.appendChild(price);
     }
+    wrapper.appendChild(copy);
     selectedContainer.appendChild(wrapper);
     selectedContainer.dataset.selectedCarId = String(selected.id || "");
   }

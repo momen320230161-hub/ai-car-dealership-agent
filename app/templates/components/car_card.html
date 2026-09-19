@@ -1,15 +1,20 @@
 {% macro car_card(car) -%}
+{% set image_url = car|car_image_url %}
 <article class="car-card">
   <a href="{{ url_for('site.car_detail', car_id=car.id) }}" class="car-image" aria-label="{{ car.brand }} {{ car.model }}">
+    {% if image_url %}
+      <img class="car-photo" src="{{ image_url }}" alt="{{ car.brand }} {{ car.model }} {{ car.year }}" loading="lazy" decoding="async">
+    {% else %}
+      <div class="car-glyph" aria-hidden="true">
+        <svg viewBox="0 0 64 40">
+          <path d="M10 25h44l-6-11a7 7 0 0 0-6-4H25a8 8 0 0 0-7 4l-8 11Z" fill="currentColor" opacity=".18"/>
+          <path d="M8 24h48a5 5 0 0 1 5 5v3H3v-3a5 5 0 0 1 5-5Z" fill="currentColor" opacity=".28"/>
+          <circle cx="16" cy="32" r="5" fill="currentColor"/><circle cx="48" cy="32" r="5" fill="currentColor"/>
+        </svg>
+      </div>
+    {% endif %}
     <div class="car-image-top"><span class="car-tag">{{ car.condition|condition_ar }}</span><span class="catalog-id">#{{ car.id }}</span></div>
-    <div class="car-glyph" aria-hidden="true">
-      <svg viewBox="0 0 64 40">
-        <path d="M10 25h44l-6-11a7 7 0 0 0-6-4H25a8 8 0 0 0-7 4l-8 11Z" fill="currentColor" opacity=".18"/>
-        <path d="M8 24h48a5 5 0 0 1 5 5v3H3v-3a5 5 0 0 1 5-5Z" fill="currentColor" opacity=".28"/>
-        <circle cx="16" cy="32" r="5" fill="currentColor"/><circle cx="48" cy="32" r="5" fill="currentColor"/>
-      </svg>
-    </div>
-    <span class="car-image-note">بيانات الكتالوج المسجل</span>
+    <span class="car-image-note">{{ 'صورة توضيحية للموديل' if image_url else 'بيانات الكتالوج المسجل' }}</span>
   </a>
   <div class="car-card-body">
     <div class="car-title-row">

@@ -519,3 +519,25 @@
 .admin-shell :is(a,button,input,select,textarea):focus-visible{outline:3px solid rgba(37,99,235,.28);outline-offset:2px}
 .table-wrap{overflow-x:auto;overscroll-behavior-inline:contain}
 @media(prefers-reduced-motion:reduce){*,*::before,*::after{animation-duration:.01ms!important;animation-iteration-count:1!important;transition-duration:.01ms!important}}
+
+
+/* Catalog thumbnails */
+.admin-car-thumb{
+  width:72px;
+  height:48px;
+  display:block;
+  border:1px solid #dfe6ef;
+  border-radius:9px;
+  object-fit:cover;
+  background:#f8fafc;
+}
+.admin-image-empty{
+  width:72px;
+  height:48px;
+  display:grid;
+  place-items:center;
+  border:1px dashed #cbd5e1;
+  border-radius:9px;
+  color:#94a3b8;
+  background:#f8fafc;
+}

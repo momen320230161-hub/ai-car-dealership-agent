@@ -61,6 +61,7 @@ jobs:
 
       - name: Run unit and PostgreSQL integration tests
         env:
+          DATABASE_URL: postgresql+psycopg://postgres:postgrespassword@localhost:5432/autodrive_test
           TEST_DATABASE_URL: postgresql+psycopg://postgres:postgrespassword@localhost:5432/autodrive_test
           SECRET_KEY: ci-secret-key
         run: uv run pytest -q
