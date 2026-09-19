@@ -304,9 +304,14 @@
         button.type = "button";
         button.className = "history-item";
         button.dataset.historyId = item.id;
+        const icon = document.createElement("span");
+        icon.className = "history-icon";
+        icon.setAttribute("aria-hidden", "true");
+        icon.textContent = "◫";
         const title = document.createElement("span");
+        title.className = "history-title";
         title.textContent = item.title;
-        button.appendChild(title);
+        button.append(icon, title);
         historyList.appendChild(button);
       }
     } catch {
