@@ -916,7 +916,7 @@
   .mobile-side-toggle{display:block}
   .chat-panel{border-radius:18px}
 }
-@media(max-width:680px){
+@media(max-width:650px){
   .chat-app{
     padding:0;
     background:#fff;
