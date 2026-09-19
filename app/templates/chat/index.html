@@ -12,91 +12,62 @@
          data-max-message-length="{{ config.AGENT_MAX_MESSAGE_LENGTH }}">
   <div class="container chat-layout">
     <aside class="chat-sidebar" id="chat-sidebar">
-      <div class="sidebar-profile sidebar-card">
-        <div class="profile-identity">
-          {% if current_user.avatar_url %}
-            <img src="{{ current_user.avatar_url }}" alt="صورة الحساب" class="profile-avatar-image">
-          {% else %}
-            <span class="profile-avatar">{{ (current_user.display_name or current_user.email or 'U')[0]|upper }}</span>
-          {% endif %}
-          <div class="profile-copy">
-            <strong>{{ current_user.display_name or current_user.email }}</strong>
-            <small>{{ 'Admin' if current_user.role == 'admin' else 'عميل موثق' }}</small>
+      <div class="chat-sidebar-top">
+        <div class="sidebar-profile">
+          <div class="profile-identity">
+            {% if current_user.avatar_url %}
+              <img src="{{ current_user.avatar_url }}" alt="صورة الحساب" class="profile-avatar-image">
+            {% else %}
+              <span class="profile-avatar">{{ (current_user.display_name or current_user.email or 'U')[0]|upper }}</span>
+            {% endif %}
+            <div class="profile-copy">
+              <strong>{{ current_user.display_name or current_user.email }}</strong>
+              <small>{{ 'Admin' if current_user.role == 'admin' else 'عميل موثق' }}</small>
+            </div>
           </div>
+          <form action="{{ url_for('auth.logout') }}" method="POST">
+            <button class="sidebar-logout" type="submit" aria-label="تسجيل الخروج">خروج</button>
+          </form>
         </div>
-        <form action="{{ url_for('auth.logout') }}" method="POST">
-          <button class="link-button danger-link" type="submit">خروج</button>
-        </form>
+
+        <button class="new-chat-button" id="new-chat-button" type="button">
+          <span aria-hidden="true">＋</span>
+          <span>محادثة جديدة</span>
+        </button>
       </div>
 
-      <div class="sidebar-card session-card">
-        <div class="sidebar-card-head no-border">
-          <div><span class="live-dot"></span><strong>المحادثة الحالية</strong></div>
-          <button class="link-button" id="new-chat-button" type="button">+ محادثة جديدة</button>
-        </div>
-        <p>كل Chat ليها سياق مستقل واختياراتها الخاصة.</p>
-      </div>
-
-      <div class="sidebar-card history-card">
-        <div class="sidebar-card-head">
-          <div><span class="sidebar-icon">↺</span><strong>المحادثات السابقة</strong></div>
+      <div class="history-card">
+        <div class="sidebar-section-title">
+          <span>المحادثات</span>
+          <small>كل محادثة ليها سياق مستقل</small>
         </div>
         <div class="history-list" id="history-list">
           {% if user_history %}
             {% for item in user_history %}
               <button class="history-item {% if item.id == chat_state.session_id|string %}active{% endif %}"
                       type="button" data-history-id="{{ item.id }}">
-                <span>{{ item.title }}</span>
+                <span class="history-icon" aria-hidden="true">◫</span>
+                <span class="history-title">{{ item.title }}</span>
               </button>
             {% endfor %}
           {% else %}
-            <span class="sidebar-empty">لا توجد محادثات سابقة</span>
+            <span class="sidebar-empty">لسه مفيش محادثات سابقة.</span>
           {% endif %}
         </div>
       </div>
 
-      <div class="sidebar-card">
-        <div class="sidebar-card-head">
-          <div><span class="sidebar-icon">⌁</span><strong>السيارة المختارة</strong></div>
-        </div>
-        <div id="selected-car-container">
-          {% if chat_state.selected_car %}
-            <div class="selected-car-summary">
-              <strong>{{ chat_state.selected_car.brand }} {{ chat_state.selected_car.model }}</strong>
-              <div class="selected-car-meta">
-                {% if chat_state.selected_car.year %}<span>{{ chat_state.selected_car.year }}</span>{% endif %}
-                <span>{{ chat_state.selected_car.condition|condition_ar }}</span>
-              </div>
-              {% if chat_state.selected_car.price_egp %}<b>{{ chat_state.selected_car.price_egp|egp }}</b>{% endif %}
-            </div>
-          {% else %}
-            <div class="sidebar-empty" id="selected-car-empty">لسه ما اخترتش عربية. اختار من القائمة أو اذكر اسمها.</div>
-          {% endif %}
+      <div class="sidebar-trust">
+        <span class="trust-dot"></span>
+        <div>
+          <strong>Grounded Assistant</strong>
+          <small>Catalog + RAG + real DB actions</small>
         </div>
       </div>
 
-      <div class="sidebar-card">
-        <div class="sidebar-card-head">
-          <div><span class="sidebar-icon">✓</span><strong>حالة الإجراء</strong></div>
-        </div>
-        <div class="pending-summary">
-          <strong id="pending-action-label">
-            {% if chat_state.pending_action_type == 'test_drive' %}حجز تجربة قيادة
-            {% elif chat_state.pending_action_type == 'sales_lead' %}طلب تواصل مبيعات
-            {% elif chat_state.pending_action_type == 'cancel_test_drive' %}إلغاء تجربة قيادة
-            {% else %}مفيش طلب جارٍ{% endif %}
-          </strong>
-          <p id="pending-action-hint">
-            {% if chat_state.pending_action_type == 'test_drive' %}
-              كمّل البيانات الناقصة في المحادثة، ومش هيتسجل الطلب قبل اكتمالها.
-            {% else %}
-              تقدر تطلب Test Drive أو تواصل من المبيعات في أي وقت.
-            {% endif %}
-          </p>
-        </div>
-      </div>
-
-      <a class="sidebar-catalog-link" href="{{ url_for('site.cars') }}">فتح الكتالوج الكامل <span>←</span></a>
+      <a class="sidebar-catalog-link" href="{{ url_for('site.cars') }}">
+        <span>فتح الكتالوج</span>
+        <b aria-hidden="true">←</b>
+      </a>
     </aside>
 
     <main class="chat-panel">
@@ -104,12 +75,69 @@
         <div class="chat-agent-heading">
           <span class="assistant-avatar">A</span>
           <div>
-            <div class="agent-title-line"><h1>مساعد AutoDrive</h1><span>Sales Orchestrator</span></div>
-            <p><i></i> متاح الآن · فاهم العامية المصرية وبيستخدم بيانات النظام</p>
+            <div class="agent-title-line">
+              <h1>مساعد AutoDrive</h1>
+              <span>AI Sales Concierge</span>
+            </div>
+            <p><i></i> متاح الآن · فاهم العامية المصرية وبيعتمد على بيانات النظام</p>
           </div>
         </div>
-        <button class="mobile-side-toggle" id="mobile-side-toggle" type="button" aria-label="فتح معلومات المحادثة">☰</button>
+        <div class="chat-header-actions">
+          <a class="catalog-shortcut" href="{{ url_for('site.cars') }}">الكتالوج</a>
+          <button class="mobile-side-toggle" id="mobile-side-toggle" type="button" aria-label="فتح المحادثات">☰</button>
+        </div>
       </header>
+
+      <section class="chat-context-strip" aria-label="سياق المحادثة الحالي">
+        <article class="context-card selected-context">
+          <div class="context-icon" aria-hidden="true">
+            <svg viewBox="0 0 48 32">
+              <path d="M8 20h32l-4-8a5 5 0 0 0-4.5-2.8h-14A6 6 0 0 0 12 12L8 20Z" fill="currentColor" opacity=".28"/>
+              <path d="M6 19h36a4 4 0 0 1 4 4v2H2v-2a4 4 0 0 1 4-4Z" fill="currentColor" opacity=".48"/>
+              <circle cx="12" cy="25" r="4" fill="currentColor"/><circle cx="36" cy="25" r="4" fill="currentColor"/>
+            </svg>
+          </div>
+          <div class="context-copy">
+            <span>العربية المختارة</span>
+            <div id="selected-car-container">
+              {% if chat_state.selected_car %}
+                <div class="selected-car-summary">
+                  <strong>{{ chat_state.selected_car.brand }} {{ chat_state.selected_car.model }}</strong>
+                  <div class="selected-car-meta">
+                    {% if chat_state.selected_car.year %}<span>{{ chat_state.selected_car.year }}</span>{% endif %}
+                    <span>{{ chat_state.selected_car.condition|condition_ar }}</span>
+                  </div>
+                  {% if chat_state.selected_car.price_egp %}<b>{{ chat_state.selected_car.price_egp|egp }}</b>{% endif %}
+                </div>
+              {% else %}
+                <div class="context-empty" id="selected-car-empty">اختار عربية من النتائج علشان تثبت هنا.</div>
+              {% endif %}
+            </div>
+          </div>
+        </article>
+
+        <article class="context-card action-context">
+          <div class="context-icon action" aria-hidden="true">✓</div>
+          <div class="context-copy">
+            <span>الإجراء الحالي</span>
+            <div class="pending-summary">
+              <strong id="pending-action-label">
+                {% if chat_state.pending_action_type == 'test_drive' %}حجز تجربة قيادة
+                {% elif chat_state.pending_action_type == 'sales_lead' %}طلب تواصل مبيعات
+                {% elif chat_state.pending_action_type == 'cancel_test_drive' %}إلغاء تجربة قيادة
+                {% else %}مفيش طلب جارٍ{% endif %}
+              </strong>
+              <p id="pending-action-hint">
+                {% if chat_state.pending_action_type == 'test_drive' %}
+                  كمّل البيانات الناقصة، ومش هيتسجل الطلب قبل اكتمالها.
+                {% else %}
+                  تقدر تبدأ Test Drive أو طلب تواصل من المبيعات في أي وقت.
+                {% endif %}
+              </p>
+            </div>
+          </div>
+        </article>
+      </section>
 
       <div class="chat-window" id="chat-window">
         <div class="chat-intro" id="chat-intro">
@@ -117,7 +145,7 @@
           <div>
             <span>AutoDrive AI Assistant</span>
             <h2>قولّي إنت محتاج عربية إزاي.</h2>
-            <p>اكتب بطريقتك: ميزانية، جديدة أو مستعملة، موديل معين، أو حتى “مش فارق معايا”. وتقدر تسأل عن الضمان والسياسات أو تبدأ حجز Test Drive.</p>
+            <p>اكتب بطريقتك: ميزانية، جديدة أو مستعملة، موديل معين، أو حتى “مش فارق معايا”. تقدر كمان تسأل عن الضمان والسياسات أو تبدأ حجز Test Drive.</p>
           </div>
         </div>
 
@@ -140,7 +168,11 @@
 
         <section class="active-recommendations {% if not chat_state.visible_recommendations %}hidden{% endif %}" id="active-recommendations">
           <div class="recommendations-head">
-            <div><strong>الاختيارات الظاهرة دلوقتي</strong><span>الأرقام دي هي المرجع في المقارنة والاختيار</span></div>
+            <div>
+              <span class="recommendations-kicker">CURRENT SHORTLIST</span>
+              <strong>الاختيارات الظاهرة دلوقتي</strong>
+              <span>الأرقام دي هي المرجع الرسمي للمقارنة والاختيار</span>
+            </div>
             <button class="compare-visible" type="button" data-action="compare">قارن أول اتنين</button>
           </div>
           <div class="recommendation-grid" id="recommendation-grid">
@@ -148,10 +180,17 @@
               {% for item in chat_state.visible_recommendations %}
                 {% set car = item.car %}
                 <article class="rec-card">
-                  <div class="rec-visual"><span class="rec-position">#{{ item.position }}</span><span class="rec-car-icon">⌁</span></div>
+                  <div class="rec-visual">
+                    <span class="rec-position">#{{ item.position }}</span>
+                    <span class="rec-car-icon" aria-hidden="true"></span>
+                  </div>
                   <div class="rec-content">
                     <h3>{{ car.brand }} {{ car.model }}</h3>
-                    <div class="rec-meta"><span>{{ car.year }}</span><span>{{ car.condition|condition_ar }}</span>{% if car.body_type %}<span>{{ car.body_type }}</span>{% endif %}</div>
+                    <div class="rec-meta">
+                      {% if car.year %}<span>{{ car.year }}</span>{% endif %}
+                      <span>{{ car.condition|condition_ar }}</span>
+                      {% if car.body_type %}<span>{{ car.body_type }}</span>{% endif %}
+                    </div>
                     {% if car.price_egp %}<strong class="rec-price">{{ car.price_egp|egp }}</strong>{% endif %}
                   </div>
                   <div class="rec-actions">
@@ -186,7 +225,10 @@
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="m5 12 14-7-5 14-2-6-7-1Z"/><path d="m12 13 7-8"/></svg>
           </button>
         </form>
-        <div class="composer-note"><span>Enter للإرسال · Shift + Enter لسطر جديد</span><span>الأسعار والمواصفات حسب البيانات المسجلة</span></div>
+        <div class="composer-note">
+          <span>Enter للإرسال · Shift + Enter لسطر جديد</span>
+          <span>الأسعار والمواصفات حسب البيانات المسجلة</span>
+        </div>
       </footer>
     </main>
   </div>
