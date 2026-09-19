@@ -109,13 +109,13 @@ def test_comparison_shows_recorded_specs_and_deterministic_differences() -> None
     assert "السعر: 2,550,000 جنيه" in response
     assert "الممشى: 140,000 كم" in response
     assert "الممشى: 190,000 كم" in response
-    assert "سعة المحرك: 4,600 cc" in response
-    assert "سعة المحرك: 4,000 cc" in response
+    assert "سعة المحرك: 4,600 سي سي" in response
+    assert "سعة المحرك: 4,000 سي سي" in response
     assert "أبرز الفروق:" in response
     assert "#1 BMW X6 2019 أحدث بسنة واحدة." in response
     assert "#1 BMW X6 2019 ممشاها أقل بـ 50,000 كم." in response
     assert "#2 BMW X6 2018 أرخص بـ 150,000 جنيه." in response
-    assert "سعة المحرك المسجلة في #1 BMW X6 2019 أكبر بـ 600 cc." in response
+    assert "سعة المحرك المسجلة في #1 BMW X6 2019 أكبر بـ 600 سي سي." in response
     assert "None" not in response
 
 

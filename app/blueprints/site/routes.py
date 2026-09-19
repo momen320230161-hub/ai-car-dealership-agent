@@ -63,6 +63,17 @@ def condition_ar(value: str | None) -> str:
     return {"new": "جديدة", "used": "مستعملة"}.get(str(value or "").lower(), "—")
 
 
+@bp.app_template_filter("compact_number")
+def compact_number(value) -> str:
+    """Render recorded decimals without meaningless trailing zeroes."""
+
+    try:
+        amount = Decimal(str(value))
+    except (InvalidOperation, TypeError, ValueError):
+        return "—"
+    return format(amount.normalize(), "f")
+
+
 @bp.get("/")
 def home():
     service = _service()
@@ -126,6 +137,12 @@ def car_detail(car_id: int):
 def not_found(error):
     del error
     return render_template("errors/404.html"), 404
+
+
+@bp.app_errorhandler(403)
+def forbidden(error):
+    del error
+    return render_template("errors/403.html"), 403
 
 
 @bp.app_errorhandler(500)

@@ -3,9 +3,10 @@
 from __future__ import annotations
 
 import uuid
+from time import perf_counter
 from typing import Any
 
-from flask import current_app, jsonify, render_template, request
+from flask import current_app, g, jsonify, render_template, request
 from flask import session as browser_session
 from flask_login import current_user, login_required
 from sqlalchemy.exc import SQLAlchemyError
@@ -73,6 +74,13 @@ def _safe_service_error(status_code: int = 503):
     )
 
 
+def _timed_json_response(payload: dict[str, Any], status_code: int, duration_ms: float):
+    response = jsonify(payload)
+    response.status_code = status_code
+    response.headers["Server-Timing"] = f"agent;dur={duration_ms:.1f}"
+    return response
+
+
 @bp.get("/chat")
 @login_required
 def chat_page():
@@ -104,6 +112,7 @@ def send_message():
         return jsonify({"ok": False, "message": "الرسالة أطول من الحد المسموح."}), 400
 
     service = _service()
+    started_at = perf_counter()
     try:
         context = _ensure_browser_conversation(service)
         orchestrator = build_sales_orchestrator(db.session, current_app.config)
@@ -111,8 +120,16 @@ def send_message():
         state = service.chat_state(result.session_id or context.session_id, user_id=_user_id())
     except (AgentLLMError, EmbeddingError, ConversationContextError, SQLAlchemyError, ValueError):
         db.session.rollback()
+        duration_ms = (perf_counter() - started_at) * 1000
         current_app.logger.exception("Customer chat request failed before a safe agent response")
-        return _safe_service_error()
+        current_app.logger.warning(
+            "chat_request request_id=%s status=failed duration_ms=%.1f",
+            getattr(g, "request_id", "unknown"),
+            duration_ms,
+        )
+        error_response, status_code = _safe_service_error()
+        error_response.headers["Server-Timing"] = f"agent;dur={duration_ms:.1f}"
+        return error_response, status_code
 
     errors = list(result.errors)
     status_code = 503 if _CRITICAL_AGENT_ERRORS.intersection(errors) else 200
@@ -127,7 +144,20 @@ def send_message():
         "messages": state.messages,
         "state": _state_payload(state),
     }
-    return jsonify(response_payload), status_code
+    duration_ms = (perf_counter() - started_at) * 1000
+    log_format = "chat_request request_id=%s status=%s duration_ms=%.1f route=%s intent=%s"
+    log_args = (
+        getattr(g, "request_id", "unknown"),
+        status_code,
+        duration_ms,
+        result.route,
+        result.intent,
+    )
+    if duration_ms >= float(current_app.config["CHAT_SLOW_REQUEST_MS"]):
+        current_app.logger.warning("slow_" + log_format, *log_args)
+    else:
+        current_app.logger.info(log_format, *log_args)
+    return _timed_json_response(response_payload, status_code, duration_ms)
 
 
 @bp.post("/api/chat/session")

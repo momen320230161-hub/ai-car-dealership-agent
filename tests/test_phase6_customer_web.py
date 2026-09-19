@@ -50,6 +50,8 @@ def _car(
         body_type=body_type,
         transmission="Automatic",
         fuel_type="Gasoline",
+        engine_capacity_cc=1500,
+        horsepower=Decimal("114"),
         mileage_km=mileage_km,
         source="phase6-test",
         source_id=source_id,
@@ -93,6 +95,8 @@ def test_home_catalog_and_detail_render_recorded_data(app, client, db_session) -
     assert detail.status_code == 200
     assert "Chery" in detail_body and "930,000" in detail_body
     assert "صورة توضيحية" in detail_body
+    assert "1500 سي سي" in detail_body
+    assert "114 حصان" in detail_body
     assert client.get("/cars/999999").status_code == 404
 
 
@@ -117,6 +121,7 @@ def test_chat_post_invokes_graph_and_persists_turn_exactly_once(app, client, db_
     )
     payload = response.get_json()
     assert response.status_code == 200
+    assert response.headers["Server-Timing"].startswith("agent;dur=")
     assert payload["ok"] is True and payload["route"] == "catalog"
     assert len(payload["visible_recommendations"]) == 3
     assert [item["position"] for item in payload["visible_recommendations"]] == [1, 2, 3]

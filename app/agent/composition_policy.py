@@ -46,6 +46,7 @@ def build_response_plan(state: Mapping[str, Any]) -> dict[str, Any]:
 
 
 _SUPERLATIVES = ("أفضل", "أحسن", "الأنسب", "انسب", "best")
+_PLURAL_ADDRESS_TERMS = ("حبايبي", "يا جماعة", "حضراتكم")
 
 
 def composition_policy_allows(
@@ -62,6 +63,9 @@ def composition_policy_allows(
         lowered = text.casefold()
         if any(term in lowered for term in _SUPERLATIVES):
             return False
+    lowered = text.casefold()
+    if any(term in lowered for term in _PLURAL_ADDRESS_TERMS):
+        return False
     opening = _opening(text)
     if not policy.get("allow_greeting", True) and _looks_like_greeting(opening):
         return False

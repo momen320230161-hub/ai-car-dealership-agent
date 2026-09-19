@@ -109,3 +109,12 @@ def test_auth_uses_hashed_asset_and_explains_account_sync(app, unauthed_client) 
     assert re.search(r"css/auth\.css\?v=[a-f0-9]{12}", body)
     assert "المتابعة باستخدام Google" in body
     assert "هيتجهز تلقائيًا" in body
+
+
+def test_customer_forbidden_page_is_branded_and_arabic(client) -> None:
+    response = client.get("/admin/")
+    body = response.get_data(as_text=True)
+
+    assert response.status_code == 403
+    assert "الصفحة دي مش متاحة لحسابك" in body
+    assert "تصفح السيارات" in body

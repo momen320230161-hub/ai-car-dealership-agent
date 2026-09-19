@@ -158,7 +158,7 @@ def _comparison_facts(car: dict[str, Any]) -> list[str]:
 
     engine = _number(car.get("engine_capacity_cc"))
     if engine is not None:
-        facts.append(f"سعة المحرك: {engine} cc")
+        facts.append(f"سعة المحرك: {engine} سي سي")
     horsepower = _number(car.get("horsepower"))
     if horsepower is not None:
         facts.append(f"القوة: {horsepower} حصان")
@@ -209,7 +209,8 @@ def _comparison_differences(
         larger_engine_label = left_label if left_engine > right_engine else right_label
         engine_difference = abs(left_engine - right_engine)
         differences.append(
-            f"سعة المحرك المسجلة في {larger_engine_label} أكبر بـ {_number(engine_difference)} cc."
+            f"سعة المحرك المسجلة في {larger_engine_label} أكبر بـ "
+            f"{_number(engine_difference)} سي سي."
         )
 
     return differences

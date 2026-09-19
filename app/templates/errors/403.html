@@ -1,0 +1,15 @@
+{% extends 'base.html' %}
+{% block title %}غير مسموح بالدخول — AutoDrive Egypt{% endblock %}
+{% block content %}
+<section class="error-page">
+  <div class="container error-card">
+    <span>403</span>
+    <h1>الصفحة دي مش متاحة لحسابك</h1>
+    <p>لو محتاج صلاحية إدارة، تواصل مع مسؤول النظام. تقدر ترجع للكتالوج أو لمحادثاتك.</p>
+    <div class="hero-actions">
+      <a class="btn btn-primary" href="{{ url_for('site.cars') }}">تصفح السيارات</a>
+      <a class="btn btn-light" href="{{ url_for('chat.chat_page') }}">افتح محادثاتي</a>
+    </div>
+  </div>
+</section>
+{% endblock %}

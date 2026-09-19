@@ -84,6 +84,9 @@ def test_customer_cannot_access_admin_dashboard(client) -> None:
     response = client.get("/admin/")
 
     assert response.status_code == 403
+    body = response.get_data(as_text=True)
+    assert "الصفحة دي مش متاحة لحسابك" in body
+    assert "AutoDrive Egypt" in body
 
 
 def test_admin_can_open_required_dashboard_sections(app, db_session) -> None:

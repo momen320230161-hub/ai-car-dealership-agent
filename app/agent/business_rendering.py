@@ -69,6 +69,11 @@ def render_business_action(
     if action_status == "no_active_request":
         return "مفيش طلب تجربة قيادة نشط مرتبط بالمحادثة دي أقدر ألغيه."
 
+    if action_status == "draft_cancelled":
+        if intent == "sales_lead":
+            return "تم إلغاء استكمال طلب التواصل الحالي، ومفيش بيانات اتسجلت."
+        return "تم إلغاء استكمال طلب تجربة القيادة الحالي، ومفيش حجز اتسجل."
+
     if action_status != "success":
         return "مقدرتش أنفذ الطلب حاليًا. حاول مرة تانية."
 

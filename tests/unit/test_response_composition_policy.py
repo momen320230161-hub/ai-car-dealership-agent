@@ -6,6 +6,13 @@ from app.agent.composition_policy import (
 )
 
 
+def test_customer_response_rejects_plural_address_for_single_user() -> None:
+    assert not composition_policy_allows(
+        "حبايبي، تحبوا تعرفوا تفاصيل أكتر؟",
+        {"max_questions": 1, "allow_evaluative_superlatives": False},
+    )
+
+
 def test_social_plan_avoids_forced_sales_followup_and_repeated_opening() -> None:
     plan = build_response_plan(
         {

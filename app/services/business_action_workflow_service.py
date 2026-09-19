@@ -66,6 +66,18 @@ class BusinessActionWorkflowService:
                 raise BusinessActionWorkflowError("Conversation session was not found")
 
             existing = dict(conversation.pending_action or {})
+            if self._is_pending_draft_cancellation(requested_intent, message, existing):
+                cancelled_intent = str(existing.get("type") or "")
+                conversation.pending_action = None
+                self.session.commit()
+                return {
+                    "status": "draft_cancelled",
+                    "intent": cancelled_intent,
+                    "attempt_id": str(existing.get("attempt_id") or ""),
+                    "fields": {},
+                    "missing_fields": [],
+                }
+
             intent = self._effective_intent(requested_intent, existing)
             same_attempt = existing.get("type") == intent
             pending = existing if same_attempt else self._new_pending(intent)
@@ -236,6 +248,30 @@ class BusinessActionWorkflowService:
             "attempt_id": str(uuid.uuid4()),
             "fields": {},
         }
+
+    @staticmethod
+    def _is_pending_draft_cancellation(
+        requested_intent: str,
+        message: str,
+        pending: Mapping[str, Any],
+    ) -> bool:
+        if requested_intent != "cancel_test_drive":
+            return False
+        if pending.get("type") not in {"test_drive", "sales_lead"}:
+            return False
+        normalized = " ".join(str(message or "").casefold().split())
+        return any(
+            phrase in normalized
+            for phrase in (
+                "ألغي الطلب الحالي",
+                "الغي الطلب الحالي",
+                "إلغاء الطلب الحالي",
+                "الغاء الطلب الحالي",
+                "مش عايز أكمل",
+                "مش عاوز أكمل",
+                "وقف الطلب",
+            )
+        )
 
     def _resolve_action_car(
         self,

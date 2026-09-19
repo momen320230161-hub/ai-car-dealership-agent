@@ -69,6 +69,16 @@ def test_ambiguous_pending_time_renderer_asks_a_specific_question() -> None:
     assert "وقت غلط" in response
 
 
+def test_cancelled_pending_draft_renderer_does_not_claim_missing_active_request() -> None:
+    response = render_business_action(
+        {"status": "draft_cancelled", "intent": "test_drive"}
+    )
+
+    assert "تم إلغاء استكمال" in response
+    assert "مفيش حجز اتسجل" in response
+    assert "مفيش طلب تجربة قيادة نشط" not in response
+
+
 def test_direct_try_driving_phrase_overrides_rag_misclassification() -> None:
     understanding = RequestUnderstanding(intent="knowledge_question")
 

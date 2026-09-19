@@ -123,6 +123,33 @@ def test_pending_test_drive_accepts_single_name_only_with_field_hint(db_session)
     assert "customer_name" not in with_hint["missing_fields"]
 
 
+def test_explicit_current_draft_cancellation_clears_pending_without_searching_requests(
+    db_session,
+) -> None:
+    conversation, _ = _conversation_with_selected_car(
+        db_session,
+        source_id="cancel-current-draft",
+    )
+    workflow = _workflow(db_session)
+    started = workflow.prepare_action(
+        conversation.id,
+        "test_drive",
+        "عايز احجز تجربة قيادة",
+    )
+    assert started["status"] == "missing_fields"
+
+    cancelled = workflow.prepare_action(
+        conversation.id,
+        "cancel_test_drive",
+        "عايز ألغي الطلب الحالي",
+    )
+
+    assert cancelled["status"] == "draft_cancelled"
+    assert cancelled["intent"] == "test_drive"
+    db_session.expire_all()
+    assert db_session.get(ConversationSession, conversation.id).pending_action is None
+
+
 def test_test_drive_pending_collects_only_missing_fields_before_insert(db_session) -> None:
     conversation, car = _conversation_with_selected_car(db_session, source_id="pending-test-drive")
     workflow = _workflow(db_session)
