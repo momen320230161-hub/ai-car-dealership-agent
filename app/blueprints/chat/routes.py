@@ -34,41 +34,17 @@ def _user_id() -> uuid.UUID | None:
     return current_user.id if current_user.is_authenticated else None
 
 
-def _ensure_browser_conversation(
-    service: CustomerWebService,
-    *,
-    restore_existing: bool = True,
-):
-    """Resolve the active browser conversation without creating surprise chats.
-
-    Auth/logout clears browser session state. When the same user returns, restore
-    their most recently updated owned conversation. A brand-new conversation is
-    created only when there is no owned conversation, or when the caller
-    explicitly opts out of restoration (the New Chat action).
-    """
+def _ensure_browser_conversation(service: CustomerWebService):
     browser_session.permanent = True
     stored_session_id = browser_session.get(_BROWSER_SESSION_KEY)
     user_id = _user_id()
-
-    if not stored_session_id and restore_existing and user_id is not None:
-        recent = service.user_conversations(user_id, limit=1)
-        if recent:
-            stored_session_id = recent[0]["id"]
-
     try:
         context = service.ensure_conversation(stored_session_id, user_id=user_id)
     except (ConversationContextError, ValueError):
         browser_session.pop(_BROWSER_SESSION_KEY, None)
-        stored_session_id = None
-        if restore_existing and user_id is not None:
-            recent = service.user_conversations(user_id, limit=1)
-            if recent:
-                stored_session_id = recent[0]["id"]
-        context = service.ensure_conversation(stored_session_id, user_id=user_id)
-
+        context = service.ensure_conversation(None, user_id=user_id)
     browser_session[_BROWSER_SESSION_KEY] = str(context.session_id)
     return context
-
 
 def _state_payload(state: CustomerChatState) -> dict[str, Any]:
     selected_car = state.selected_car
@@ -162,7 +138,7 @@ def new_session():
     service = _service()
     browser_session.pop(_BROWSER_SESSION_KEY, None)
     try:
-        context = _ensure_browser_conversation(service, restore_existing=False)
+        context = _ensure_browser_conversation(service)
         state = service.chat_state(context.session_id, user_id=_user_id())
     except (ConversationContextError, SQLAlchemyError, ValueError):
         db.session.rollback()
