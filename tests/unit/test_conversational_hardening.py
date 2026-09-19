@@ -110,6 +110,41 @@ def test_explicit_new_phone_overrides_remembered_phone(db_session) -> None:
     assert lead_plan["memory_fields_used"] == ["customer_name"]
 
 
+def test_current_contact_bundle_overrides_remembered_name_and_phone(db_session) -> None:
+    car = _car(db_session, "explicit-contact-bundle-wins")
+    conversation = ConversationSession(id=uuid.uuid4(), selected_car_id=car.id)
+    db_session.add(conversation)
+    db_session.commit()
+    workflow = _workflow(db_session)
+
+    old_plan = workflow.prepare_action(
+        conversation.id,
+        "test_drive",
+        "اسمي فين ورقمي 01229847585 والسبت الساعة 5 مساء",
+        field_hint="customer_name",
+    )
+    workflow.execute_action(conversation.id, old_plan)
+
+    started = workflow.prepare_action(
+        conversation.id,
+        "test_drive",
+        "عايز احجز تجربة قيادة",
+    )
+    assert started["fields"]["customer_name"] == "فين"
+    assert started["fields"]["phone"] == "01229847585"
+
+    current = workflow.prepare_action(
+        conversation.id,
+        "general",
+        "علي احمد عبدالله\n01226871254\nبكره الساعة 2 العصر ان شاء الله",
+    )
+
+    assert current["status"] == "ready"
+    assert current["fields"]["customer_name"] == "علي احمد عبدالله"
+    assert current["fields"]["phone"] == "01226871254"
+    assert current["fields"]["preferred_time"] == "14:00"
+
+
 def test_authenticated_user_contact_memory_crosses_chat_sessions(db_session) -> None:
     user = UserProfile(
         id=uuid.uuid4(),

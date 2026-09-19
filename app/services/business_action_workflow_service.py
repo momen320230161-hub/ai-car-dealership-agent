@@ -14,7 +14,11 @@ from sqlalchemy.orm import Session
 from app.domain.catalog_language import explicit_brand_from_message, explicit_model_from_message
 from app.models.car import Car
 from app.models.conversation import ConversationSession
-from app.services.business_action_parsing import cairo_today, parse_business_fields
+from app.services.business_action_parsing import (
+    cairo_today,
+    explicit_phone,
+    parse_business_fields,
+)
 from app.services.recommendation_service import RecommendationService
 from app.services.sales_lead_service import SalesLeadService, SalesLeadServiceError
 from app.services.test_drive_service import TestDriveService, TestDriveServiceError
@@ -86,7 +90,13 @@ class BusinessActionWorkflowService:
             allow_bare_name = (
                 intent in {"test_drive", "sales_lead"}
                 and same_attempt
-                and not fields.get("customer_name")
+                and (
+                    not fields.get("customer_name")
+                    # A contact bundle in the current turn is stronger evidence than
+                    # a name restored from an older completed action. Let the parser
+                    # read the accompanying bare name so it can replace stale memory.
+                    or explicit_phone(message) is not None
+                )
             )
             parsed = parse_business_fields(
                 message,

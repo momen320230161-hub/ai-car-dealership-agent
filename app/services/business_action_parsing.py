@@ -321,6 +321,12 @@ def explicit_customer_name(
     remainder = message
     remainder = _PHONE_RE.sub(" ", remainder)
     remainder = _EMAIL_RE.sub(" ", remainder)
+    remainder = re.sub(
+        r"\b(?:إن|ان)\s+شاء\s+الله\b",
+        " ",
+        remainder,
+        flags=re.IGNORECASE,
+    )
     remainder = re.sub(r"\b20\d{2}[-/]\d{1,2}[-/]\d{1,2}\b", " ", remainder)
     remainder = re.sub(r"\b\d{1,2}[/-]\d{1,2}[/-]20\d{2}\b", " ", remainder)
     time_pattern = (
