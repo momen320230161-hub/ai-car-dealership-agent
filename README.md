@@ -4,19 +4,34 @@ AutoDrive Egypt is a Flask + LangGraph AI Sales & Customer Service technical-ass
 
 ## Current Status
 
-Core implementation through Phase 7 is present on the `Final-Project` branch and the automated release gate is green.
+The core product implementation through Phase 7 is complete on the `Final-Project` branch.
+The live production-stack golden path was rerun after the conversational and data-integrity
+remediation on **2026-09-19** and passed **19/19** checks against real Gemini, PostgreSQL/
+Supabase, pgvector RAG and real business rows.
 
-- **Phase 0 — Foundation:** COMPLETE
-- **Phase 1 — Database & ORM:** COMPLETE
-- **Phase 2 — Catalog, state, visible recommendations & ordinals:** COMPLETE
-- **Phase 3 — Managed RAG + PostgreSQL pgvector:** IMPLEMENTED / TESTED
-- **Phase 4 — LangGraph Sales Orchestrator:** IMPLEMENTED / TESTED
-- **Phase 5 — Test-drive & sales-lead business actions:** IMPLEMENTED / TESTED
-- **Phase 6 — Customer website, auth, owned conversations & Admin Dashboard:** IMPLEMENTED / TESTED
-- **Phase 7 — Automated hardening, failure coverage & security hygiene:** IMPLEMENTED / TESTED
-- **Phase 8 — README, final demo and submission closure:** IN PROGRESS
+| Phase | Scope | Status |
+|---|---|---|
+| **0** | Project foundation, configuration and application factory | **COMPLETE** |
+| **1** | PostgreSQL schema, SQLAlchemy models and Alembic migrations | **COMPLETE** |
+| **2** | Catalog import/search, persisted state, visible recommendations and ordinals | **COMPLETE / TESTED** |
+| **3** | Managed RAG, Gemini embeddings and PostgreSQL pgvector retrieval | **COMPLETE / TESTED** |
+| **4** | LangGraph conversational Sales Orchestrator | **COMPLETE / TESTED** |
+| **5** | Real Test Drive and Sales Lead workflows, validation and idempotency | **COMPLETE / TESTED** |
+| **6** | Customer website, Google/Supabase auth, owned chats and Admin Dashboard | **COMPLETE / TESTED** |
+| **7** | Deep evaluation, release-blocker remediation, security and lifecycle hardening | **COMPLETE / TESTED** |
+| **8** | Documentation, final demo, deployment evidence and submission closure | **IN PROGRESS** |
 
-**Final combined branch LIVE VERIFIED: NO.** A fresh real Gemini + browser + live Supabase golden-path run is still required after the latest conversational, admin, and security hardening. Automated tests do not replace that live validation.
+### Release verdict
+
+- **Automated quality gate:** PASS — latest local run: **380 passed, 14 skipped**; Ruff: PASS.
+- **Live functional gate:** PASS — production-stack golden path: **19/19**.
+- **Database safety audit:** PASS after remediation — invalid references create no business rows,
+  expired pending data is invalidated, and overdue Test Drives have an explicit `EXPIRED`
+  lifecycle.
+- **Current release decision:** **CONDITIONAL GO**. The remaining gap is operational rather
+  than missing core functionality: agree and measure a chat-latency SLO, verify provider
+  throttling behavior, complete one clean-checkout setup rehearsal, and package final demo/
+  deployment evidence.
 
 ## Required Stack
 
@@ -201,6 +216,15 @@ Supabase Auth supplies the verified user identity; Flask-Login manages the appli
 
 The chat UI reloads persisted messages, selected car, pending action and the active visible recommendation list. A new chat starts a new conversation rather than reusing stale state.
 
+The current customer experience also includes:
+
+- responsive Arabic/RTL landing, catalog, detail and chat pages
+- a customer-first recommendation preview and comparison interaction
+- catalog photography resolved through Supabase Storage with safe fallbacks
+- a consistent AutoDrive brand mark and favicon across customer/auth pages
+- explicit loading/error states and persisted conversation switching
+- POST-only, CSRF-protected logout that clears the Flask-Login remember cookie
+
 ## Admin Dashboard
 
 The protected dashboard is available under:
@@ -224,8 +248,11 @@ Dashboard capabilities:
 - overview metrics
 - Cars search/filter/list
 - create/edit car records
+- validated JPEG/PNG/WebP car-image upload to Supabase Storage, normalized to WebP
+- image preview, replacement and safe cleanup of superseded admin uploads
 - deactivate catalog records without pretending they are deleted from source history
 - Test Drive list + controlled status transitions
+- automatic overdue Test Drive expiry plus controlled `EXPIRED -> COMPLETED` correction
 - Sales Lead list + controlled status transitions
 - RAG knowledge list/add/edit/delete
 - index status and manual reindex
@@ -390,7 +417,19 @@ Automated coverage includes:
 - CSRF, security headers, request IDs and readiness
 - DOM escaping regression for dynamic selected-car state
 
-Latest security/release hardening CI evidence:
+Latest local validation on **2026-09-19**:
+
+```text
+pytest: 380 passed, 14 skipped
+ruff:   all checks passed
+```
+
+The 14 skipped tests are the destructive PostgreSQL/pgvector integration group. They are
+intentionally skipped when no disposable integration database is configured because they use
+schema lifecycle operations, truncation and identity resets. They belong in the disposable
+PostgreSQL CI job, never against the live Supabase project.
+
+Reference security/release hardening CI evidence:
 
 ```text
 run: 35266929975
@@ -398,7 +437,9 @@ head: 3d8477dc970453d910f539a4615b3b751f12ab3e
 result: PASS
 ```
 
-All lint, Alembic lifecycle, unit/PostgreSQL tests, Docker build and migration-packaging checks passed in that run.
+All lint, Alembic lifecycle, unit/PostgreSQL tests, Docker build and migration-packaging checks
+passed in that run. The local result above covers the newer application/UI work; a final CI run
+from the submission commit remains part of Phase 8 closure.
 
 ## Safe Migration Rule
 
@@ -412,9 +453,14 @@ Do **not** run routine `db downgrade` verification against live Supabase. The do
 
 Do not use `db.create_all()` as the production migration strategy.
 
-## Required Final Live Demo
+## Live Demo Status & Final Demo Script
 
-Before marking the final project **LIVE VERIFIED**, execute one fresh real browser + Gemini + live Supabase path after the latest branch changes:
+The production-stack golden path below was executed on **2026-09-19** and passed **19/19**
+checks. The resulting Test Drive and Sales Lead were verified as real rows, and the evaluation
+artifacts are stored under `.artifacts/deep-eval/`.
+
+Use the same path for the final recorded/submission demo. Because the later changes are
+presentation and branding changes, perform a short desktop/mobile browser smoke before recording:
 
 1. Log in with Google.
 2. `عايز عربية زيرو SUV أوتوماتيك بحد أقصى مليون ونص`.
@@ -434,13 +480,24 @@ Before marking the final project **LIVE VERIFIED**, execute one fresh real brows
 
 ## Remaining Required Work
 
-Phase 8 is the remaining closure work:
+Only Phase 8 closure work remains. Core product phases are complete.
 
-- run and record the fresh live golden conversation above
-- capture dashboard proof
-- capture RAG edit → changed retrieval proof
-- fresh setup test from documented commands
-- final README/demo-script polish based on actual live evidence
-- final repository/submission cleanup
+### Required before final production/submission sign-off
 
-External vehicle web research remains optional and is disabled from the required core flow.
+- define the chat latency SLO and record p50/p95 against the intended production provider;
+  the deep evaluation observed variable latency and provider RPM throttling
+- verify the visible long-wait/retry experience under throttling and timeout conditions
+- run the documented setup from a fresh clone/clean checkout, including migrations, catalog
+  import, knowledge seed and Storage configuration
+- run a short final desktop + mobile browser smoke after the latest UI/branding changes
+- trigger and archive one final CI run from the exact submission commit
+- capture final demo evidence: customer golden path, matching Admin rows, RAG edit/reindex and
+  `/health/ready`
+- complete repository hygiene: review `.env.example`, remove local-only artifacts, verify no
+  secrets, tag the release and prepare the submission link
+
+### Optional follow-up after submission
+
+- production observability dashboard and alerting for latency/error rate
+- richer inventory/media operations and live-stock integration
+- external vehicle-market research; it is intentionally outside the required grounded core flow
