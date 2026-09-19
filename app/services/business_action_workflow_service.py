@@ -326,10 +326,20 @@ class BusinessActionWorkflowService:
                 pass
             fields.pop("car_id", None)
 
-        # 3. If conversation session has a selected_car_id, use it
+        snapshot = self.recommendations.get_active_snapshot(conversation.id)
+        visible_car_ids = {
+            item.car_id for item in snapshot.items
+        } if snapshot and snapshot.items else set()
+
+        # 3. Use the durable selection only while it is still compatible with the
+        # currently visible shortlist. A newer shortlist is stronger evidence than a
+        # stale selection from an earlier search in the same conversation.
         if conversation.selected_car_id is not None:
             car = self.session.get(Car, conversation.selected_car_id)
-            if car is not None and car.active:
+            selection_is_current = car is not None and (
+                not visible_car_ids or car.id in visible_car_ids
+            )
+            if car is not None and car.active and selection_is_current:
                 fields["car_id"] = car.id
                 return
             conversation.selected_car_id = None
@@ -347,7 +357,6 @@ class BusinessActionWorkflowService:
         # 5. Check active recommendation snapshot if available.
         # Never choose the first same-brand vehicle. A textual fallback is allowed
         # only when the customer's wording uniquely identifies one visible car.
-        snapshot = self.recommendations.get_active_snapshot(conversation.id)
         if snapshot and snapshot.items:
             if len(snapshot.items) == 1:
                 fields["car_id"] = snapshot.items[0].car_id

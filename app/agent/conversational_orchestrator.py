@@ -233,6 +233,7 @@ class ConversationalSalesOrchestrator(SalesOrchestrator):
             semantics_data = {
                 "source": "llm",
                 "mode": llm_action or "refine",
+                "confidence": str(update.get("understanding_confidence") or "medium"),
                 "clear_fields": sorted(effective_llm_clears),
                 "force_clear_fields": sorted(effective_llm_clears),
                 "soft_condition_order": effective_condition_order,
@@ -249,6 +250,7 @@ class ConversationalSalesOrchestrator(SalesOrchestrator):
                     "social",
                     "continue",
                     "discuss_budget",
+                    "repair",
                 }
             )
             if control_only_turn:
@@ -305,6 +307,10 @@ class ConversationalSalesOrchestrator(SalesOrchestrator):
                 ):
                     update["intent"] = "catalog_search"
 
+        semantics_data["confidence"] = str(
+            update.get("understanding_confidence") or "medium"
+        )
+
         # Resolve references while the previous visible snapshot is still authoritative.
         # First trust an LLM ordinal only if that exact visible position exists; otherwise
         # resolve deterministic ordinals or unique visible brand/model references. This keeps
@@ -317,6 +323,15 @@ class ConversationalSalesOrchestrator(SalesOrchestrator):
                 explicit_positions[0],
             )
         selector_intent = str(update.get("intent") or "general")
+        reference_target = dict(update.get("reference_target") or {})
+        if resolved_reference is None and selector_intent in {
+            "general",
+            "car_selection",
+            "car_details",
+            "test_drive",
+            "sales_lead",
+        }:
+            resolved_reference = self._resolve_reference_target(state, reference_target)
         if resolved_reference is None and selector_intent in {
             "general",
             "car_selection",
@@ -505,7 +520,14 @@ class ConversationalSalesOrchestrator(SalesOrchestrator):
                 }
                 return update
         if intent != "catalog_search":
-            return super()._catalog_node(state)
+            update = super()._catalog_node(state)
+            if intent == "car_details" and isinstance(update.get("catalog_result"), dict):
+                catalog_result = dict(update["catalog_result"])
+                catalog_result["requested_fields"] = list(
+                    dict.fromkeys(state.get("requested_car_fields") or [])
+                )
+                update["catalog_result"] = catalog_result
+            return update
 
         update = self._trace(state, "catalog_node")
         try:
@@ -677,6 +699,9 @@ class ConversationalSalesOrchestrator(SalesOrchestrator):
             return update
 
         semantics = dict(state.get("turn_semantics") or {})
+        if semantics.get("mode") == "repair" and state.get("route") == "general":
+            update["response"] = self._repair_response(state)
+            return update
         if semantics.get("budget_change_unspecified"):
             current_budget = (state.get("preferences") or {}).get("max_price")
             direction = str(semantics.get("budget_change") or "increase_unspecified")
@@ -698,6 +723,14 @@ class ConversationalSalesOrchestrator(SalesOrchestrator):
             return update
 
         fallback = self._deterministic_fallback(state)
+        catalog_result = state.get("catalog_result") or {}
+        requested_fields = list(catalog_result.get("requested_fields") or [])
+        if state.get("route") == "business_gate" or requested_fields:
+            # Understanding stays semantic, while narrow verified facts and real DB actions
+            # do not need a second model round-trip. This is faster and prevents wording from
+            # changing the meaning of a lead, booking, or requested catalog fact.
+            update["response"] = fallback
+            return update
         if isinstance(self.llm, DeterministicAgentLLM):
             update["response"] = fallback
             return update
@@ -792,15 +825,42 @@ class ConversationalSalesOrchestrator(SalesOrchestrator):
         if not response or len(response) > 2400:
             return False
 
-        source = " ".join(
-            (
-                state.get("normalized_message", ""),
-                json.dumps(verified_context, ensure_ascii=False, default=str),
+        if state.get("route") == "catalog":
+            # Old conversation turns are useful for language, but their prices, years,
+            # and conditions are not evidence for the current catalog answer.
+            source = " ".join(
+                (
+                    state.get("normalized_message", ""),
+                    json.dumps(state.get("catalog_result"), ensure_ascii=False, default=str),
+                    str(verified_context.get("authoritative_fallback") or ""),
+                )
             )
-        )
+        else:
+            source = " ".join(
+                (
+                    state.get("normalized_message", ""),
+                    json.dumps(verified_context, ensure_ascii=False, default=str),
+                )
+            )
         allowed_numbers = self._numbers(source)
         if any(number not in allowed_numbers for number in self._numbers(response)):
             return False
+
+        if state.get("route") == "catalog":
+            catalog_json = json.dumps(
+                state.get("catalog_result"), ensure_ascii=False, default=str
+            ).casefold()
+            response_folded = response.casefold()
+            has_new = '"condition": "new"' in catalog_json
+            has_used = '"condition": "used"' in catalog_json
+            if has_new and not has_used and any(
+                term in response_folded for term in ("مستعملة", "مستعمل", "used")
+            ):
+                return False
+            if has_used and not has_new and any(
+                term in response_folded for term in ("جديدة", "جديد", "زيرو", "new")
+            ):
+                return False
 
         if state.get("route") != "business_gate":
             return True
@@ -1018,6 +1078,40 @@ class ConversationalSalesOrchestrator(SalesOrchestrator):
                 return int(match["position"])
         return None
 
+    def _resolve_reference_target(
+        self,
+        state: AgentState,
+        target: dict[str, Any],
+    ) -> int | None:
+        """Resolve a typed semantic reference only against verified visible state."""
+        if not target:
+            return None
+        scope = str(target.get("scope") or "none")
+        if scope == "selected_car":
+            # A selected-car follow-up intentionally remains positionless. Catalog and
+            # business nodes consume the durable selected_car_id directly.
+            return None
+        if scope != "visible_results":
+            return None
+
+        position = target.get("position")
+        if position is not None:
+            resolved = self._validated_llm_visible_reference(state, position)
+            if resolved is not None:
+                return resolved
+
+        constraints = dict(target.get("constraints") or {})
+        constraints = {key: value for key, value in constraints.items() if value is not None}
+        if not constraints:
+            return None
+        snapshot = state.get("active_snapshot") or {}
+        matches = [
+            item
+            for item in list(snapshot.get("items") or [])
+            if self._visible_car_matches_turn_constraints(item.get("car") or {}, constraints)
+        ]
+        return int(matches[0]["position"]) if len(matches) == 1 else None
+
     @classmethod
     def _visible_car_matches_turn_constraints(
         cls,
@@ -1071,6 +1165,38 @@ class ConversationalSalesOrchestrator(SalesOrchestrator):
             )
         ]
         return partial[0] if len(partial) == 1 else None
+
+    @staticmethod
+    def _repair_response(state: AgentState) -> str:
+        snapshot = state.get("active_snapshot") or {}
+        items = list(snapshot.get("items") or [])
+        if items:
+            choices: list[str] = []
+            for item in items:
+                car = item.get("car") or {}
+                name = " ".join(
+                    value
+                    for value in (str(car.get("brand") or ""), str(car.get("model") or ""))
+                    if value
+                ).strip()
+                condition = str(car.get("condition") or "").strip()
+                condition_label = (
+                    "جديدة"
+                    if condition == "new"
+                    else "مستعملة"
+                    if condition == "used"
+                    else condition
+                )
+                label = "، ".join(value for value in (name, condition_label) if value)
+                choices.append(f"رقم {item.get('position')}: {label}")
+            return (
+                "واضح إني فهمت قصدك غلط. تقصد أنهي اختيار من الظاهر قدامك: "
+                + "؛ ".join(choices)
+                + "؟"
+            )
+        if state.get("selected_car_id") is not None:
+            return "واضح إني فهمت قصدك غلط. قولي إيه اللي تحب أصححه بخصوص العربية المختارة؟"
+        return "واضح إني فهمت قصدك غلط. قولي العربية أو الشرط اللي تقصده وأنا أصححه."
 
     def _diagnose_no_results(self, preferences: dict[str, Any]) -> dict[str, Any]:
         brand = str(preferences.get("brand") or "").strip() or None

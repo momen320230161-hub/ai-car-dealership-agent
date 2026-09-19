@@ -7,6 +7,7 @@ from app.agent.conversational_orchestrator import ConversationalSalesOrchestrato
 from app.agent.schemas import (
     PreferenceUpdates,
     RequestUnderstanding,
+    explicit_budget_ceiling,
     sanitize_understanding,
 )
 from app.agent.turn_semantics import analyze_turn
@@ -33,6 +34,11 @@ def test_arabic_afternoon_is_an_unambiguous_pm_time() -> None:
 def test_arabic_noon_daypart_is_parsed_as_pm() -> None:
     assert explicit_time("الساعة 1 الظهر") == time(13, 0)
     assert explicit_time("الساعة 12 الظهر") == time(12, 0)
+
+
+def test_numeric_million_and_half_is_parsed_generically() -> None:
+    assert explicit_budget_ceiling("معايا 2 ونص مليون جنيه") == 2_500_000
+    assert explicit_budget_ceiling("ميزانيتي ٣ ونص مليون") == 3_500_000
 
 
 def test_response_memory_context_contains_no_contact_pii() -> None:
@@ -69,6 +75,42 @@ def test_ambiguous_pending_time_renderer_asks_a_specific_question() -> None:
     assert "وقت غلط" in response
 
 
+def test_reused_account_contact_is_disclosed_without_exposing_values() -> None:
+    response = render_business_action(
+        {
+            "status": "missing_fields",
+            "intent": "test_drive",
+            "missing_fields": ["preferred_date", "preferred_time"],
+            "memory_fields_used": ["customer_name", "phone"],
+            "customer_memory_scope": "authenticated_user_history",
+        }
+    )
+
+    assert "الاسم ورقم الموبايل" in response
+    assert "طلب سابق على حسابك" in response
+    assert "لو حابب تغيّرهم" in response
+    assert "اليوم أو التاريخ المناسب والوقت المناسب" in response
+    assert "012" not in response
+
+
+def test_successful_request_discloses_reused_contact_source() -> None:
+    response = render_business_action(
+        {
+            "status": "success",
+            "intent": "test_drive",
+            "request_id": 11,
+            "preferred_date": "2026-09-20",
+            "preferred_time": "14:00",
+            "memory_fields_used": ["customer_name", "phone"],
+            "customer_memory_scope": "authenticated_user_history",
+        }
+    )
+
+    assert "تم تسجيل طلب تجربة القيادة برقم 11" in response
+    assert "الاسم ورقم الموبايل" in response
+    assert "طلب سابق على حسابك" in response
+
+
 def test_cancelled_pending_draft_renderer_does_not_claim_missing_active_request() -> None:
     response = render_business_action(
         {"status": "draft_cancelled", "intent": "test_drive"}
@@ -99,6 +141,20 @@ def test_test_drive_policy_question_stays_knowledge_question() -> None:
     )
 
     assert sanitized.intent == "knowledge_question"
+
+
+def test_negated_used_condition_cannot_override_explicit_new_meaning() -> None:
+    understanding = RequestUnderstanding(
+        intent="catalog_search",
+        preference_updates=PreferenceUpdates(condition="new"),
+    )
+
+    sanitized = sanitize_understanding(
+        understanding,
+        "لا مش عايز المستعملة، أنا هشتري الجديدة",
+    )
+
+    assert sanitized.preference_updates.condition == "new"
 
 
 def _reference_state(message: str) -> dict:

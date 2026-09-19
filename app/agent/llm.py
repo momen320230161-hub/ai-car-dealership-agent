@@ -194,7 +194,9 @@ class GeminiAgentLLM:
                 contents=json.dumps(payload, ensure_ascii=False, default=str),
                 config=types.GenerateContentConfig(
                     system_instruction=GENERAL_COMPOSITION_SYSTEM_PROMPT,
-                    max_output_tokens=180,
+                    # Arabic catalog replies tokenize densely; keep enough headroom to
+                    # finish a grounded three-car answer without truncating its last sentence.
+                    max_output_tokens=320,
                     **gemini_sampling_kwargs(self.model_name, self.temperature),
                 ),
             )

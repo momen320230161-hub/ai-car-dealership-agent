@@ -387,6 +387,49 @@ def test_unique_brand_visible_car_still_resolves(db_session) -> None:
     assert plan["fields"]["car_id"] == nissan.id
 
 
+def test_new_single_visible_car_replaces_stale_selected_car_for_action(db_session) -> None:
+    old_used = Car(
+        brand="Toyota",
+        model="Fortuner",
+        year=2025,
+        condition="used",
+        price_egp=Decimal("3400000"),
+        source="business-reference-test",
+        source_id="fortuner-stale-used",
+        active=True,
+    )
+    current_new = Car(
+        brand="Toyota",
+        model="Fortuner",
+        year=2026,
+        condition="new",
+        price_egp=Decimal("3700000"),
+        source="business-reference-test",
+        source_id="fortuner-current-new",
+        active=True,
+    )
+    conversation = ConversationSession(id=uuid.uuid4())
+    db_session.add_all([old_used, current_new, conversation])
+    db_session.commit()
+    conversation.selected_car_id = old_used.id
+    db_session.commit()
+    RecommendationService(db_session).create_visible_snapshot(
+        conversation.id,
+        [current_new.id],
+    )
+
+    plan = _workflow(db_session).prepare_action(
+        conversation.id,
+        "test_drive",
+        "رتبلي موعد، اسمي عمر أحمد ورقمي 01012345678 السبت الساعة 5 مساء",
+    )
+
+    assert plan["status"] == "ready"
+    assert plan["fields"]["car_id"] == current_new.id
+    db_session.refresh(conversation)
+    assert conversation.selected_car_id == current_new.id
+
+
 
 def test_shared_alias_resolver_handles_toyota_arabic_in_business_action(db_session) -> None:
     toyota = Car(

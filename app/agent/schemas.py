@@ -47,8 +47,11 @@ DialogueAction = Literal[
     "reset",
     "continue",
     "discuss_budget",
+    "repair",
     "social",
 ]
+UnderstandingConfidence = Literal["low", "medium", "high"]
+ReferenceScope = Literal["none", "visible_results", "selected_car"]
 BudgetChange = Literal[
     "none",
     "increase_unspecified",
@@ -62,6 +65,18 @@ PendingFieldAnswer = Literal[
     "preferred_date",
     "preferred_time",
     "request_id",
+]
+RequestedCarField = Literal[
+    "price_egp",
+    "mileage_km",
+    "year",
+    "condition",
+    "body_type",
+    "transmission",
+    "fuel_type",
+    "engine_capacity_cc",
+    "horsepower",
+    "color",
 ]
 ConditionPreference = Literal["new", "used"]
 VisibleReferenceField = Literal[
@@ -115,6 +130,17 @@ class PreferenceUpdates(BaseModel):
         return value.strip() if value and value.strip() else None
 
 
+class VehicleReferenceTarget(BaseModel):
+    """A semantic pointer to a car, kept separate from search-preference mutations."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    scope: ReferenceScope = "none"
+    position: int | None = Field(default=None, ge=1, le=20)
+    constraints: PreferenceUpdates = Field(default_factory=PreferenceUpdates)
+    confidence: UnderstandingConfidence = "medium"
+
+
 class RequestUnderstanding(BaseModel):
     """Schema-constrained request understanding; Python still validates its claims."""
 
@@ -122,10 +148,12 @@ class RequestUnderstanding(BaseModel):
 
     intent: Intent
     preference_updates: PreferenceUpdates = Field(default_factory=PreferenceUpdates)
+    confidence: UnderstandingConfidence = "medium"
     dialogue_action: DialogueAction | None = None
     preference_clears: list[PreferenceField] = Field(default_factory=list, max_length=11)
     budget_change: BudgetChange = "none"
     pending_field_answer: PendingFieldAnswer = "none"
+    requested_car_fields: list[RequestedCarField] = Field(default_factory=list, max_length=10)
     condition_preference_order: list[ConditionPreference] = Field(
         default_factory=list,
         max_length=2,
@@ -133,6 +161,7 @@ class RequestUnderstanding(BaseModel):
     visible_reference_selector: VisibleReferenceSelector = Field(
         default_factory=VisibleReferenceSelector
     )
+    reference_target: VehicleReferenceTarget = Field(default_factory=VehicleReferenceTarget)
     car_reference: str | int | None = None
     comparison_references: list[str | int] = Field(default_factory=list, max_length=5)
     explicit_car_id: int | None = Field(default=None, ge=1)
@@ -294,6 +323,12 @@ def explicit_money_amounts(message: str) -> list[float]:
     normalized = message.translate(_ARABIC_DIGITS).replace("٫", ".").replace("٬", ",").casefold()
     amounts: list[float] = []
 
+    for match in re.finditer(
+        r"(?<!\w)([0-9]+(?:\.[0-9]+)?)\s*(?:و\s*)?نص\s*مليون",
+        normalized,
+    ):
+        amounts.append((float(match.group(1)) + 0.5) * 1_000_000)
+
     for match in re.finditer(r"(?<!\w)([0-9]+(?:\.[0-9]+)?)\s*مليون", normalized):
         amounts.append(float(match.group(1)) * 1_000_000)
 
@@ -391,14 +426,21 @@ def sanitize_understanding(
     updates = understanding.preference_updates.model_dump(exclude_none=True)
     message_folded = normalized.casefold()
 
-    # Refine canonical values via allowlisted aliases when explicitly present,
-    # but TRUST Gemini's structured extraction rather than throwing it away.
-    if any(
-        term in message_folded for term in ("مستعمل", "used", "استعمال", "استعمال خفيف", "كسر زيرو")
-    ):
-        updates["condition"] = "used"
-    elif any(term in message_folded for term in ("جديد", "جديدة", "new", "زيرو")):
-        updates["condition"] = "new"
+    # Preserve the model's scoped semantic extraction. A surface token must never
+    # override it: "مش عايز المستعملة، عايز الجديدة" contains both condition words.
+    # The deterministic fallback is intentionally conservative and runs only for a
+    # single, non-negated condition family.
+    if "condition" not in updates:
+        has_negation = bool(re.search(r"\b(?:مش|لا|not|dont|don't)\b", message_folded))
+        used_mentioned = any(
+            term in message_folded
+            for term in ("مستعمل", "used", "استعمال", "استعمال خفيف", "كسر زيرو")
+        )
+        new_mentioned = any(
+            term in message_folded for term in ("جديد", "جديدة", "new", "زيرو")
+        )
+        if not has_negation and used_mentioned != new_mentioned:
+            updates["condition"] = "used" if used_mentioned else "new"
 
     explicit_brand = explicit_brand_from_message(message)
     if explicit_brand is not None:

@@ -59,6 +59,9 @@ def render_catalog(result: dict[str, Any] | None) -> str:
         return "\n".join(lines)
     if kind in {"car_details", "selection"}:
         car = result["car"]
+        requested_fields = [str(field) for field in result.get("requested_fields", [])]
+        if kind == "car_details" and requested_fields:
+            return _render_requested_car_fields(car, requested_fields)
         prefix = "تم اختيار" if kind == "selection" else "حسب الكتالوج المسجل"
         details = [
             f"{prefix}: {_name(car)}، موديل {car.get('year')}، "
@@ -79,6 +82,52 @@ def render_catalog(result: dict[str, Any] | None) -> str:
     if kind == "comparison":
         return _render_comparison(result)
     return "معلش، مقدرتش أعرض بيانات العربية المطلوبة بشكل آمن."
+
+
+def _render_requested_car_fields(car: dict[str, Any], fields: list[str]) -> str:
+    name = _name(car)
+    values: list[str] = []
+    for field in dict.fromkeys(fields):
+        value = car.get(field)
+        if field == "price_egp" and value is not None:
+            values.append(f"السعر المسجل {_money(value)} جنيه")
+        elif field == "mileage_km" and value is not None:
+            values.append(f"الممشى {_mileage(value)}")
+        elif field == "year" and value is not None:
+            values.append(f"موديل {value}")
+        elif field == "condition" and value is not None:
+            values.append(f"الحالة {_condition_label(value)}")
+        elif field == "body_type" and value is not None:
+            values.append(f"نوع الهيكل {_localized_catalog_value(value)}")
+        elif field == "transmission" and value is not None:
+            values.append(f"ناقل الحركة {_localized_catalog_value(value)}")
+        elif field == "fuel_type" and value is not None:
+            values.append(f"الوقود {_localized_catalog_value(value)}")
+        elif field == "engine_capacity_cc" and value is not None:
+            values.append(f"سعة المحرك {_number(value)} سي سي")
+        elif field == "horsepower" and value is not None:
+            values.append(f"القوة {_number(value)} حصان")
+        elif field == "color" and value is not None:
+            values.append(f"اللون {value}")
+
+    if values:
+        return f"حسب الكتالوج المسجل، {name}: " + "، و".join(values) + "."
+
+    requested_labels = {
+        "price_egp": "السعر",
+        "mileage_km": "الممشى",
+        "year": "سنة الموديل",
+        "condition": "الحالة",
+        "body_type": "نوع الهيكل",
+        "transmission": "ناقل الحركة",
+        "fuel_type": "نوع الوقود",
+        "engine_capacity_cc": "سعة المحرك",
+        "horsepower": "القوة",
+        "color": "اللون",
+    }
+    labels = [requested_labels[field] for field in fields if field in requested_labels]
+    requested = " و".join(labels) or "المعلومة المطلوبة"
+    return f"{requested} غير مسجل حاليًا لـ {name} في الكتالوج."
 
 
 def render_knowledge(supported: bool, result: dict[str, Any] | None) -> str:
@@ -242,6 +291,19 @@ def _condition_label(value: Any) -> str | None:
     if normalized == "new":
         return "جديدة"
     return str(value).strip() or None
+
+
+def _localized_catalog_value(value: Any) -> str:
+    text = str(value).strip()
+    labels = {
+        "automatic": "أوتوماتيك",
+        "manual": "مانيوال",
+        "gasoline": "بنزين",
+        "diesel": "ديزل",
+        "electric": "كهرباء",
+        "hybrid": "هايبرد",
+    }
+    return labels.get(text.casefold(), text)
 
 
 def _mileage(value: Any) -> str | None:

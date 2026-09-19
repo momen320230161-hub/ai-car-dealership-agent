@@ -62,6 +62,41 @@ def test_recommendations_omit_unknown_optional_condition_and_mileage() -> None:
     assert "None" not in response
 
 
+def test_narrow_detail_question_renders_only_requested_verified_fact() -> None:
+    response = render_catalog(
+        {
+            "type": "car_details",
+            "requested_fields": ["mileage_km"],
+            "car": {
+                "brand": "Hyundai",
+                "model": "Tucson",
+                "year": 2025,
+                "condition": "used",
+                "price_egp": 1_850_000,
+                "transmission": "Automatic",
+                "fuel_type": "Gasoline",
+                "mileage_km": 15_000,
+            },
+        }
+    )
+
+    assert response == "حسب الكتالوج المسجل، Hyundai Tucson: الممشى 15,000 كم."
+    assert "السعر" not in response
+    assert "ناقل الحركة" not in response
+
+
+def test_missing_requested_detail_is_reported_without_invention() -> None:
+    response = render_catalog(
+        {
+            "type": "car_details",
+            "requested_fields": ["color"],
+            "car": {"brand": "Hyundai", "model": "Tucson", "color": None},
+        }
+    )
+
+    assert response == "اللون غير مسجل حاليًا لـ Hyundai Tucson في الكتالوج."
+
+
 def test_comparison_shows_recorded_specs_and_deterministic_differences() -> None:
     response = render_catalog(
         {

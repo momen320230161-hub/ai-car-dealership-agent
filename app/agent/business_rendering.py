@@ -26,6 +26,7 @@ def render_business_action(
 
     action_status = str(status.get("status") or "")
     intent = str(status.get("intent") or "")
+    memory_notice = _contact_memory_notice(status)
 
     if action_status == "missing_fields":
         missing = [str(field) for field in status.get("missing_fields", [])]
@@ -64,7 +65,10 @@ def render_business_action(
                     f"محتاجين منك بس: {joined}."
                 )
 
-        return f"محتاج منك بس: {joined}."
+        prompt = f"محتاج منك بس: {joined}."
+        if memory_notice:
+            return f"{memory_notice} لو حابب تغيّرهم ابعت البيانات الجديدة. {prompt}"
+        return prompt
 
     if action_status == "no_active_request":
         return "مفيش طلب تجربة قيادة نشط مرتبط بالمحادثة دي أقدر ألغيه."
@@ -86,16 +90,22 @@ def render_business_action(
         suffix = ""
         if date_text and time_text:
             suffix = f" الموعد المطلوب: {date_text} الساعة {time_text}."
-        return (
+        response = (
             f"تم تسجيل طلب تجربة القيادة برقم {request_id}.{suffix} "
             "ده رقم طلب مسجل فعليًا، ومش معناه إن الموعد اتأكد نهائيًا."
         )
+        if memory_notice:
+            response += f" {memory_notice}"
+        return response
 
     if intent == "sales_lead":
         lead_id = status.get("lead_id")
         if not isinstance(lead_id, int):
             return "مقدرتش أتأكد إن طلب التواصل اتسجل. حاول مرة تانية."
-        return f"تم تسجيل طلب التواصل مع فريق المبيعات برقم {lead_id}."
+        response = f"تم تسجيل طلب التواصل مع فريق المبيعات برقم {lead_id}."
+        if memory_notice:
+            response += f" {memory_notice}"
+        return response
 
     if intent == "cancel_test_drive":
         request_id = status.get("request_id")
@@ -110,6 +120,31 @@ def _integer_ids(value: Any) -> list[int]:
     if not isinstance(value, Sequence) or isinstance(value, (str, bytes)):
         return []
     return [item for item in value if isinstance(item, int) and not isinstance(item, bool)]
+
+
+def _contact_memory_notice(status: Mapping[str, Any]) -> str:
+    used = [str(field) for field in status.get("memory_fields_used", [])]
+    labels = [
+        label
+        for field, label in (
+            ("customer_name", "الاسم"),
+            ("phone", "رقم الموبايل"),
+            ("email", "البريد الإلكتروني"),
+        )
+        if field in used
+    ]
+    if not labels:
+        return ""
+
+    scope = str(status.get("customer_memory_scope") or "")
+    joined = _join_arabic(labels)
+    if scope == "current_session":
+        return f"هستخدم {joined} اللي سجلتهم قبل كده في المحادثة دي."
+    if scope == "profile":
+        return f"هستخدم {joined} المسجل على حسابك."
+    if "authenticated_user_history" in scope:
+        return f"هستخدم {joined} المسجلين من طلب سابق على حسابك."
+    return f"هستخدم {joined} المسجلين عندنا من قبل."
 
 
 def _join_arabic(values: list[str]) -> str:

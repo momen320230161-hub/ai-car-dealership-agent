@@ -10,6 +10,7 @@ from app.agent.graph import SalesOrchestrator
 from app.agent.schemas import (
     PreferenceUpdates,
     RequestUnderstanding,
+    VehicleReferenceTarget,
     VisibleReferenceSelector,
 )
 from app.models.car import Car
@@ -307,6 +308,66 @@ def test_visible_car_description_resolves_from_structured_turn_facts() -> None:
     assert update["car_reference"] == 1
     assert update["turn_semantics"]["resolved_visible_reference"] == 1
     assert update["extracted_preferences"] == {}
+
+
+def test_typed_reference_target_is_separate_from_search_preferences() -> None:
+    orchestrator = object.__new__(ConversationalSalesOrchestrator)
+    orchestrator.llm = _SemanticLLM(
+        RequestUnderstanding(
+            intent="car_selection",
+            confidence="high",
+            reference_target=VehicleReferenceTarget(
+                scope="visible_results",
+                constraints=PreferenceUpdates(model="Sportage", condition="used"),
+                confidence="high",
+            ),
+        )
+    )
+
+    update = orchestrator._understand_request(
+        _visible_state("أنا أقصد الـSportage المستعملة اللي قدامي")
+    )
+
+    assert update["car_reference"] == 1
+    assert update["extracted_preferences"] == {}
+    assert update["turn_semantics"]["confidence"] == "high"
+
+
+def test_typed_reference_target_refuses_ambiguous_visible_match() -> None:
+    orchestrator = object.__new__(ConversationalSalesOrchestrator)
+    orchestrator.llm = _SemanticLLM(
+        RequestUnderstanding(
+            intent="car_selection",
+            reference_target=VehicleReferenceTarget(
+                scope="visible_results",
+                constraints=PreferenceUpdates(condition="used"),
+                confidence="low",
+            ),
+        )
+    )
+
+    update = orchestrator._understand_request(_visible_state("قصدي واحدة مستعملة"))
+
+    assert update.get("car_reference") is None
+
+
+def test_semantic_repair_returns_current_verified_choices() -> None:
+    orchestrator = object.__new__(ConversationalSalesOrchestrator)
+    state = _visible_state("إنت فهمتني غلط")
+    state.update(
+        {
+            "route": "general",
+            "turn_semantics": {"mode": "repair"},
+            "errors": [],
+            "guard_error": None,
+        }
+    )
+
+    response = orchestrator._compose_response(state)["response"]
+
+    assert "فهمت قصدك غلط" in response
+    assert "رقم 1: Kia Sportage، مستعملة" in response
+    assert "رقم 2: Nissan Sunny، جديدة" in response
 
 
 def test_visible_car_description_does_not_guess_when_multiple_cars_match() -> None:
