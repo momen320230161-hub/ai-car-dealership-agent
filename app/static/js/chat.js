@@ -192,8 +192,8 @@
 
     if (!selected || !selected.brand) {
       const empty = document.createElement("div");
-      empty.className = "sidebar-empty";
-      empty.textContent = "لسه ما اخترتش عربية. اختار من القائمة أو اذكر اسمها.";
+      empty.className = "context-empty";
+      empty.textContent = "اختار عربية من النتائج علشان تثبت هنا.";
       selectedContainer.appendChild(empty);
       return;
     }
