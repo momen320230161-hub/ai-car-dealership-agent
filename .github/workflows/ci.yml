@@ -47,6 +47,14 @@ jobs:
       - name: Sync dependencies
         run: uv sync --locked --dev
 
+      - name: Install frontend dependencies
+        run: npm ci
+
+      - name: Verify generated CSS is reproducible
+        run: |
+          npm run build:css
+          git diff --exit-code -- app/static/css/app.css
+
       - name: Lint
         run: uv run ruff check .
 
@@ -72,4 +80,7 @@ jobs:
       - name: Verify migration scripts are packaged
         run: |
           docker run --rm autodrive-ci:latest test -f /app/migrations/alembic.ini
-          docker run --rm autodrive-ci:latest test -f /app/migrations/versions/8c1e4d7f2a90_add_conversation_dialogue_state.py
+          host_head="$(uv run python -c 'from alembic.config import Config; from alembic.script import ScriptDirectory; c=Config("migrations/alembic.ini"); c.set_main_option("script_location", "migrations"); print(ScriptDirectory.from_config(c).get_current_head())')"
+          image_head="$(docker run --rm autodrive-ci:latest python -c 'from alembic.config import Config; from alembic.script import ScriptDirectory; c=Config("/app/migrations/alembic.ini"); c.set_main_option("script_location", "/app/migrations"); print(ScriptDirectory.from_config(c).get_current_head())')"
+          test -n "$host_head"
+          test "$image_head" = "$host_head"

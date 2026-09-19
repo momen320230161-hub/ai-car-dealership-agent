@@ -15,6 +15,8 @@ RUN uv sync --locked --no-dev --no-install-project
 
 COPY app ./app
 COPY data/car_image_manifest.csv ./data/car_image_manifest.csv
+COPY data/egypt_cars_demo_100_balanced.csv ./data/egypt_cars_demo_100_balanced.csv
+COPY data/knowledge_seed.json ./data/knowledge_seed.json
 COPY migrations ./migrations
 COPY run.py ./run.py
 

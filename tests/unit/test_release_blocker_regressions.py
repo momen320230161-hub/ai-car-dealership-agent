@@ -18,6 +18,7 @@ from app.agent.turn_semantics import analyze_turn
 from app.models.car import Car
 from app.models.conversation import ConversationSession
 from app.models.lead import SalesLead
+from app.models.test_drive import TestDriveRequest
 from app.services.business_action_parsing import explicit_time
 from app.services.conversation_context_service import ConversationContextService
 from app.services.conversational_business_action_workflow_service import (
@@ -58,6 +59,8 @@ def test_explicit_automatic_is_recovered_when_llm_misses_it() -> None:
     )
 
     assert sanitized.preference_updates.transmission == "Automatic"
+    assert sanitized.preference_updates.fuel_type == "Gasoline"
+    assert sanitized.preference_updates.min_year == 2024
 
 
 def test_required_new_survives_unrelated_dont_care_negation() -> None:
@@ -88,6 +91,7 @@ def test_invalid_explicit_car_id_never_creates_sales_lead(db_session) -> None:
     assert plan["status"] == "invalid_car"
     assert plan["attempted_car_id"] == 999
     assert db_session.scalar(select(func.count(SalesLead.id))) == 0
+    assert db_session.scalar(select(func.count(TestDriveRequest.id))) == 0
     db_session.refresh(conversation)
     assert conversation.pending_action is None
 

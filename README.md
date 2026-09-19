@@ -23,14 +23,16 @@ Supabase, pgvector RAG and real business rows.
 
 ### Release verdict
 
-- **Automated quality gate:** PASS — latest local run: **380 passed, 14 skipped**; Ruff: PASS.
+- **Code/test quality gate:** PASS — latest disposable-PostgreSQL run: **394 passed**
+  (including all **14 PostgreSQL/pgvector integration tests**); Ruff: PASS; Alembic lifecycle:
+  PASS; deterministic CSS rebuild: PASS.
 - **Live functional gate:** PASS — production-stack golden path: **19/19**.
 - **Database safety audit:** PASS after remediation — invalid references create no business rows,
   expired pending data is invalidated, and overdue Test Drives have an explicit `EXPIRED`
   lifecycle.
 - **Current release decision:** **CONDITIONAL GO**. The remaining gap is operational rather
-  than missing core functionality: agree and measure a chat-latency SLO, verify provider
-  throttling behavior, complete one clean-checkout setup rehearsal, and package final demo/
+  than missing core functionality: rerun Docker/CI from the exact submission commit, agree and
+  measure a chat-latency SLO, verify provider throttling behavior, and package final demo/
   deployment evidence.
 
 ## Required Stack
@@ -47,6 +49,7 @@ Supabase, pgvector RAG and real business rows.
 - Google Gemini for production request understanding, response composition and embeddings
 - pytest + Ruff + GitHub Actions
 - `uv` with committed `uv.lock`
+- Node/npm with committed `package-lock.json` for deterministic CSS builds
 - Gunicorn production server
 - Docker production image
 
@@ -102,14 +105,14 @@ Missing car facts are never invented.
 The authoritative import file is:
 
 ```text
-data/egypt_cars_final_import_ready.csv
+data/egypt_cars_demo_100_balanced.csv
 ```
 
 Current verified import summary:
 
-- **7,771** total records
-- **1,930 NEW**
-- **5,841 USED**
+- **100** curated demo records
+- **50 NEW**
+- **50 USED**
 - no duplicate `(source, source_id)` rows in the verified import
 
 Import or synchronize:
@@ -314,6 +317,8 @@ Install locked dependencies:
 
 ```bash
 uv sync --locked
+npm ci
+npm run build:css
 ```
 
 Apply migrations:
@@ -388,11 +393,12 @@ uv run pytest -q
 GitHub Actions uses a disposable PostgreSQL 17 + pgvector service and runs:
 
 1. locked dependency sync
-2. Ruff lint
-3. Alembic `upgrade -> downgrade -> upgrade`
-4. full unit + PostgreSQL integration suite
-5. production Docker image build
-6. verification that migration scripts are packaged in the image
+2. locked frontend dependency install plus deterministic CSS rebuild verification
+3. Ruff lint
+4. Alembic `upgrade -> downgrade -> upgrade`
+5. full unit + PostgreSQL integration suite
+6. production Docker image build
+7. verification that the image contains the same Alembic head as the checkout
 
 Automated coverage includes:
 
@@ -420,14 +426,18 @@ Automated coverage includes:
 Latest local validation on **2026-09-19**:
 
 ```text
-pytest: 380 passed, 14 skipped
-ruff:   all checks passed
+pytest:             394 passed
+PostgreSQL/pgvector: 14 integration tests executed, 0 skipped
+ruff:               all checks passed
+Alembic lifecycle:  upgrade -> downgrade -> upgrade passed at head 187aa70bef52
+CSS reproducibility: npm ci + build:css produced no tracked CSS diff
+setup rehearsal:    catalog 100 inserted then 100 unchanged; knowledge 8 created then 8 unchanged
 ```
 
-The 14 skipped tests are the destructive PostgreSQL/pgvector integration group. They are
-intentionally skipped when no disposable integration database is configured because they use
-schema lifecycle operations, truncation and identity resets. They belong in the disposable
-PostgreSQL CI job, never against the live Supabase project.
+The PostgreSQL/pgvector integration group was run against a disposable PostgreSQL 17 + pgvector
+container, never against the live Supabase project. When `TEST_DATABASE_URL` is absent, those
+14 tests intentionally skip because they use schema lifecycle operations, truncation and
+identity resets.
 
 Reference security/release hardening CI evidence:
 
@@ -438,8 +448,11 @@ result: PASS
 ```
 
 All lint, Alembic lifecycle, unit/PostgreSQL tests, Docker build and migration-packaging checks
-passed in that run. The local result above covers the newer application/UI work; a final CI run
-from the submission commit remains part of Phase 8 closure.
+passed in that historical run. The local result above covers the newer application/UI and
+release-hardening work. The local Docker build completed every Dockerfile layer but Docker
+Desktop failed while exporting the image because its internal filesystem became read-only, so
+Docker build/migration-packaging must be reconfirmed by the final CI run from the exact submission
+commit; it is not claimed as passed for the current worktree.
 
 ## Safe Migration Rule
 
@@ -487,8 +500,8 @@ Only Phase 8 closure work remains. Core product phases are complete.
 - define the chat latency SLO and record p50/p95 against the intended production provider;
   the deep evaluation observed variable latency and provider RPM throttling
 - verify the visible long-wait/retry experience under throttling and timeout conditions
-- run the documented setup from a fresh clone/clean checkout, including migrations, catalog
-  import, knowledge seed and Storage configuration
+- rerun the documented setup from the exact committed tree in CI/a fresh clone; the commands,
+  tracked catalog path and idempotent catalog/knowledge imports passed locally on disposable DB
 - run a short final desktop + mobile browser smoke after the latest UI/branding changes
 - trigger and archive one final CI run from the exact submission commit
 - capture final demo evidence: customer golden path, matching Admin rows, RAG edit/reindex and

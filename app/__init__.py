@@ -119,7 +119,7 @@ def _register_cli(app: Flask) -> None:
     @app.cli.command("import-catalog")
     @click.option(
         "--path",
-        default="data/egypt_cars_final_import_ready.csv",
+        default="data/egypt_cars_demo_100_balanced.csv",
         type=click.Path(path_type=str, dir_okay=False),
         show_default=True,
     )

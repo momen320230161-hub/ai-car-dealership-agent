@@ -1,11 +1,14 @@
 """PostgreSQL integration tests for the Alembic migration lifecycle."""
 
+from pathlib import Path
+
+from alembic.config import Config
+from alembic.script import ScriptDirectory
 from flask_migrate import downgrade, upgrade
 from sqlalchemy import text
 
 from app.extensions import db
 
-LATEST_REVISION = "8c1e4d7f2a90"
 EXPECTED_TABLES = {
     "alembic_version",
     "cars",
@@ -19,6 +22,16 @@ EXPECTED_TABLES = {
     "test_drive_requests",
     "user_profiles",
 }
+
+
+def _migration_head() -> str:
+    """Return the repository's single Alembic head without a stale constant."""
+    migrations_dir = Path(__file__).resolve().parents[2] / "migrations"
+    config = Config(str(migrations_dir / "alembic.ini"))
+    config.set_main_option("script_location", str(migrations_dir))
+    heads = ScriptDirectory.from_config(config).get_heads()
+    assert len(heads) == 1, f"Expected one Alembic head, found: {heads}"
+    return heads[0]
 
 
 def _public_tables() -> set[str]:
@@ -35,7 +48,7 @@ def test_postgres_migration_lifecycle(pg_app):
         assert EXPECTED_TABLES.issubset(_public_tables())
 
         revision = db.session.execute(text("SELECT version_num FROM alembic_version")).scalar_one()
-        assert revision == LATEST_REVISION
+        assert revision == _migration_head()
 
         rls_rows = db.session.execute(
             text(
