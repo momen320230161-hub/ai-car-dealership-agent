@@ -156,6 +156,6 @@ class CustomerWebService:
     def user_conversations(
         self,
         user_id: uuid.UUID | str,
-        limit: int = 20,
+        limit: int = 50,
     ) -> list[dict[str, Any]]:
         return self.context.get_user_conversations(user_id, limit=limit)

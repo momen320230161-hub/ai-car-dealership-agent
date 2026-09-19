@@ -21,6 +21,8 @@
   const selectedContainer = document.getElementById("selected-car-container");
   const pendingLabel = document.getElementById("pending-action-label");
   const pendingHint = document.getElementById("pending-action-hint");
+  const pendingContext = document.getElementById("pending-action-context");
+  const pendingIcon = document.getElementById("pending-action-icon");
   const newChatButton = document.getElementById("new-chat-button");
   const historyList = document.getElementById("history-list");
   const mobileToggle = document.getElementById("mobile-side-toggle");
@@ -28,6 +30,7 @@
   const sidebarClose = document.getElementById("sidebar-close");
   const sidebarBackdrop = document.getElementById("sidebar-backdrop");
   const chatIntro = document.getElementById("chat-intro");
+  const promptChips = document.getElementById("prompt-chips");
 
   if (!form || !input || !sendButton || !messageList || !chatWindow) return;
 
@@ -102,6 +105,7 @@
     stack.className = "message-stack";
     const bubble = document.createElement("div");
     bubble.className = role === "user" ? "msg user-msg" : "msg bot";
+    bubble.dir = "auto";
     bubble.textContent = content;
     stack.appendChild(bubble);
     row.appendChild(stack);
@@ -223,6 +227,7 @@
     const wrapper = document.createElement("div");
     wrapper.className = "selected-car-summary";
     const title = document.createElement("strong");
+    title.dir = "auto";
     title.textContent = [selected.brand, selected.model].filter(Boolean).join(" ");
     const meta = document.createElement("div");
     meta.className = "selected-car-meta";
@@ -238,16 +243,53 @@
     selectedContainer.dataset.selectedCarId = String(selected.id || "");
   }
 
+  function renderPendingAction(type) {
+    const hasAction = Boolean(type && pendingLabels[type]);
+    if (pendingContext) {
+      pendingContext.classList.toggle("has-action", hasAction);
+      pendingContext.classList.toggle("is-empty", !hasAction);
+    }
+    if (pendingIcon) pendingIcon.textContent = hasAction ? "…" : "—";
+    if (pendingLabel) pendingLabel.textContent = pendingLabels[type] || "مفيش طلب جارٍ";
+    if (pendingHint) {
+      pendingHint.textContent = pendingHints[type] || "تقدر تبدأ تجربة قيادة أو طلب تواصل في أي وقت.";
+    }
+  }
+
+  function renderPromptChips(state) {
+    if (!promptChips) return;
+    const prompts = state && state.pending_action_type
+      ? [
+          ["كمّل الطلب الحالي", "عايز أكمل بيانات الطلب الحالي"],
+          ["إلغاء الطلب", "عايز ألغي الطلب الحالي"],
+        ]
+      : state && state.selected_car
+        ? [
+            ["تفاصيل العربية", "عايز تفاصيل العربية المختارة"],
+            ["احجز تجربة قيادة", "عايز احجز تجربة قيادة للعربية المختارة"],
+            ["تواصل مع المبيعات", "عايز حد من المبيعات يكلمني عن العربية المختارة"],
+          ]
+        : [
+            ["SUV مستعملة تحت 1.5M", "عايز عربية SUV مستعملة تحت مليون ونصف"],
+            ["سيدان جديدة", "وريني عربيات سيدان جديدة زيرو"],
+            ["قارن أول اتنين", "قارن أول اتنين"],
+          ];
+    promptChips.replaceChildren();
+    for (const [label, prompt] of prompts) {
+      const button = document.createElement("button");
+      button.type = "button";
+      button.dataset.prompt = prompt;
+      button.textContent = label;
+      promptChips.appendChild(button);
+    }
+  }
+
   function renderState(state) {
     if (!state || typeof state !== "object") return;
     if (state.session_id) activeSessionId = String(state.session_id);
     renderSelectedCar(state.selected_car);
-    if (pendingLabel) {
-      pendingLabel.textContent = pendingLabels[state.pending_action_type] || "مفيش طلب جارٍ";
-    }
-    if (pendingHint) {
-      pendingHint.textContent = pendingHints[state.pending_action_type] || "تقدر تطلب Test Drive أو تواصل من المبيعات في أي وقت.";
-    }
+    renderPendingAction(state.pending_action_type);
+    renderPromptChips(state);
     if (Array.isArray(state.visible_recommendations)) renderRecommendations(state.visible_recommendations);
   }
 
@@ -256,6 +298,59 @@
       return await response.json();
     } catch {
       return null;
+    }
+  }
+
+  function markMessageFailed(row, message, reason) {
+    if (!row || !row.isConnected) return;
+    row.classList.add("delivery-failed");
+    const stack = row.querySelector(".message-stack");
+    if (!stack) return;
+
+    const delivery = document.createElement("div");
+    delivery.className = "message-delivery failed";
+    delivery.setAttribute("role", "status");
+    const label = document.createElement("span");
+    label.textContent = reason;
+    const retry = document.createElement("button");
+    retry.type = "button";
+    retry.textContent = "إعادة الإرسال";
+    retry.addEventListener(
+      "click",
+      () => {
+        row.remove();
+        clearError();
+        submitMessage(message);
+      },
+      { once: true },
+    );
+    delivery.append(label, retry);
+    stack.appendChild(delivery);
+    scrollBottom();
+  }
+
+  async function reconcileCurrentSession(expectedMessage) {
+    if (!activeSessionId) return false;
+    try {
+      const response = await fetch(`${switchBaseUrl}${activeSessionId}`, {
+        method: "POST",
+        headers: csrfHeaders({ Accept: "application/json" }),
+      });
+      const payload = await parseJson(response);
+      if (!response.ok || !payload || !payload.ok || !Array.isArray(payload.messages)) {
+        return false;
+      }
+      const latestUserMessage = [...payload.messages]
+        .reverse()
+        .find((message) => message && message.role === "user");
+      if (!latestUserMessage || latestUserMessage.content !== expectedMessage) return false;
+      renderMessages(payload.messages);
+      renderRecommendations([]);
+      renderState(payload.state);
+      refreshHistory();
+      return true;
+    } catch {
+      return false;
     }
   }
 
@@ -297,14 +392,22 @@
         renderRecommendations(payload.visible_recommendations);
       }
       if (!response.ok) {
-        if (!payload || !Array.isArray(payload.messages)) optimisticRow.remove();
+        if (!payload || !Array.isArray(payload.messages)) {
+          markMessageFailed(optimisticRow, message, "لم يتم تأكيد إرسال الرسالة.");
+        }
         showError(payload && typeof payload.message === "string" ? payload.message : "حصلت مشكلة مؤقتة. جرّب تاني بعد لحظات.");
       } else {
         refreshHistory();
       }
     } catch (error) {
-      optimisticRow.remove();
-      showError(error && error.name === "AbortError" ? "الرد أخد وقت أطول من المتوقع. تقدر تعيد المحاولة." : "تعذر الاتصال بالخدمة. جرّب تاني بعد لحظات.");
+      const reconciled = await reconcileCurrentSession(message);
+      if (!reconciled) {
+        const reason = error && error.name === "AbortError"
+          ? "انتهت مهلة الانتظار ولم نتأكد من الإرسال."
+          : "تعذر تأكيد إرسال الرسالة.";
+        markMessageFailed(optimisticRow, message, reason);
+        showError("الرسالة لم تُؤكد. تقدر تعيد إرسالها من تحت الرسالة.");
+      }
     } finally {
       window.clearTimeout(timeout);
       setBusy(false);
@@ -339,9 +442,10 @@
         const icon = document.createElement("span");
         icon.className = "history-icon";
         icon.setAttribute("aria-hidden", "true");
-        icon.textContent = "◫";
+        icon.textContent = "···";
         const title = document.createElement("span");
         title.className = "history-title";
+        title.dir = "auto";
         title.textContent = item.title;
         button.append(icon, title);
         historyList.appendChild(button);
@@ -392,10 +496,9 @@
     clearError();
   });
 
-  document.querySelectorAll("[data-prompt]").forEach((button) => {
-    button.addEventListener("click", () => {
-      if (!sendButton.disabled) submitMessage(button.dataset.prompt || "");
-    });
+  if (promptChips) promptChips.addEventListener("click", (event) => {
+    const button = event.target.closest("[data-prompt]");
+    if (button && !sendButton.disabled) submitMessage(button.dataset.prompt || "");
   });
 
   if (historyList) historyList.addEventListener("click", (event) => {

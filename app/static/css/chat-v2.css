@@ -1271,3 +1271,131 @@
 @media(prefers-reduced-motion:reduce){
   *,*::before,*::after{scroll-behavior:auto!important;animation-duration:.01ms!important;animation-iteration-count:1!important;transition-duration:.01ms!important}
 }
+
+/* Release polish: compact hierarchy, honest states, and resilient mixed-direction copy */
+.chat-panel-header{
+  min-height:64px;
+  padding:10px 16px;
+}
+.chat-header-actions:empty{display:none}
+.agent-title-line span{font-size:10px}
+.chat-agent-heading p{font-size:11px}
+.chat-context-strip{
+  grid-template-columns:minmax(0,1.25fr) minmax(250px,.75fr);
+  gap:8px;
+  padding:8px 16px;
+}
+.context-card{
+  min-height:58px;
+  padding:8px 10px;
+}
+.context-icon{
+  width:34px;
+  height:34px;
+  border-radius:11px;
+}
+.action-context.is-empty .context-icon.action{
+  color:#64748b;
+  background:#f1f5f9;
+}
+.action-context.has-action{
+  border-color:#fde68a;
+  background:#fffbeb;
+}
+.action-context.has-action .context-icon.action{
+  color:#b45309;
+  background:#fef3c7;
+}
+.action-context.has-action .pending-summary strong{color:#92400e}
+.chat-window{
+  padding:22px 18px;
+  background:linear-gradient(180deg,#fff 0%,#fbfdff 100%);
+}
+.messages,
+.active-recommendations,
+.composer-form,
+.prompt-chips,
+.composer-note,
+.chat-error{
+  width:100%;
+  max-width:900px;
+  margin-inline:auto;
+}
+.msg-row{align-items:flex-start}
+.avatar-badge{margin-top:3px}
+.message-stack{max-width:min(72%,680px)}
+.msg{
+  font-size:15px;
+  line-height:1.75;
+}
+.delivery-failed .user-msg{
+  color:#9f1239;
+  border:1px solid #fecdd3;
+  background:#fff1f2;
+  box-shadow:none;
+}
+.message-delivery{
+  display:flex;
+  align-items:center;
+  justify-content:flex-start;
+  gap:8px;
+  margin-top:5px;
+  color:#be123c;
+  font-size:11px;
+  font-weight:700;
+}
+.message-delivery button{
+  min-height:32px;
+  padding:4px 9px;
+  border:1px solid #fda4af;
+  border-radius:9px;
+  color:#9f1239;
+  background:#fff;
+  font:inherit;
+  cursor:pointer;
+}
+.message-delivery button:hover{background:#fff1f2}
+.history-list{
+  padding-inline-end:5px;
+  scrollbar-color:rgba(148,163,184,.45) transparent;
+  scrollbar-width:thin;
+}
+.history-list::-webkit-scrollbar{width:6px}
+.history-list::-webkit-scrollbar-track{background:transparent}
+.history-list::-webkit-scrollbar-thumb{
+  border-radius:999px;
+  background:rgba(148,163,184,.38);
+}
+.history-list:hover::-webkit-scrollbar-thumb{background:rgba(148,163,184,.62)}
+.history-title,
+.profile-copy strong bdi,
+.selected-car-summary strong{
+  unicode-bidi:plaintext;
+}
+.profile-copy strong bdi{
+  display:block;
+  max-width:100%;
+  overflow:hidden;
+  text-overflow:ellipsis;
+  white-space:nowrap;
+}
+.history-icon{
+  width:26px;
+  font-size:10px;
+  letter-spacing:-1px;
+}
+.chat-sidebar-footer .sidebar-trust small{color:#94a3b8}
+.composer-form button.loading{cursor:wait}
+
+@media(max-width:900px){
+  .chat-context-strip{grid-template-columns:minmax(0,1fr) minmax(230px,.72fr)}
+}
+@media(max-width:650px){
+  .chat-panel-header{padding:9px 10px}
+  .chat-context-strip{grid-template-columns:1fr;padding:7px 10px}
+  .context-card.action-context{display:none}
+  .context-card.action-context.has-action{display:flex}
+  .chat-window{padding:16px 10px}
+  .message-stack{max-width:90%}
+  .msg{font-size:14px;line-height:1.65}
+}

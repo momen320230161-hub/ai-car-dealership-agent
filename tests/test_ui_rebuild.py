@@ -34,6 +34,9 @@ def test_chat_template_has_no_uncompiled_tailwind_utility_markup() -> None:
     assert 'id="sidebar-backdrop"' in source
     assert 'aria-controls="chat-sidebar"' in source
     assert 'for="chat-input"' in source
+    assert 'id="pending-action-context"' in source
+    assert 'id="prompt-chips"' in source
+    assert "catalog-shortcut" not in source
 
 
 def test_chat_dynamic_renderer_uses_semantic_classes_and_text_content() -> None:
@@ -47,6 +50,9 @@ def test_chat_dynamic_renderer_uses_semantic_classes_and_text_content() -> None:
     assert ".textContent" in source
     assert 'historyList.addEventListener("click"' in source
     assert 'recommendationSection.addEventListener("click"' in source
+    assert 'delivery.className = "message-delivery failed"' in source
+    assert "reconcileCurrentSession" in source
+    assert 'promptChips.addEventListener("click"' in source
 
 
 def test_chat_v2_styles_cover_desktop_and_mobile_shell() -> None:
@@ -56,6 +62,9 @@ def test_chat_v2_styles_cover_desktop_and_mobile_shell() -> None:
     assert ".chat-panel" in source
     assert ".recommendation-grid" in source
     assert ".chat-sidebar.open" in source
+    assert ".action-context.is-empty" in source
+    assert ".delivery-failed .user-msg" in source
+    assert "scrollbar-color" in source
     assert "@media(max-width:650px)" in source
 
 

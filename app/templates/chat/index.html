@@ -32,7 +32,7 @@
       <div class="history-card">
         <div class="sidebar-section-title">
           <span>المحادثات الأخيرة</span>
-          <small>Recent chats · كل محادثة ليها سياق مستقل</small>
+          <small>كل محادثة لها سياق مستقل</small>
         </div>
         <div class="history-list" id="history-list">
           {% if user_history %}
@@ -40,8 +40,8 @@
               <button class="history-item {% if item.id == chat_state.session_id|string %}active{% endif %}"
                       type="button" data-history-id="{{ item.id }}"
                       {% if item.id == chat_state.session_id|string %}aria-current="page"{% endif %}>
-                <span class="history-icon" aria-hidden="true">◫</span>
-                <span class="history-title">{{ item.title }}</span>
+                <span class="history-icon" aria-hidden="true">···</span>
+                <span class="history-title" dir="auto">{{ item.title }}</span>
               </button>
             {% endfor %}
           {% else %}
@@ -68,7 +68,7 @@
               <span class="profile-avatar">{{ (current_user.display_name or current_user.email or 'U')[0]|upper }}</span>
             {% endif %}
             <div class="profile-copy">
-              <strong>{{ current_user.display_name or current_user.email }}</strong>
+              <strong><bdi dir="auto">{{ current_user.display_name or current_user.email }}</bdi></strong>
               <small>{{ 'Admin' if current_user.role == 'admin' else 'عميل موثق' }}</small>
             </div>
           </div>
@@ -85,8 +85,8 @@
         <div class="sidebar-trust">
           <span class="trust-dot"></span>
           <div>
-            <strong>Grounded Assistant</strong>
-            <small>Catalog + RAG + real DB actions</small>
+            <strong>مساعد موثّق بالبيانات</strong>
+            <small>الكتالوج • المعرفة • الطلبات</small>
           </div>
         </div>
       </div>
@@ -101,13 +101,12 @@
           <div>
             <div class="agent-title-line">
               <h1>مساعد AutoDrive</h1>
-              <span>AI Sales Concierge</span>
+              <span>مساعد مبيعات ذكي</span>
             </div>
             <p><i></i> متاح الآن · فاهم العامية المصرية وبيعتمد على بيانات النظام</p>
           </div>
         </div>
         <div class="chat-header-actions">
-          <a class="catalog-shortcut" href="{{ url_for('site.cars') }}">الكتالوج</a>
           <button class="mobile-side-toggle" id="mobile-side-toggle" type="button" aria-label="فتح المحادثات" aria-controls="chat-sidebar" aria-expanded="false">☰</button>
         </div>
       </header>
@@ -126,7 +125,7 @@
             <div id="selected-car-container">
               {% if chat_state.selected_car %}
                 <div class="selected-car-summary">
-                  <strong>{{ chat_state.selected_car.brand }} {{ chat_state.selected_car.model }}</strong>
+                  <strong><bdi dir="auto">{{ chat_state.selected_car.brand }} {{ chat_state.selected_car.model }}</bdi></strong>
                   <div class="selected-car-meta">
                     {% if chat_state.selected_car.year %}<span>{{ chat_state.selected_car.year }}</span>{% endif %}
                     <span>{{ chat_state.selected_car.condition|condition_ar }}</span>
@@ -140,8 +139,8 @@
           </div>
         </article>
 
-        <article class="context-card action-context">
-          <div class="context-icon action" aria-hidden="true">✓</div>
+        <article class="context-card action-context {{ 'has-action' if chat_state.pending_action_type else 'is-empty' }}" id="pending-action-context">
+          <div class="context-icon action" id="pending-action-icon" aria-hidden="true">{{ '…' if chat_state.pending_action_type else '—' }}</div>
           <div class="context-copy">
             <span>الإجراء الحالي</span>
             <div class="pending-summary">
@@ -154,8 +153,12 @@
               <p id="pending-action-hint">
                 {% if chat_state.pending_action_type == 'test_drive' %}
                   كمّل البيانات الناقصة، ومش هيتسجل الطلب قبل اكتمالها.
+                {% elif chat_state.pending_action_type == 'sales_lead' %}
+                  كمّل بيانات التواصل لتسجيل الطلب.
+                {% elif chat_state.pending_action_type == 'cancel_test_drive' %}
+                  حدّد الطلب المطلوب إلغاؤه.
                 {% else %}
-                  تقدر تبدأ Test Drive أو طلب تواصل من المبيعات في أي وقت.
+                  تقدر تبدأ تجربة قيادة أو طلب تواصل في أي وقت.
                 {% endif %}
               </p>
             </div>
@@ -177,14 +180,14 @@
           {% if not chat_state.messages %}
             <div class="msg-row assistant">
               <div class="avatar-badge">A</div>
-              <div class="message-stack"><div class="msg bot">أهلاً بيك 👋 قولي بتدور على عربية بإيه وأنا أساعدك حسب البيانات المتاحة في الكتالوج.</div></div>
+              <div class="message-stack"><div class="msg bot" dir="auto">أهلاً بيك 👋 قولي بتدور على عربية بإيه وأنا أساعدك حسب البيانات المتاحة في الكتالوج.</div></div>
             </div>
           {% else %}
             {% for message in chat_state.messages %}
               {% if message.role == 'user' %}
-                <div class="msg-row user"><div class="message-stack"><div class="msg user-msg">{{ message.content }}</div></div></div>
+                <div class="msg-row user"><div class="message-stack"><div class="msg user-msg" dir="auto">{{ message.content }}</div></div></div>
               {% else %}
-                <div class="msg-row assistant"><div class="avatar-badge">A</div><div class="message-stack"><div class="msg bot">{{ message.content }}</div></div></div>
+                <div class="msg-row assistant"><div class="avatar-badge">A</div><div class="message-stack"><div class="msg bot" dir="auto">{{ message.content }}</div></div></div>
               {% endif %}
             {% endfor %}
           {% endif %}
@@ -235,11 +238,19 @@
       </div>
 
       <footer class="chat-composer">
-        <div class="prompt-chips" aria-label="اقتراحات سريعة">
-          <button type="button" data-prompt="عايز عربية SUV مستعملة تحت مليون ونصف">SUV مستعملة تحت 1.5M</button>
-          <button type="button" data-prompt="وريني عربيات سيدان جديدة زيرو">سيدان جديدة</button>
-          <button type="button" data-prompt="قارن أول اتنين">قارن أول اتنين</button>
-          <button type="button" data-prompt="عايز احجز تست درايف">احجز Test Drive</button>
+        <div class="prompt-chips" id="prompt-chips" aria-label="اقتراحات سريعة">
+          {% if chat_state.pending_action_type %}
+            <button type="button" data-prompt="عايز أكمل بيانات الطلب الحالي">كمّل الطلب الحالي</button>
+            <button type="button" data-prompt="عايز ألغي الطلب الحالي">إلغاء الطلب</button>
+          {% elif chat_state.selected_car %}
+            <button type="button" data-prompt="عايز تفاصيل العربية المختارة">تفاصيل العربية</button>
+            <button type="button" data-prompt="عايز احجز تجربة قيادة للعربية المختارة">احجز تجربة قيادة</button>
+            <button type="button" data-prompt="عايز حد من المبيعات يكلمني عن العربية المختارة">تواصل مع المبيعات</button>
+          {% else %}
+            <button type="button" data-prompt="عايز عربية SUV مستعملة تحت مليون ونصف">SUV مستعملة تحت 1.5M</button>
+            <button type="button" data-prompt="وريني عربيات سيدان جديدة زيرو">سيدان جديدة</button>
+            <button type="button" data-prompt="قارن أول اتنين">قارن أول اتنين</button>
+          {% endif %}
         </div>
         <form class="composer-form" id="chat-form">
           <label class="visually-hidden" for="chat-input">رسالتك إلى مساعد AutoDrive</label>

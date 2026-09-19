@@ -10,7 +10,7 @@ from typing import Any
 
 from sqlalchemy import select
 from sqlalchemy.exc import SQLAlchemyError
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, selectinload
 
 from app.models.base import utc_now
 from app.models.conversation import ConversationSession
@@ -180,7 +180,7 @@ class ConversationContextService:
     def get_user_conversations(
         self,
         user_id: uuid.UUID | str,
-        limit: int = 20,
+        limit: int = 50,
     ) -> list[dict[str, Any]]:
         resolved_user = self._parse_session_id(user_id)
         if resolved_user is None:
@@ -188,22 +188,40 @@ class ConversationContextService:
         sessions = list(
             self.session.scalars(
                 select(ConversationSession)
+                .options(selectinload(ConversationSession.selected_car))
                 .where(ConversationSession.user_id == resolved_user)
                 .order_by(ConversationSession.updated_at.desc())
                 .limit(max(limit * 2, limit))
             )
         )
+        session_ids = [conversation.id for conversation in sessions]
+        user_messages_by_session: dict[uuid.UUID, list[str]] = {
+            session_id: [] for session_id in session_ids
+        }
+        if session_ids:
+            message_rows = self.session.execute(
+                select(ChatMessage.session_id, ChatMessage.content)
+                .where(
+                    ChatMessage.session_id.in_(session_ids),
+                    ChatMessage.role == "user",
+                )
+                .order_by(
+                    ChatMessage.session_id.asc(),
+                    ChatMessage.created_at.asc(),
+                    ChatMessage.id.asc(),
+                )
+            )
+            for session_id, content in message_rows:
+                messages = user_messages_by_session[session_id]
+                if len(messages) < 8:
+                    messages.append(content)
+
         results = []
         included_empty = False
         for s in sessions:
-            first_msg = self.session.scalar(
-                select(ChatMessage.content)
-                .where(ChatMessage.session_id == s.id, ChatMessage.role == "user")
-                .order_by(ChatMessage.created_at.asc())
-                .limit(1)
-            )
-            if first_msg:
-                title = self._conversation_title(first_msg)
+            user_messages = user_messages_by_session[s.id]
+            if user_messages:
+                title = self._conversation_title(user_messages, selected_car=s.selected_car)
             elif included_empty:
                 # Legacy versions could create a blank row on every click. Keep
                 # one useful draft in the UI while preserving database history.
@@ -224,12 +242,57 @@ class ConversationContextService:
         return results
 
     @staticmethod
-    def _conversation_title(message: str, max_length: int = 52) -> str:
-        """Build a compact deterministic title from the first meaningful message."""
+    def _conversation_title(
+        message: str | list[str],
+        max_length: int = 52,
+        *,
+        selected_car: Any | None = None,
+    ) -> str:
+        """Build a useful deterministic title without spending an LLM call."""
 
-        normalized = re.sub(r"\s+", " ", message).strip(" .،,:؛!?؟-_")
-        if not normalized:
+        raw_messages = [message] if isinstance(message, str) else message
+        normalized_messages = [
+            normalized
+            for item in raw_messages
+            if (normalized := ConversationContextService._normalize_title_text(item))
+        ]
+        if not normalized_messages:
             return "محادثة جديدة"
+
+        low_information = re.compile(
+            r"^(?:[اأإآ]?يوه|[اأإآ]ه|تمام|ماشي|حاضر|شكرا|شكراً|هاي|hello|hi|السلام عليكم)"
+            r"(?:\s+يا\s+\S+)?$",
+            re.IGNORECASE,
+        )
+        normalized = next(
+            (
+                item
+                for item in normalized_messages
+                if not low_information.fullmatch(item)
+                and not (len(item.split()) == 1 and re.search(r"\d{4,}", item))
+            ),
+            "محادثة عامة",
+        )
+
+        details_request = re.search(r"(?:تفاصيل|مواصفات|العربية|السيارة)", normalized)
+        if details_request and selected_car is not None:
+            car_name = f"{selected_car.brand} {selected_car.model}".strip()
+            return ConversationContextService._truncate_title(f"تفاصيل {car_name}", max_length)
+
+        catalog_id = re.search(r"(?:\bID\b|رقم)\s*#?\s*(\d+)", normalized, re.IGNORECASE)
+        if details_request and catalog_id:
+            return f"تفاصيل العربية #{catalog_id.group(1)}"
+
+        return ConversationContextService._truncate_title(normalized, max_length)
+
+    @staticmethod
+    def _normalize_title_text(message: str) -> str:
+        normalized = re.sub(r"\s+", " ", str(message or "")).strip(" .،,:؛!?؟-_")
+        # Reduce accidental key-holds such as "الرووووو" without changing normal Arabic words.
+        return re.sub(r"([^\W\d_])\1{2,}", r"\1\1", normalized, flags=re.UNICODE)
+
+    @staticmethod
+    def _truncate_title(normalized: str, max_length: int) -> str:
         if len(normalized) <= max_length:
             return normalized
         shortened = normalized[: max_length - 1].rstrip()

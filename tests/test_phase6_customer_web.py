@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from decimal import Decimal
+from types import SimpleNamespace
 from unittest.mock import patch
 
 from app.agent.llm import AgentLLMError
@@ -218,6 +219,62 @@ def test_conversation_titles_are_compact_and_deterministic() -> None:
     assert "\n" not in result
     assert len(result) <= 52
     assert result.endswith("…")
+
+    assert ConversationContextService._conversation_title(
+        ["ايوه يا كبير", "عايز تفاصيل العربية ID 61"]
+    ) == "تفاصيل العربية #61"
+    assert ConversationContextService._conversation_title(["الرووووو9999"]) == "محادثة عامة"
+    selected = SimpleNamespace(brand="Chery", model="Arrizo 5")
+    assert ConversationContextService._conversation_title(
+        ["أه", "عايز مواصفات العربية"], selected_car=selected
+    ) == "تفاصيل Chery Arrizo 5"
+
+
+def test_chat_handles_fifty_conversations_and_thirty_message_active_thread(
+    app, client, db_session
+) -> None:
+    import uuid
+
+    from app.models.user import UserProfile
+
+    user = UserProfile(
+        id=uuid.UUID("88888888-8888-4888-a888-888888888888"),
+        email="stress@test.com",
+        display_name="Stress Test User",
+        active=True,
+    )
+    db_session.add(user)
+    conversations = [ConversationSession(user_id=user.id) for _ in range(50)]
+    db_session.add_all(conversations)
+    db_session.flush()
+    for index, conversation in enumerate(conversations):
+        db_session.add(
+            ChatMessage(
+                session_id=conversation.id,
+                role="user",
+                content=f"محادثة اختبار رقم {index + 1}",
+            )
+        )
+    active = conversations[-1]
+    for index in range(29):
+        db_session.add(
+            ChatMessage(
+                session_id=active.id,
+                role="assistant" if index % 2 else "user",
+                content=f"رسالة ضغط رقم {index + 2}",
+            )
+        )
+    db_session.commit()
+
+    with client.session_transaction() as browser_session:
+        browser_session["_user_id"] = str(user.id)
+        browser_session["autodrive_conversation_id"] = str(active.id)
+
+    response = client.get("/chat")
+    body = response.get_data(as_text=True)
+    assert response.status_code == 200
+    assert body.count('data-history-id="') == 50
+    assert body.count('class="msg-row user"') + body.count('class="msg-row assistant"') == 30
 
 
 def test_chat_dependency_failure_returns_safe_error(app, client, db_session) -> None:
