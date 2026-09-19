@@ -85,17 +85,20 @@ def home():
     service = _service()
     try:
         featured_cars = service.featured_cars(limit=3)
+        preview_cars = service.landing_preview_cars()
         catalog_count = service.catalog_count()
         catalog_available = True
     except (SQLAlchemyError, ValueError):
         db.session.rollback()
         current_app.logger.exception("Customer landing catalog summary failed")
         featured_cars = []
+        preview_cars = []
         catalog_count = None
         catalog_available = False
     return render_template(
         "home.html",
         featured_cars=featured_cars,
+        preview_cars=preview_cars,
         catalog_count=catalog_count,
         catalog_available=catalog_available,
     )

@@ -19,7 +19,7 @@
           <td><strong>{{ item.customer_name }}</strong><small>{{ item.phone }}</small></td>
           <td>{{ item.car.brand }} {{ item.car.model }} <small>#{{ item.car_id }}</small></td>
           <td>{{ item.preferred_date }} · {{ item.preferred_time.strftime('%H:%M') }}</td>
-          <td><span class="status-pill {{ 'muted' if item.status == 'CANCELLED' else 'ok' }}">{{ item.status }}</span></td>
+          <td><span class="status-pill {{ 'muted' if item.status in ('CANCELLED', 'EXPIRED') else 'ok' }}">{{ item.status }}</span></td>
           <td>{{ item.created_at.strftime('%Y-%m-%d %H:%M') if item.created_at else '—' }}</td>
           <td>
             {% if item.status not in ('COMPLETED', 'CANCELLED') %}
@@ -28,7 +28,11 @@
               <select name="status" aria-label="حالة Test Drive #{{ item.id }}">
                 {% if item.status == 'NEW' %}<option value="CONFIRMED">CONFIRMED</option>{% endif %}
                 {% if item.status == 'CONFIRMED' %}<option value="COMPLETED">COMPLETED</option>{% endif %}
-                <option value="CANCELLED">CANCELLED</option>
+                {% if item.status == 'EXPIRED' %}
+                  <option value="COMPLETED">COMPLETED</option>
+                {% else %}
+                  <option value="CANCELLED">CANCELLED</option>
+                {% endif %}
               </select>
               <button class="admin-button" type="submit">Update</button>
             </form>

@@ -7,6 +7,7 @@ from pathlib import Path
 
 from app.services.car_image_service import (
     image_metadata_for_source_id,
+    image_url_for_car,
     image_url_for_source_id,
     public_storage_url,
 )
@@ -56,4 +57,16 @@ def test_storage_url_rejects_unsafe_paths() -> None:
             supabase_url="https://example.supabase.co",
         )
         is None
+    )
+
+
+def test_admin_uploaded_image_path_takes_priority_over_manifest() -> None:
+    url = image_url_for_car(
+        {"source_id": "missing", "image_storage_path": "admin/42/photo.webp"},
+        supabase_url="https://example.supabase.co",
+    )
+
+    assert url == (
+        "https://example.supabase.co/storage/v1/object/public/"
+        "car-images/admin/42/photo.webp"
     )

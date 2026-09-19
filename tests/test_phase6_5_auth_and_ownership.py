@@ -203,6 +203,32 @@ class TestAuthAccessControl:
             assert res.status_code == 302
             assert "/auth/login" in res.location
 
+    def test_logout_clears_remember_cookie_and_cannot_auto_restore_user(
+        self,
+        app: Flask,
+        unauthed_client: FlaskClient,
+        sample_user_a,
+    ):
+        remember_cookie = app.config.get("REMEMBER_COOKIE_NAME", "remember_token")
+        with unauthed_client.session_transaction() as sess:
+            sess["_user_id"] = str(sample_user_a.id)
+            sess["_fresh"] = True
+            sess["_remember"] = "set"
+
+        assert unauthed_client.get("/chat").status_code == 200
+        assert unauthed_client.get_cookie(remember_cookie) is not None
+
+        response = unauthed_client.post(
+            "/auth/logout",
+            headers=_csrf_headers(unauthed_client),
+        )
+
+        assert response.status_code == 302
+        assert unauthed_client.get_cookie(remember_cookie) is None
+        protected = unauthed_client.get("/chat")
+        assert protected.status_code == 302
+        assert "/auth/login" in protected.location
+
 
 class TestUserOwnershipAndIsolation:
     """B, C, D & Security Negative Tests."""

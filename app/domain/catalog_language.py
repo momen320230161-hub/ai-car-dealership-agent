@@ -82,6 +82,11 @@ _FUEL_TYPE_ALIASES: dict[str, tuple[str, ...]] = {
     "Gasoline/CNG": ("بنزين وغاز", "بنزين غاز"),
 }
 
+_TRANSMISSION_ALIASES: dict[str, tuple[str, ...]] = {
+    "Automatic": ("اوتوماتيك", "أوتوماتيك", "اتوماتيك", "أوتوماتيكي", "automatic"),
+    "Manual": ("مانيوال", "يدوي", "manual"),
+}
+
 
 def normalize_catalog_text(message: str) -> str:
     """Normalize user wording for explicit alias matching."""
@@ -127,3 +132,8 @@ def explicit_body_type_from_message(message: str) -> str | None:
 def explicit_fuel_type_from_message(message: str) -> str | None:
     """Resolve an explicit fuel alias to the canonical catalog value."""
     return _explicit_alias(message, _FUEL_TYPE_ALIASES)
+
+
+def explicit_transmission_from_message(message: str) -> str | None:
+    """Resolve an explicit transmission alias to the canonical catalog value."""
+    return _explicit_alias(message, _TRANSMISSION_ALIASES)

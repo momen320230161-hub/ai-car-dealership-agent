@@ -4,7 +4,9 @@ from __future__ import annotations
 
 import re
 import uuid
+from collections.abc import Callable
 from dataclasses import dataclass
+from datetime import date
 from decimal import Decimal
 from typing import Any
 
@@ -13,9 +15,12 @@ from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.orm import Session, selectinload
 
 from app.models.base import utc_now
+from app.models.car import Car
 from app.models.conversation import ConversationSession
 from app.models.message import ChatMessage
+from app.services.business_action_parsing import cairo_today
 from app.services.catalog_service import CatalogService
+from app.services.pending_action_state_service import sanitize_pending_action
 from app.services.recommendation_service import RecommendationService
 
 
@@ -37,11 +42,18 @@ class ConversationContext:
 class ConversationContextService:
     """Own session creation, bounded history loading, and chat-message persistence."""
 
-    def __init__(self, session: Session, *, recent_message_limit: int = 12):
+    def __init__(
+        self,
+        session: Session,
+        *,
+        recent_message_limit: int = 12,
+        today_provider: Callable[[], date] = cairo_today,
+    ):
         if not 1 <= recent_message_limit <= 100:
             raise ValueError("recent_message_limit must be between 1 and 100")
         self.session = session
         self.recent_message_limit = recent_message_limit
+        self.today_provider = today_provider
         self.recommendations = RecommendationService(session)
         self.catalog = CatalogService(session)
 
@@ -95,6 +107,14 @@ class ConversationContextService:
                 raise ConversationContextError("Conversation session was not found")
             if resolved_user is not None and conversation.user_id != resolved_user:
                 raise ConversationContextError("Access to this conversation session is forbidden")
+            pending_action, pending_changes = sanitize_pending_action(
+                conversation.pending_action,
+                car_is_active=self._car_is_active,
+                today=self.today_provider(),
+            )
+            if pending_changes:
+                conversation.pending_action = pending_action
+                self.session.commit()
             snapshot = self.recommendations.get_active_snapshot(session_id)
             snapshot_data = None
             if snapshot is not None:
@@ -131,7 +151,7 @@ class ConversationContextService:
                 selected_car_id=conversation.selected_car_id,
                 active_snapshot=snapshot_data,
                 pending_action=(
-                    dict(conversation.pending_action) if conversation.pending_action else None
+                    dict(pending_action) if pending_action else None
                 ),
                 recent_messages=[
                     {
@@ -308,6 +328,10 @@ class ConversationContextService:
             return uuid.UUID(str(value))
         except (TypeError, ValueError, AttributeError) as exc:
             raise ValueError("session_id must be a valid UUID") from exc
+
+    def _car_is_active(self, car_id: int) -> bool:
+        car = self.session.get(Car, car_id)
+        return car is not None and car.active
 
     @classmethod
     def _json_safe(cls, value: Any) -> Any:

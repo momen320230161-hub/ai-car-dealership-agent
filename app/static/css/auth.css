@@ -69,8 +69,9 @@ button,input{font:inherit}
   display:grid;
   place-items:center;
   border-radius:14px;
-  background:#fff;
-  color:#0f172a;
+  background:#0b1220;
+  color:#fff;
+  overflow:hidden;
   box-shadow:0 13px 34px rgba(0,0,0,.20);
 }
 .auth-logo-mark.small{
@@ -81,9 +82,10 @@ button,input{font:inherit}
   color:#fff;
   box-shadow:none;
 }
-.auth-logo-mark svg{
-  width:27px;
-  height:27px;
+.auth-logo-mark img{
+  width:100%;
+  height:100%;
+  display:block;
 }
 .auth-logo-copy{
   display:flex;

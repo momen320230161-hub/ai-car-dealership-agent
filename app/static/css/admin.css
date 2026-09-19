@@ -322,6 +322,42 @@
   gap:8px;
   padding-top:2px;
 }
+.admin-image-upload{
+  grid-column:1/-1;
+  padding:15px;
+  border:1px solid #dfe6ef;
+  border-radius:14px;
+  background:#f8fafc;
+}
+.admin-image-upload input[type=file]{
+  cursor:pointer;
+  background:#fff;
+}
+.admin-image-upload small{
+  color:#64748b;
+  font-size:11px;
+  line-height:1.7;
+}
+.admin-image-preview{
+  min-height:190px;
+  display:grid;
+  place-items:center;
+  overflow:hidden;
+  border:1px solid #d8e1ec;
+  border-radius:13px;
+  background:#fff;
+}
+.admin-image-preview.empty{border-style:dashed}
+.admin-image-preview img{
+  width:100%;
+  max-height:320px;
+  object-fit:contain;
+}
+.admin-image-preview b{
+  padding:24px;
+  color:#94a3b8;
+  font-size:12px;
+}
 
 /* Actions */
 .admin-button,

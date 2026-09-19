@@ -15,6 +15,13 @@ from app.services.admin_dashboard_service import (
     AdminPersistenceError,
     AdminValidationError,
 )
+from app.services.car_image_upload_service import (
+    CarImageStorageError,
+    CarImageValidationError,
+    SupabaseCarImageStorage,
+    ValidatedCarImage,
+    validate_car_image,
+)
 from app.services.knowledge_service import (
     KnowledgeIndexingError,
     KnowledgeNotFoundError,
@@ -29,6 +36,37 @@ def _dashboard() -> AdminDashboardService:
 
 def _knowledge() -> KnowledgeService:
     return KnowledgeService(db.session, build_embedding_provider(current_app.config))
+
+
+def _image_storage() -> SupabaseCarImageStorage:
+    return SupabaseCarImageStorage(
+        supabase_url=current_app.config.get("SUPABASE_URL"),
+        secret_key=current_app.config.get("SUPABASE_SECRET_KEY"),
+        bucket=current_app.config.get("CAR_IMAGE_BUCKET", "car-images"),
+    )
+
+
+def _validated_image_upload() -> ValidatedCarImage | None:
+    return validate_car_image(
+        request.files.get("car_image"),
+        max_bytes=int(current_app.config.get("MAX_CAR_IMAGE_BYTES", 5 * 1024 * 1024)),
+    )
+
+
+def _attach_uploaded_image(car_id: int, image: ValidatedCarImage) -> bool:
+    """Upload and attach an image, cleaning up the new object if DB persistence fails."""
+
+    storage = _image_storage()
+    storage_path = storage.upload(car_id, image)
+    try:
+        _dashboard().set_car_image_path(car_id, storage_path)
+    except (AdminNotFoundError, AdminPersistenceError):
+        try:
+            storage.delete(storage_path)
+        except CarImageStorageError:
+            current_app.logger.exception("Failed to clean up unattached car image")
+        raise
+    return True
 
 
 def _page_arg() -> int:
@@ -84,18 +122,30 @@ def car_new():
         return render_template("admin/car_form.html", car=None)
 
     try:
+        image = _validated_image_upload()
         car = _dashboard().create_car(
             request.form,
             active=request.form.get("active") == "on",
         )
-    except AdminValidationError as exc:
+    except (AdminValidationError, CarImageValidationError) as exc:
         current_app.logger.info("Admin car create validation failed: %s", exc)
-        flash("راجع بيانات السيارة المطلوبة والقيم الرقمية.", "error")
+        flash("راجع بيانات السيارة والصورة؛ المسموح JPG أو PNG أو WebP حتى 5MB.", "error")
         return render_template("admin/car_form.html", car=None), 400
     except AdminPersistenceError:
         current_app.logger.exception("Admin car create failed")
         flash("تعذر حفظ السيارة حاليًا.", "error")
         return redirect(url_for("site.admin.cars"))
+
+    if image is not None:
+        try:
+            _attach_uploaded_image(car.id, image)
+        except (CarImageStorageError, AdminNotFoundError, AdminPersistenceError):
+            current_app.logger.exception("Admin car image upload failed")
+            flash(
+                f"تمت إضافة السيارة #{car.id} لكن رفع الصورة فشل؛ يمكنك إعادة المحاولة من التعديل.",
+                "error",
+            )
+            return redirect(url_for("site.admin.car_edit", car_id=car.id))
 
     flash(f"تمت إضافة السيارة #{car.id}: {car.brand} {car.model}", "success")
     return redirect(url_for("site.admin.cars"))
@@ -110,14 +160,15 @@ def car_edit(car_id: int):
         return render_template("admin/car_form.html", car=car)
 
     try:
+        image = _validated_image_upload()
         car = _dashboard().update_car(
             car_id,
             request.form,
             active=request.form.get("active") == "on",
         )
-    except AdminValidationError as exc:
+    except (AdminValidationError, CarImageValidationError) as exc:
         current_app.logger.info("Admin car update validation failed: %s", exc)
-        flash("راجع بيانات السيارة المطلوبة والقيم الرقمية.", "error")
+        flash("راجع بيانات السيارة والصورة؛ المسموح JPG أو PNG أو WebP حتى 5MB.", "error")
         return render_template("admin/car_form.html", car=car), 400
     except AdminNotFoundError:
         abort(404)
@@ -125,6 +176,26 @@ def car_edit(car_id: int):
         current_app.logger.exception("Admin car update failed")
         flash("تعذر تحديث السيارة حاليًا.", "error")
         return redirect(url_for("site.admin.cars"))
+
+    if image is not None:
+        previous_path = car.image_storage_path
+        try:
+            _attach_uploaded_image(car.id, image)
+            db.session.refresh(car)
+            if previous_path and previous_path != car.image_storage_path:
+                try:
+                    _image_storage().delete(previous_path)
+                except CarImageStorageError:
+                    current_app.logger.warning(
+                        "Old car image cleanup failed for car %s", car.id, exc_info=True
+                    )
+        except (CarImageStorageError, AdminNotFoundError, AdminPersistenceError):
+            current_app.logger.exception("Admin car image replacement failed")
+            flash(
+                "تم تحديث بيانات السيارة لكن تعذر تحديث الصورة؛ الصورة السابقة ما زالت موجودة.",
+                "error",
+            )
+            return redirect(url_for("site.admin.car_edit", car_id=car.id))
 
     flash(f"تم تحديث السيارة #{car.id}.", "success")
     return redirect(url_for("site.admin.cars"))

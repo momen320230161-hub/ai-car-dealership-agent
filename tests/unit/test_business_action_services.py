@@ -167,6 +167,26 @@ def test_test_drive_cancellation_requires_id_when_multiple_are_active(db_session
     )
 
 
+def test_overdue_test_drive_is_expired_and_not_returned_as_active(db_session) -> None:
+    conversation, car = _session_and_car(db_session, source_id="expired-drive")
+    service = DriveService(db_session, today_provider=lambda: date(2026, 9, 20))
+    request = service.create_request(
+        session_id=conversation.id,
+        car_id=car.id,
+        customer_name="عمر أحمد",
+        phone="01012345678",
+        preferred_date=date(2026, 9, 19),
+        preferred_time=time(17, 0),
+        idempotency_key="attempt-expired-drive",
+    )
+
+    active = service.active_requests_for_session(conversation.id)
+
+    db_session.refresh(request)
+    assert active == []
+    assert request.status == "EXPIRED"
+
+
 def test_sales_lead_create_persists_once_with_selected_car(db_session) -> None:
     conversation, car = _session_and_car(db_session)
     service = SalesLeadService(db_session)

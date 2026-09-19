@@ -32,6 +32,11 @@ def render_business_action(
         missing = [str(field) for field in status.get("missing_fields", [])]
         if not missing:
             return "محتاج شوية بيانات إضافية قبل تنفيذ الطلب."
+        if status.get("invalid_preferred_date") and "preferred_date" in missing:
+            return (
+                "التاريخ ده انتهى، وعشان كده مسجلناش الطلب بالموعد القديم. "
+                "ابعت يوم أو تاريخ جديد، ومعاه الوقت المناسب."
+            )
         if status.get("ambiguous_time") and "preferred_time" in missing:
             hour = status.get("ambiguous_time_hour")
             if isinstance(hour, int) and 1 <= hour <= 12:
@@ -77,6 +82,14 @@ def render_business_action(
         if intent == "sales_lead":
             return "تم إلغاء استكمال طلب التواصل الحالي، ومفيش بيانات اتسجلت."
         return "تم إلغاء استكمال طلب تجربة القيادة الحالي، ومفيش حجز اتسجل."
+
+    if action_status == "invalid_car":
+        car_id = status.get("attempted_car_id")
+        suffix = f" رقم {car_id}" if isinstance(car_id, int) else ""
+        return (
+            f"ملقتش عربية نشطة في الكتالوج{suffix}، وعشان كده مسجلتش أي طلب. "
+            "اختار عربية من النتائج الحالية أو ابعت رقم عربية صحيح."
+        )
 
     if action_status != "success":
         return "مقدرتش أنفذ الطلب حاليًا. حاول مرة تانية."

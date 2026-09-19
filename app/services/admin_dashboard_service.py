@@ -16,6 +16,7 @@ from app.models.car import Car
 from app.models.knowledge import KnowledgeDocument
 from app.models.lead import SalesLead
 from app.models.test_drive import TestDriveRequest
+from app.services.test_drive_service import TestDriveService
 
 
 class AdminDashboardError(RuntimeError):
@@ -63,6 +64,7 @@ class AdminDashboardService:
     TEST_DRIVE_TRANSITIONS = {
         "NEW": {"CONFIRMED", "CANCELLED"},
         "CONFIRMED": {"COMPLETED", "CANCELLED"},
+        "EXPIRED": {"COMPLETED"},
         "COMPLETED": set(),
         "CANCELLED": set(),
     }
@@ -76,8 +78,10 @@ class AdminDashboardService:
 
     def __init__(self, session: Session) -> None:
         self.session = session
+        self.test_drive_service = TestDriveService(session)
 
     def overview(self) -> AdminOverview:
+        self.test_drive_service.expire_overdue_requests()
         return AdminOverview(
             active_cars=self._count(Car, Car.active.is_(True)),
             test_drives_total=self._count(TestDriveRequest),
@@ -170,6 +174,14 @@ class AdminDashboardService:
         self._commit("update car")
         return car
 
+    def set_car_image_path(self, car_id: int, storage_path: str) -> Car:
+        car = self.session.get(Car, car_id)
+        if car is None:
+            raise AdminNotFoundError("Car was not found")
+        car.image_storage_path = storage_path
+        self._commit("set car image")
+        return car
+
     def deactivate_car(self, car_id: int) -> Car:
         car = self.session.get(Car, car_id)
         if car is None:
@@ -186,6 +198,7 @@ class AdminDashboardService:
         page: int = 1,
         page_size: int = DEFAULT_PAGE_SIZE,
     ) -> AdminPage[TestDriveRequest]:
+        self.test_drive_service.expire_overdue_requests()
         page, page_size = self._page_args(page, page_size)
         total = self._count(TestDriveRequest)
         items = list(

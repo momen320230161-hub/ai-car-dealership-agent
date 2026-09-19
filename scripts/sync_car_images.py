@@ -261,16 +261,18 @@ def _upload_to_supabase(
         f"{supabase_url.rstrip('/')}/storage/v1/object/"
         f"{quote(bucket, safe='')}/{encoded_path}"
     )
+    headers = {
+        "apikey": secret_key,
+        "Content-Type": "image/webp",
+        "x-upsert": "true",
+        "Cache-Control": "public, max-age=31536000, immutable",
+    }
+    if not secret_key.startswith("sb_secret_"):
+        headers["Authorization"] = f"Bearer {secret_key}"
     response = client.post(
         endpoint,
         content=webp_bytes,
-        headers={
-            "Authorization": f"Bearer {secret_key}",
-            "apikey": secret_key,
-            "Content-Type": "image/webp",
-            "x-upsert": "true",
-            "Cache-Control": "public, max-age=31536000, immutable",
-        },
+        headers=headers,
     )
     if response.is_error:
         message = response.text[:500].replace("\n", " ")

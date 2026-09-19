@@ -79,6 +79,10 @@ def image_url_for_car(car: Any, *, supabase_url: str | None = None) -> str | Non
 
     if isinstance(car, dict):
         source_id = car.get("source_id")
+        storage_path = car.get("image_storage_path")
     else:
         source_id = getattr(car, "source_id", None)
+        storage_path = getattr(car, "image_storage_path", None)
+    if storage_path:
+        return public_storage_url(storage_path, supabase_url=supabase_url)
     return image_url_for_source_id(source_id, supabase_url=supabase_url)

@@ -2,7 +2,46 @@
 
 Date: 2026-09-19  
 Model: `gemini-3.5-flash-lite`  
-Verdict: **NO-GO for production**
+Current verdict after remediation: **CONDITIONAL GO**
+
+## Remediation update — 2026-09-19
+
+The baseline findings below are retained for traceability. The release-blocking correctness
+issues were fixed and independently rerun:
+
+- Invalid explicit car IDs are rejected before any business write and revalidated immediately
+  before execution. Three live repetitions created **0 Leads and 0 Test Drives**.
+- Explicit `Automatic` transmission is recovered deterministically; `catalog_008` passed 3/3.
+- A scoped body-type waiver no longer clears a later mandatory `new` condition;
+  `correction_001` passed 3/3.
+- All nine previously disputed/failing semantic scenarios passed three controlled repetitions
+  each after aligning the contract with functionally equivalent pending-action intents: 27/27.
+- The full production-stack Golden Path passed 19/19 again after the fixes.
+- Invalid car references and expired dates are removed from pending drafts while preserving
+  valid contact data. The live audit now reports 0 invalid pending car references and 0 expired
+  pending dates.
+- A date already in the past cannot become a ready booking, including when supplied in the
+  current customer turn.
+- Tailwind source discovery is now explicit and two consecutive CSS builds produced the same
+  SHA-256 hash.
+- The complete automated suite and Ruff checks pass after remediation; 14 destructive
+  integration tests remain intentionally skipped outside a disposable database.
+
+Remaining production operations items:
+
+- Chat latency remains variable and should be monitored against an agreed SLO.
+
+### EXPIRED lifecycle follow-up
+
+The approved expiry policy was implemented in Alembic revision `1318e75d22c4`:
+
+- `EXPIRED` is now allowed by the database check constraint and the ORM model.
+- Active requests are expired after their preferred calendar date has passed.
+- The migration converted the three historical overdue rows to `EXPIRED` transactionally.
+- The admin UI renders `EXPIRED` as inactive and permits an operator to correct it to
+  `COMPLETED` if the appointment actually occurred.
+- Post-migration verification found 3 `EXPIRED`, 0 stale active requests, and no database-audit
+  findings. RLS and existing grants were unchanged.
 
 ## Executive summary
 
@@ -189,4 +228,3 @@ Do not ship until all of the following pass:
 - `.artifacts/deep-eval/live-golden-path.json` — production-stack golden path.
 - `.artifacts/deep-eval/live-safety-probes.json` — injection and invalid-ID probes.
 - `.artifacts/deep-eval/database-audit.json` — final read-only Supabase audit.
-

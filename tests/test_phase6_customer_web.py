@@ -100,6 +100,35 @@ def test_home_catalog_and_detail_render_recorded_data(app, client, db_session) -
     assert client.get("/cars/999999").status_code == 404
 
 
+def test_home_preview_uses_real_closest_catalog_prices(app, client, db_session) -> None:
+    cars = [
+        _car("hero-kia-near", brand="Kia", model="Sportage", price=1_550_000),
+        _car("hero-kia-far", brand="Kia", model="Sportage", price=1_760_000),
+        _car("hero-hyundai", brand="Hyundai", model="Tucson", price=1_600_000),
+        _car("hero-chery", brand="Chery", model="Tiggo 7", price=1_250_000),
+    ]
+    db_session.add_all(cars)
+    db_session.commit()
+
+    selected = CustomerWebService(db_session).landing_preview_cars()
+    assert [(car.brand, car.model, car.price_egp) for car in selected] == [
+        ("Kia", "Sportage", Decimal("1550000")),
+        ("Hyundai", "Tucson", Decimal("1600000")),
+        ("Chery", "Tiggo 7", Decimal("1250000")),
+    ]
+
+    response = client.get("/")
+    body = response.get_data(as_text=True)
+    assert response.status_code == 200
+    assert "ابدأ ترشيح عربيتك" in body
+    assert "1,550,000 ج.م" in body
+    assert "1,600,000 ج.م" in body
+    assert "1,250,000 ج.م" in body
+    assert "مساعد مبيعات ذكي" in body
+    assert "<summary>قارن الاختيارات</summary>" in body
+    assert "/chat?q=" not in body
+
+
 def test_chat_page_creates_and_reuses_one_browser_session(app, client, db_session) -> None:
     _configure_deterministic_runtime(app)
     assert client.get("/chat").status_code == 200

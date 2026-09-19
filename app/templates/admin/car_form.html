@@ -5,7 +5,7 @@
 
 {% block admin_content %}
 <section class="admin-panel admin-form-panel">
-  <form class="admin-form" method="POST">
+  <form class="admin-form" method="POST" enctype="multipart/form-data">
     <input type="hidden" name="csrf_token" value="{{ admin_csrf_token }}">
 
     <div class="admin-form-grid">
@@ -29,6 +29,17 @@
       <label><span>Trim</span><input type="text" name="trim" maxlength="100" value="{{ request.form.get('trim', car.trim if car and car.trim else '') }}"></label>
       <label><span>Color</span><input type="text" name="color" maxlength="50" value="{{ request.form.get('color', car.color if car and car.color else '') }}"></label>
       <label><span>Location</span><input type="text" name="location" maxlength="100" value="{{ request.form.get('location', car.location if car and car.location else '') }}"></label>
+
+      {% set current_image_url = car|car_image_url if car else none %}
+      <label class="admin-image-upload">
+        <span>صورة السيارة</span>
+        <input id="car-image-input" type="file" name="car_image" accept="image/jpeg,image/png,image/webp">
+        <small>JPG أو PNG أو WebP — بحد أقصى 5MB. تُحوّل تلقائيًا إلى WebP، ورفع صورة جديدة يستبدل الحالية.</small>
+        <span class="admin-image-preview {{ '' if current_image_url else 'empty' }}" id="car-image-preview-wrap">
+          <img id="car-image-preview" src="{{ current_image_url or '' }}" alt="معاينة صورة السيارة" {{ 'hidden' if not current_image_url else '' }}>
+          <b id="car-image-placeholder" {{ 'hidden' if current_image_url else '' }}>اختر صورة لمعاينتها قبل الحفظ</b>
+        </span>
+      </label>
     </div>
 
     {% set active_checked = request.form.get('active') == 'on' if request.method == 'POST' else (car.active if car else true) %}
@@ -50,4 +61,25 @@
     </div>
   </form>
 </section>
+
+<script>
+  (() => {
+    const input = document.getElementById('car-image-input');
+    const preview = document.getElementById('car-image-preview');
+    const placeholder = document.getElementById('car-image-placeholder');
+    const wrap = document.getElementById('car-image-preview-wrap');
+    if (!input || !preview || !placeholder || !wrap) return;
+    let objectUrl = null;
+    input.addEventListener('change', () => {
+      if (objectUrl) URL.revokeObjectURL(objectUrl);
+      const file = input.files && input.files[0];
+      if (!file) return;
+      objectUrl = URL.createObjectURL(file);
+      preview.src = objectUrl;
+      preview.hidden = false;
+      placeholder.hidden = true;
+      wrap.classList.remove('empty');
+    });
+  })();
+</script>
 {% endblock %}

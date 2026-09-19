@@ -3,15 +3,17 @@
 from __future__ import annotations
 
 import uuid
+from collections.abc import Callable
 from datetime import UTC, date, datetime, time
 
-from sqlalchemy import select
+from sqlalchemy import select, update
 from sqlalchemy.exc import IntegrityError, SQLAlchemyError
 from sqlalchemy.orm import Session
 
 from app.models.car import Car
 from app.models.conversation import ConversationSession
 from app.models.test_drive import TestDriveRequest
+from app.services.business_action_parsing import cairo_today
 
 
 class TestDriveServiceError(RuntimeError):
@@ -37,8 +39,14 @@ class TestDriveService:
 
     ACTIVE_STATUSES = ("NEW", "CONFIRMED")
 
-    def __init__(self, session: Session):
+    def __init__(
+        self,
+        session: Session,
+        *,
+        today_provider: Callable[[], date] = cairo_today,
+    ):
         self.session = session
+        self.today_provider = today_provider
 
     def create_request(
         self,
@@ -129,6 +137,7 @@ class TestDriveService:
     def active_requests_for_session(self, session_id: uuid.UUID) -> list[TestDriveRequest]:
         """Return only cancellable requests owned by this conversation session."""
         try:
+            self.expire_overdue_requests(session_id=session_id)
             return list(
                 self.session.scalars(
                     select(TestDriveRequest)
@@ -143,6 +152,26 @@ class TestDriveService:
             self.session.rollback()
             raise TestDriveServiceError("Test-drive requests could not be loaded") from exc
 
+    def expire_overdue_requests(self, *, session_id: uuid.UUID | None = None) -> int:
+        """Close active requests after their requested calendar date has passed."""
+        try:
+            statement = (
+                update(TestDriveRequest)
+                .where(
+                    TestDriveRequest.status.in_(self.ACTIVE_STATUSES),
+                    TestDriveRequest.preferred_date < self.today_provider(),
+                )
+                .values(status="EXPIRED")
+            )
+            if session_id is not None:
+                statement = statement.where(TestDriveRequest.session_id == session_id)
+            result = self.session.execute(statement)
+            self.session.commit()
+            return int(result.rowcount or 0)
+        except SQLAlchemyError as exc:
+            self.session.rollback()
+            raise TestDriveServiceError("Overdue test-drive requests could not be expired") from exc
+
     def cancel_request(
         self,
         *,
@@ -151,6 +180,7 @@ class TestDriveService:
     ) -> TestDriveRequest:
         """Cancel one session-owned request and never cross session boundaries."""
         try:
+            self.expire_overdue_requests(session_id=session_id)
             request: TestDriveRequest | None
             if request_id is not None:
                 invalid_id = (

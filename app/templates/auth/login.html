@@ -6,6 +6,8 @@
   <meta name="theme-color" content="#0b1220">
   <title>تسجيل الدخول — AutoDrive Egypt</title>
   <meta name="description" content="تسجيل الدخول إلى AutoDrive Egypt عبر Google">
+  <link rel="icon" type="image/png" href="{{ static_asset('img/autodrive-mark-clean.png') }}">
+  <link rel="shortcut icon" type="image/png" href="{{ static_asset('img/autodrive-mark-clean.png') }}">
   <link rel="stylesheet" href="{{ static_asset('css/auth.css') }}">
 </head>
 <body class="auth-shell">
@@ -15,12 +17,7 @@
 
       <a class="auth-logo" href="{{ url_for('site.home') }}" aria-label="العودة إلى AutoDrive Egypt">
         <span class="auth-logo-mark">
-          <svg viewBox="0 0 32 32" role="img">
-            <path d="M6 19h20l-3-6.2A4 4 0 0 0 19.4 10h-6.8A4 4 0 0 0 9 12.8L6 19Z" fill="currentColor"/>
-            <path d="M8 18h16a3 3 0 0 1 3 3v2H5v-2a3 3 0 0 1 3-3Z" fill="currentColor" opacity=".72"/>
-            <circle cx="10" cy="23" r="2.5" fill="currentColor"/>
-            <circle cx="22" cy="23" r="2.5" fill="currentColor"/>
-          </svg>
+          <img src="{{ static_asset('img/autodrive-mark-clean.png') }}" alt="">
         </span>
         <span class="auth-logo-copy">
           <strong>AutoDrive Egypt</strong>
@@ -78,12 +75,7 @@
         <div class="auth-mobile-brand">
           <a class="auth-mobile-logo" href="{{ url_for('site.home') }}" aria-label="العودة إلى AutoDrive Egypt">
             <span class="auth-logo-mark small" aria-hidden="true">
-              <svg viewBox="0 0 32 32">
-                <path d="M6 19h20l-3-6.2A4 4 0 0 0 19.4 10h-6.8A4 4 0 0 0 9 12.8L6 19Z" fill="currentColor"/>
-                <path d="M8 18h16a3 3 0 0 1 3 3v2H5v-2a3 3 0 0 1 3-3Z" fill="currentColor" opacity=".72"/>
-                <circle cx="10" cy="23" r="2.5" fill="currentColor"/>
-                <circle cx="22" cy="23" r="2.5" fill="currentColor"/>
-              </svg>
+              <img src="{{ static_asset('img/autodrive-mark-clean.png') }}" alt="">
             </span>
             <span>AutoDrive Egypt</span>
           </a>

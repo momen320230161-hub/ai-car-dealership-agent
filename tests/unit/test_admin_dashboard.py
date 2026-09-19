@@ -5,7 +5,9 @@ from __future__ import annotations
 import uuid
 from datetime import date, time
 from decimal import Decimal
+from io import BytesIO
 
+from PIL import Image
 from sqlalchemy import func, select
 
 from app.models.car import Car
@@ -36,6 +38,13 @@ def _login_admin(app, db_session):
 def _csrf(client) -> str:
     with client.session_transaction() as sess:
         return str(sess["_admin_csrf_token"])
+
+
+def _image_file(format_name: str = "PNG") -> BytesIO:
+    output = BytesIO()
+    Image.new("RGB", (8, 6), color=(33, 99, 235)).save(output, format=format_name)
+    output.seek(0)
+    return output
 
 
 def _seed_action_rows(db_session):
@@ -97,6 +106,10 @@ def test_admin_can_open_required_dashboard_sections(app, db_session) -> None:
     assert client.get("/admin/test-drives").status_code == 200
     assert client.get("/admin/leads").status_code == 200
     assert client.get("/admin/knowledge").status_code == 200
+
+    chat = client.get("/chat")
+    assert chat.status_code == 200
+    assert "لوحة الإدارة" in chat.get_data(as_text=True)
 
 
 def test_admin_car_create_edit_filter_and_deactivate(app, db_session) -> None:
@@ -167,6 +180,77 @@ def test_admin_car_create_edit_filter_and_deactivate(app, db_session) -> None:
     inactive = client.get("/admin/cars?q=Corolla&active=inactive")
     assert inactive.status_code == 200
     assert "Corolla" in inactive.get_data(as_text=True)
+
+
+def test_admin_can_upload_car_image_to_supabase_storage(
+    app, db_session, monkeypatch
+) -> None:
+    uploaded: list[tuple[int, str]] = []
+
+    class FakeStorage:
+        def upload(self, car_id, image):
+            uploaded.append((car_id, image.content_type))
+            return f"admin/{car_id}/catalog.png"
+
+        def delete(self, storage_path):
+            raise AssertionError(f"Unexpected delete: {storage_path}")
+
+    monkeypatch.setattr("app.blueprints.admin.routes._image_storage", FakeStorage)
+    client = _login_admin(app, db_session)
+    client.get("/admin/cars/new")
+    token = _csrf(client)
+
+    response = client.post(
+        "/admin/cars/new",
+        data={
+            "csrf_token": token,
+            "brand": "Kia",
+            "model": "Sportage",
+            "year": "2026",
+            "condition": "new",
+            "price_egp": "2500000",
+            "active": "on",
+            "car_image": (_image_file(), "sportage.png"),
+        },
+        content_type="multipart/form-data",
+    )
+
+    assert response.status_code == 302
+    car = db_session.scalar(select(Car).where(Car.model == "Sportage"))
+    assert car is not None
+    assert car.image_storage_path == f"admin/{car.id}/catalog.png"
+    assert uploaded == [(car.id, "image/webp")]
+
+    catalog = client.get("/cars")
+    assert catalog.status_code == 200
+    assert (
+        f"https://test-project.supabase.co/storage/v1/object/public/"
+        f"car-images/admin/{car.id}/catalog.png"
+    ) in catalog.get_data(as_text=True)
+
+
+def test_admin_rejects_non_image_upload_before_creating_car(app, db_session) -> None:
+    client = _login_admin(app, db_session)
+    client.get("/admin/cars/new")
+    token = _csrf(client)
+
+    response = client.post(
+        "/admin/cars/new",
+        data={
+            "csrf_token": token,
+            "brand": "Unsafe",
+            "model": "Upload",
+            "year": "2026",
+            "condition": "new",
+            "price_egp": "1",
+            "active": "on",
+            "car_image": (BytesIO(b"<script>alert(1)</script>"), "fake.png"),
+        },
+        content_type="multipart/form-data",
+    )
+
+    assert response.status_code == 400
+    assert db_session.scalar(select(func.count(Car.id))) == 0
 
 
 def test_admin_car_write_requires_valid_required_fields(app, db_session) -> None:

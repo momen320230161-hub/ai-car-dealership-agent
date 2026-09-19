@@ -56,6 +56,7 @@ class Car(Base, TimestampMixin):
     source: Mapped[str] = mapped_column(String(100), nullable=False)
     source_url: Mapped[str | None] = mapped_column(Text, nullable=True)
     source_id: Mapped[str] = mapped_column(String(255), nullable=False)
+    image_storage_path: Mapped[str | None] = mapped_column(Text, nullable=True)
     collected_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     data_quality_status: Mapped[str | None] = mapped_column(String(50), nullable=True)
     data_quality_metadata: Mapped[dict[str, Any]] = mapped_column(

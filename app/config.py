@@ -56,6 +56,14 @@ class Config:
     SUPABASE_URL = os.getenv("SUPABASE_URL")
     SUPABASE_PUBLISHABLE_KEY = os.getenv("SUPABASE_PUBLISHABLE_KEY")
     SUPABASE_ANON_KEY = os.getenv("SUPABASE_ANON_KEY")
+    # Server-side only. This key is used by protected admin operations such as
+    # uploading catalog images and must never be exposed to browser JavaScript.
+    SUPABASE_SECRET_KEY = os.getenv("SUPABASE_SECRET_KEY") or os.getenv(
+        "SUPABASE_SERVICE_ROLE_KEY"
+    )
+    CAR_IMAGE_BUCKET = os.getenv("CAR_IMAGE_BUCKET", "car-images")
+    MAX_CAR_IMAGE_BYTES = int(os.getenv("MAX_CAR_IMAGE_BYTES", str(5 * 1024 * 1024)))
+    MAX_CONTENT_LENGTH = int(os.getenv("MAX_CONTENT_LENGTH", str(8 * 1024 * 1024)))
 
     EMBEDDING_PROVIDER = os.getenv("EMBEDDING_PROVIDER", "gemini")
     EMBEDDING_MODEL = os.getenv(

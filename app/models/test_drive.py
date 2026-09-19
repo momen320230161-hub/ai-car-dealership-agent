@@ -73,7 +73,7 @@ class TestDriveRequest(Base, TimestampMixin):
 
     __table_args__ = (
         CheckConstraint(
-            "status IN ('NEW', 'CONFIRMED', 'COMPLETED', 'CANCELLED')",
+            "status IN ('NEW', 'CONFIRMED', 'COMPLETED', 'CANCELLED', 'EXPIRED')",
             name="test_drive_status_check",
         ),
         CheckConstraint(

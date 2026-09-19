@@ -1,4 +1,6 @@
 @import "tailwindcss";
+@source "../app/templates";
+@source "../app/static/js";
 
 @theme {
   --color-navy-900: #0F1B33;

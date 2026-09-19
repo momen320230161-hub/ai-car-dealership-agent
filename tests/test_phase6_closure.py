@@ -137,7 +137,7 @@ def test_browser_business_flow_creates_cancels_and_reuses_contact_for_sales_lead
     )
     completed = client.post(
         "/api/chat/messages",
-        json={"message": "2026-09-16 الساعة 4 مساء"},
+        json={"message": "بكره الساعة 4 مساء"},
         headers=headers,
     )
     assert completed.status_code == 200

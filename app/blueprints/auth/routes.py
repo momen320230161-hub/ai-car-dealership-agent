@@ -169,8 +169,11 @@ def callback():
 @login_required
 def logout():
     require_browser_csrf()
-    session.pop(_CONVERSATION_SESSION_KEY, None)
-    logout_user()
+    # Clear application state first. ``logout_user`` must run last because it adds
+    # Flask-Login's ``_remember=clear`` marker; clearing the session afterwards
+    # would erase that marker and leave the remember cookie able to log the user
+    # straight back in on the redirect.
     session.clear()
+    logout_user()
     flash("تم تسجيل الخروج بنجاح.", "info")
     return redirect(url_for("auth.login_page"))

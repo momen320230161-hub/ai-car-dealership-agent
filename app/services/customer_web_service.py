@@ -5,9 +5,10 @@ from __future__ import annotations
 import math
 import uuid
 from dataclasses import dataclass
+from decimal import Decimal
 from typing import Any
 
-from sqlalchemy import select
+from sqlalchemy import and_, or_, select
 from sqlalchemy.orm import Session
 
 from app.domain.catalog_filters import CatalogFilters
@@ -61,6 +62,49 @@ class CustomerWebService:
     def featured_cars(self, *, limit: int = 3) -> list[Car]:
         """Return a small deterministic set for the landing page."""
         return self.catalog.search(sort_by="year_desc", limit=limit)
+
+    def landing_preview_cars(self) -> list[Car]:
+        """Return the real used-SUV examples shown in the landing-page conversation."""
+
+        desired = (
+            ("Kia", "Sportage"),
+            ("Hyundai", "Tucson"),
+            ("Chery", "Tiggo 7"),
+        )
+        candidates = list(
+            self.session.scalars(
+                select(Car).where(
+                    Car.active.is_(True),
+                    Car.condition == "used",
+                    or_(
+                        *(
+                            and_(Car.brand == brand, Car.model == model)
+                            for brand, model in desired
+                        )
+                    ),
+                )
+            )
+        )
+        target_price = Decimal("1500000")
+        by_model: dict[tuple[str, str], list[Car]] = {}
+        for car in candidates:
+            by_model.setdefault((car.brand, car.model), []).append(car)
+
+        preview: list[Car] = []
+        for identity in desired:
+            matches = by_model.get(identity, [])
+            if matches:
+                preview.append(
+                    min(
+                        matches,
+                        key=lambda car: (
+                            abs(car.price_egp - target_price),
+                            -car.year,
+                            car.id,
+                        ),
+                    )
+                )
+        return preview
 
     def catalog_count(self, filters: CatalogFilters | None = None) -> int:
         return self.catalog.count(filters)

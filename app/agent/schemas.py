@@ -12,6 +12,7 @@ from app.domain.catalog_language import (
     explicit_brand_from_message,
     explicit_fuel_type_from_message,
     explicit_model_from_message,
+    explicit_transmission_from_message,
 )
 
 Intent = Literal[
@@ -439,7 +440,23 @@ def sanitize_understanding(
         new_mentioned = any(
             term in message_folded for term in ("جديد", "جديدة", "new", "زيرو")
         )
-        if not has_negation and used_mentioned != new_mentioned:
+        required_new = bool(
+            re.search(
+                r"(?:لازم|ضروري|عايز(?:ها)?|عاوز(?:ها)?|محتاج(?:ها)?|must|need)"
+                r".{0,20}(?:جديد(?:ة)?|زيرو|new)",
+                message_folded,
+            )
+        )
+        required_used = bool(
+            re.search(
+                r"(?:لازم|ضروري|عايز(?:ها)?|عاوز(?:ها)?|محتاج(?:ها)?|must|need)"
+                r".{0,20}(?:مستعمل(?:ة)?|استعمال|used)",
+                message_folded,
+            )
+        )
+        if required_new != required_used:
+            updates["condition"] = "new" if required_new else "used"
+        elif not has_negation and used_mentioned != new_mentioned:
             updates["condition"] = "used" if used_mentioned else "new"
 
     explicit_brand = explicit_brand_from_message(message)
@@ -457,6 +474,10 @@ def sanitize_understanding(
     explicit_fuel_type = explicit_fuel_type_from_message(message)
     if explicit_fuel_type is not None:
         updates["fuel_type"] = explicit_fuel_type
+
+    explicit_transmission = explicit_transmission_from_message(message)
+    if explicit_transmission is not None:
+        updates["transmission"] = explicit_transmission
 
     explicit_budget = explicit_budget_ceiling(message)
     if explicit_budget is not None:

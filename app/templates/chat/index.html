@@ -51,6 +51,17 @@
       </div>
 
       <div class="chat-sidebar-footer">
+        {% if current_user.is_admin %}
+        <a class="sidebar-catalog-link" href="{{ url_for('site.admin.dashboard') }}">
+          <span class="sidebar-footer-icon" aria-hidden="true">⚙</span>
+          <span class="sidebar-footer-copy">
+            <strong>لوحة الإدارة</strong>
+            <small>السيارات والطلبات والمعرفة</small>
+          </span>
+          <b aria-hidden="true">←</b>
+        </a>
+        {% endif %}
+
         <a class="sidebar-catalog-link" href="{{ url_for('site.cars') }}">
           <span class="sidebar-footer-icon" aria-hidden="true">⌕</span>
           <span class="sidebar-footer-copy">

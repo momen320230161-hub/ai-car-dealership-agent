@@ -1,6 +1,10 @@
 """Release-blocker regressions captured from live customer conversations."""
 
-from datetime import time
+import uuid
+from datetime import date, time
+from decimal import Decimal
+
+from sqlalchemy import func, select
 
 from app.agent.business_rendering import render_business_action
 from app.agent.conversational_orchestrator import ConversationalSalesOrchestrator
@@ -11,7 +15,14 @@ from app.agent.schemas import (
     sanitize_understanding,
 )
 from app.agent.turn_semantics import analyze_turn
+from app.models.car import Car
+from app.models.conversation import ConversationSession
+from app.models.lead import SalesLead
 from app.services.business_action_parsing import explicit_time
+from app.services.conversation_context_service import ConversationContextService
+from app.services.conversational_business_action_workflow_service import (
+    ConversationalBusinessActionWorkflowService,
+)
 from app.services.customer_memory_service import CustomerMemory
 
 
@@ -24,6 +35,126 @@ def test_scoped_body_waiver_does_not_erase_explicit_new_condition() -> None:
 
     assert "body_type" in semantics.force_clear_fields
     assert "condition" not in semantics.clear_fields
+
+
+def test_waiver_before_contrast_does_not_clear_later_new_requirement() -> None:
+    semantics = analyze_turn(
+        "مش فارق معايا سيدان ولا SUV، بس لازم جديدة",
+        {"body_type": "Sedan"},
+        {"condition": "new"},
+    )
+
+    assert "body_type" in semantics.force_clear_fields
+    assert "condition" not in semantics.clear_fields
+
+
+def test_explicit_automatic_is_recovered_when_llm_misses_it() -> None:
+    sanitized = sanitize_understanding(
+        RequestUnderstanding(
+            intent="catalog_search",
+            preference_updates=PreferenceUpdates(fuel_type="Gasoline", min_year=2024),
+        ),
+        "بنزين أوتوماتيك من 2024 وطالع",
+    )
+
+    assert sanitized.preference_updates.transmission == "Automatic"
+
+
+def test_required_new_survives_unrelated_dont_care_negation() -> None:
+    sanitized = sanitize_understanding(
+        RequestUnderstanding(
+            intent="catalog_search",
+            preference_updates=PreferenceUpdates(body_type="SUV"),
+            preference_clears=["body_type"],
+        ),
+        "مش فارق معايا سيدان ولا SUV، بس لازم جديدة",
+    )
+
+    assert sanitized.preference_updates.condition == "new"
+
+
+def test_invalid_explicit_car_id_never_creates_sales_lead(db_session) -> None:
+    conversation = ConversationSession(id=uuid.uuid4())
+    db_session.add(conversation)
+    db_session.commit()
+    workflow = ConversationalBusinessActionWorkflowService(db_session)
+
+    plan = workflow.prepare_action(
+        conversation.id,
+        "sales_lead",
+        "العربية ID 999 عايز احجزها، اسمي عمر أحمد ورقمي 01012345678",
+    )
+
+    assert plan["status"] == "invalid_car"
+    assert plan["attempted_car_id"] == 999
+    assert db_session.scalar(select(func.count(SalesLead.id))) == 0
+    db_session.refresh(conversation)
+    assert conversation.pending_action is None
+
+
+def test_context_repairs_invalid_car_and_expired_pending_date(db_session) -> None:
+    conversation = ConversationSession(
+        id=uuid.uuid4(),
+        pending_action={
+            "type": "test_drive",
+            "attempt_id": str(uuid.uuid4()),
+            "fields": {
+                "car_id": 999,
+                "customer_name": "عمر أحمد",
+                "phone": "01012345678",
+                "preferred_date": "2026-09-18",
+                "preferred_time": "14:00",
+            },
+        },
+    )
+    db_session.add(conversation)
+    db_session.commit()
+
+    context = ConversationContextService(
+        db_session,
+        today_provider=lambda: date(2026, 9, 19),
+    ).load(conversation.id)
+
+    assert context.pending_action is not None
+    assert context.pending_action["fields"] == {
+        "customer_name": "عمر أحمد",
+        "phone": "01012345678",
+    }
+    db_session.refresh(conversation)
+    assert conversation.pending_action == context.pending_action
+
+
+def test_past_date_in_current_turn_cannot_create_ready_booking(db_session) -> None:
+    car = Car(
+        brand="BMW",
+        model="X6",
+        year=2025,
+        condition="used",
+        price_egp=Decimal("2700000"),
+        mileage_km=10_000,
+        source="release-blocker-test",
+        source_id="past-date-current-turn",
+        active=True,
+    )
+    conversation = ConversationSession(id=uuid.uuid4())
+    db_session.add_all([car, conversation])
+    db_session.commit()
+    workflow = ConversationalBusinessActionWorkflowService(
+        db_session,
+        today_provider=lambda: date(2026, 9, 19),
+    )
+
+    plan = workflow.prepare_action(
+        conversation.id,
+        "test_drive",
+        f"العربية ID {car.id} اسمي عمر أحمد ورقمي 01012345678 "
+        "يوم 2026-09-18 الساعة 2 العصر",
+    )
+
+    assert plan["status"] == "missing_fields"
+    assert plan["invalid_preferred_date"] is True
+    assert "preferred_date" in plan["missing_fields"]
+    assert "preferred_time" in plan["missing_fields"]
 
 
 def test_arabic_afternoon_is_an_unambiguous_pm_time() -> None:

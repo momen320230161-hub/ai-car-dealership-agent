@@ -1,0 +1,8 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 154 154" role="img" aria-labelledby="title desc">
+  <title id="title">AutoDrive Egypt</title>
+  <desc id="desc">شعار AutoDrive بحرفي A وD وطريق في المنتصف</desc>
+  <rect x="8" y="8" width="138" height="138" rx="32" fill="#0B1220"/>
+  <path fill="#2563EB" d="M72 48h35c22 0 37 12.8 37 30.5S129 109 107 109H68l9.5-16.5H107c11.3 0 19-5.7 19-14s-7.7-14-19-14H62.5L72 48Z"/>
+  <path fill="#FFFFFF" d="M27.2 109 61.4 53.4A11.3 11.3 0 0 1 71 48h9.2a11 11 0 0 1 9.3 5l26.3 37.2c3.7 5.2 0 12.3-6.4 12.3h-7.1a10 10 0 0 1-8.1-4.2L75.4 71.7 52.6 109H27.2Z"/>
+  <path fill="#2563EB" d="m71.2 75.6 5-8.2 8.5 12-5.2 8.5H64.4l7.2-12.3h-.4ZM61.4 92.5h18.1L69.4 109H51.3l10.1-16.5Z"/>
+</svg>

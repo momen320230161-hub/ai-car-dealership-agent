@@ -19,6 +19,7 @@ from app.services.business_action_parsing import (
     explicit_phone,
     parse_business_fields,
 )
+from app.services.pending_action_state_service import sanitize_pending_action
 from app.services.recommendation_service import RecommendationService
 from app.services.sales_lead_service import SalesLeadService, SalesLeadServiceError
 from app.services.test_drive_service import TestDriveService, TestDriveServiceError
@@ -46,7 +47,10 @@ class BusinessActionWorkflowService:
     ) -> None:
         self.session = session
         self.today_provider = today_provider
-        self.test_drives = test_drives or TestDriveService(session)
+        self.test_drives = test_drives or TestDriveService(
+            session,
+            today_provider=today_provider,
+        )
         self.sales_leads = sales_leads or SalesLeadService(session)
         self.recommendations = recommendations or RecommendationService(session)
 
@@ -70,6 +74,11 @@ class BusinessActionWorkflowService:
                 raise BusinessActionWorkflowError("Conversation session was not found")
 
             existing = dict(conversation.pending_action or {})
+            existing, pending_repairs = sanitize_pending_action(
+                existing,
+                car_is_active=self._car_is_active,
+                today=self.today_provider(),
+            )
             if self._is_pending_draft_cancellation(requested_intent, message, existing):
                 cancelled_intent = str(existing.get("type") or "")
                 conversation.pending_action = None
@@ -107,6 +116,27 @@ class BusinessActionWorkflowService:
             parsed_fields = parsed.as_json_fields()
             fields.update(parsed_fields)
 
+            invalid_explicit_car_id = self._invalid_explicit_car_id(parsed.car_id)
+            if intent in {"test_drive", "sales_lead"} and invalid_explicit_car_id is not None:
+                conversation.selected_car_id = None
+                conversation.pending_action = None
+                self.session.commit()
+                return {
+                    "status": "invalid_car",
+                    "intent": intent,
+                    "attempt_id": str(pending["attempt_id"]),
+                    "attempted_car_id": invalid_explicit_car_id,
+                    "fields": {key: value for key, value in fields.items() if key != "car_id"},
+                    "missing_fields": ["car_id"],
+                }
+
+            normalized_pending, current_repairs = sanitize_pending_action(
+                {"type": intent, "fields": fields},
+                car_is_active=self._car_is_active,
+                today=self.today_provider(),
+            )
+            fields = dict(normalized_pending["fields"])
+
             if intent == "test_drive":
                 self._resolve_action_car(
                     conversation,
@@ -137,6 +167,10 @@ class BusinessActionWorkflowService:
                 )
             else:
                 plan = self._prepare_cancellation(session_id, pending, fields)
+
+            repairs = set(pending_repairs).union(current_repairs)
+            if "expired_preferred_date" in repairs:
+                plan["invalid_preferred_date"] = True
 
             if plan["status"] == "no_active_request":
                 conversation.pending_action = None
@@ -184,6 +218,7 @@ class BusinessActionWorkflowService:
         fields = dict(plan.get("fields") or {})
 
         try:
+            self._validate_ready_car(intent, fields)
             if intent == "test_drive":
                 request = self.test_drives.create_request(
                     session_id=session_id,
@@ -421,6 +456,30 @@ class BusinessActionWorkflowService:
 
         if not required:
             return
+
+    def _invalid_explicit_car_id(self, car_id: int | None) -> int | None:
+        if car_id is None:
+            return None
+        car = self.session.get(Car, car_id)
+        return None if car is not None and car.active else car_id
+
+    def _validate_ready_car(self, intent: str, fields: Mapping[str, Any]) -> None:
+        car_id = fields.get("car_id")
+        if car_id is None:
+            if intent == "test_drive":
+                raise BusinessActionWorkflowError("A valid active car is required")
+            return
+        try:
+            resolved_id = int(car_id)
+        except (TypeError, ValueError) as exc:
+            raise BusinessActionWorkflowError("A valid active car is required") from exc
+        car = self.session.get(Car, resolved_id)
+        if car is None or not car.active:
+            raise BusinessActionWorkflowError("A valid active car is required")
+
+    def _car_is_active(self, car_id: int) -> bool:
+        car = self.session.get(Car, car_id)
+        return car is not None and car.active
 
     @staticmethod
     def _prepare_required_action(

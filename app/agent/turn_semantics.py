@@ -321,6 +321,16 @@ def _scoped_dont_care_fields(text: str) -> set[str]:
     if not suffix:
         return set()
 
+    # A contrast clause introduces requirements, not more waived fields:
+    # "مش فارق سيدان ولا SUV، بس لازم جديدة" waives only body type.
+    suffix = re.split(
+        r"(?:^|[ ،,])(?:بس|لكن|ولكن|إنما|انما|however|but)(?:\s+لازم)?\s+",
+        suffix,
+        maxsplit=1,
+    )[0].strip()
+    if not suffix:
+        return set()
+
     scoped: set[str] = set()
     if any(term in suffix for term in (*_NEW_TERMS, *_USED_TERMS, "الحالة", "الحاله")):
         scoped.add("condition")
