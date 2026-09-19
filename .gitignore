@@ -34,3 +34,6 @@ Thumbs.db
 node_modules/
 package-lock.json
 
+
+# Generated local asset staging
+.artifacts/
