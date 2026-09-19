@@ -118,7 +118,7 @@ def test_test_drive_cancellation_is_session_owned_and_idempotent(db_session) -> 
     other = ConversationSession(id=uuid.uuid4())
     db_session.add(other)
     db_session.commit()
-    service = DriveService(db_session)
+    service = DriveService(db_session, today_provider=lambda: date(2026, 9, 19))
     request = service.create_request(
         session_id=owner.id,
         car_id=car.id,
@@ -143,7 +143,7 @@ def test_test_drive_cancellation_is_session_owned_and_idempotent(db_session) -> 
 
 def test_test_drive_cancellation_requires_id_when_multiple_are_active(db_session) -> None:
     conversation, car = _session_and_car(db_session)
-    service = DriveService(db_session)
+    service = DriveService(db_session, today_provider=lambda: date(2026, 9, 19))
     for index, hour in enumerate((17, 18), start=1):
         service.create_request(
             session_id=conversation.id,
