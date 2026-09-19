@@ -7,6 +7,7 @@
   const historyUrl = app.dataset.historyUrl;
   const switchBaseUrl = app.dataset.switchBaseUrl || "/api/chat/switch_session/";
   const maxMessageLength = Number(app.dataset.maxMessageLength || 4000);
+  let activeSessionId = app.dataset.activeSessionId || "";
 
   const form = document.getElementById("chat-form");
   const input = document.getElementById("chat-input");
@@ -217,6 +218,7 @@
 
   function renderState(state) {
     if (!state || typeof state !== "object") return;
+    if (state.session_id) activeSessionId = String(state.session_id);
     renderSelectedCar(state.selected_car);
     if (pendingLabel) {
       pendingLabel.textContent = pendingLabels[state.pending_action_type] || "مفيش طلب جارٍ";
@@ -303,6 +305,7 @@
         const button = document.createElement("button");
         button.type = "button";
         button.className = "history-item";
+        if (String(item.id) === activeSessionId) button.classList.add("active");
         button.dataset.historyId = item.id;
         const icon = document.createElement("span");
         icon.className = "history-icon";
