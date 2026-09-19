@@ -114,6 +114,34 @@ class TestAuthAccessControl:
             assert user.display_name == "New Google User"
             assert user.role == "customer"
 
+    def test_relogin_restores_latest_owned_conversation_without_creating_blank(
+        self, app: Flask, unauthed_client: FlaskClient, db_session, sample_user_a
+    ):
+        service = CustomerWebService(db_session)
+        context = service.ensure_conversation(None, user_id=sample_user_a.id)
+        db_session.commit()
+
+        identity = VerifiedIdentity(
+            id=sample_user_a.id,
+            email=sample_user_a.email,
+            display_name=sample_user_a.display_name,
+            avatar_url=None,
+        )
+        with patch.object(AuthService, "exchange_code_or_token", return_value=identity):
+            res = unauthed_client.get("/auth/callback?code=mock-relogin-code")
+
+        assert res.status_code == 302
+        assert "/chat" in res.location
+
+        with unauthed_client.session_transaction() as sess:
+            assert sess["autodrive_conversation_id"] == str(context.session_id)
+
+        reopened = unauthed_client.get("/chat")
+        assert reopened.status_code == 200
+        sessions = db_session.query(ConversationSession).all()
+        assert len(sessions) == 1
+        assert sessions[0].id == context.session_id
+
     def test_repeated_login_does_not_duplicate_user(
         self, app: Flask, unauthed_client: FlaskClient, sample_user_a
     ):
