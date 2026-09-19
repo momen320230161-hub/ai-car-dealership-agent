@@ -52,7 +52,16 @@ def _state_payload(state: CustomerChatState) -> dict[str, Any]:
     if selected_car is not None:
         selected_car = {
             key: selected_car.get(key)
-            for key in ("id", "brand", "model", "year", "condition", "body_type", "price_egp")
+            for key in (
+                "id",
+                "brand",
+                "model",
+                "year",
+                "condition",
+                "body_type",
+                "price_egp",
+                "image_url",
+            )
         }
     return {
         "session_id": str(state.session_id),
