@@ -61,7 +61,7 @@ class ImageManifestRow:
     status: str
 
     @classmethod
-    def from_dict(cls, value: dict[str, str]) -> "ImageManifestRow":
+    def from_dict(cls, value: dict[str, str]) -> ImageManifestRow:
         return cls(
             row_no=int(value["row_no"]),
             source_id=value["source_id"].strip(),
