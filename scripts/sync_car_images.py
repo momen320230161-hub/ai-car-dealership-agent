@@ -191,7 +191,7 @@ def _download_source(
         page_response.raise_for_status()
         candidate = _extract_page_image_url(page_response.text)
         if not candidate:
-            raise first_error
+            raise first_error from None
 
         content = _fetch_image(client, candidate, referer=source_page)
 
