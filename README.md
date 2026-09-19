@@ -30,10 +30,11 @@ Supabase, pgvector RAG and real business rows.
 - **Database safety audit:** PASS after remediation — invalid references create no business rows,
   expired pending data is invalidated, and overdue Test Drives have an explicit `EXPIRED`
   lifecycle.
-- **Current release decision:** **CONDITIONAL GO**. The remaining gap is operational rather
-  than missing core functionality: rerun Docker/CI from the exact submission commit, agree and
-  measure a chat-latency SLO, verify provider throttling behavior, and package final demo/
-  deployment evidence.
+- **Current release decision:** **CONDITIONAL GO**. Repository-side release validation is green,
+  including the disposable PostgreSQL suite, deterministic CSS build, production Docker build and
+  image migration-head verification. Remaining gaps are operational/live: agree and measure a
+  chat-latency SLO, verify provider throttling behavior, rerun the browser golden path on the final
+  submission commit, and package final demo/deployment evidence.
 
 ## Required Stack
 
@@ -439,20 +440,19 @@ container, never against the live Supabase project. When `TEST_DATABASE_URL` is 
 14 tests intentionally skip because they use schema lifecycle operations, truncation and
 identity resets.
 
-Reference security/release hardening CI evidence:
+GitHub Actions release validation evidence:
 
 ```text
-run: 35266929975
-head: 3d8477dc970453d910f539a4615b3b751f12ab3e
+run: 35469582680 (#307)
+head: 1285d6bea42bbe8f0821418898eccdf214d5f7e2
 result: PASS
 ```
 
-All lint, Alembic lifecycle, unit/PostgreSQL tests, Docker build and migration-packaging checks
-passed in that historical run. The local result above covers the newer application/UI and
-release-hardening work. The local Docker build completed every Dockerfile layer but Docker
-Desktop failed while exporting the image because its internal filesystem became read-only, so
-Docker build/migration-packaging must be reconfirmed by the final CI run from the exact submission
-commit; it is not claimed as passed for the current worktree.
+That Linux CI run passed locked Python and frontend dependency installation, deterministic CSS
+rebuild verification, Ruff, Alembic upgrade/downgrade/upgrade, the full disposable
+PostgreSQL/pgvector test suite, production Docker image build, and verification that the image
+contains the same Alembic head as the checkout. This also closes the earlier local Docker Desktop
+export failure as a host-specific issue rather than a Dockerfile/repository release blocker.
 
 ## Safe Migration Rule
 
@@ -503,7 +503,7 @@ Only Phase 8 closure work remains. Core product phases are complete.
 - rerun the documented setup from the exact committed tree in CI/a fresh clone; the commands,
   tracked catalog path and idempotent catalog/knowledge imports passed locally on disposable DB
 - run a short final desktop + mobile browser smoke after the latest UI/branding changes
-- trigger and archive one final CI run from the exact submission commit
+- archive the green GitHub Actions release evidence and keep the final submission commit green
 - capture final demo evidence: customer golden path, matching Admin rows, RAG edit/reindex and
   `/health/ready`
 - complete repository hygiene: review `.env.example`, remove local-only artifacts, verify no
