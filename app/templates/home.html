@@ -95,9 +95,15 @@
 
 <section class="section featured-section">
   <div class="container">
-    <div class="section-head">
-      <div><span class="eyebrow">من الكتالوج</span><h2>اختيارات مسجلة عندنا</h2><p>بيانات حقيقية من قاعدة البيانات، من غير افتراض مواصفات غير موجودة.</p></div>
-      <a class="link-arrow" href="{{ url_for('site.cars') }}">عرض كل السيارات ←</a>
+    <div class="section-head featured-head">
+      <div class="featured-heading-copy">
+        <span class="eyebrow"><i aria-hidden="true"></i> من الكتالوج</span>
+        <h2>سيارات مختارة من كتالوجنا</h2>
+        <p>أسعار ومواصفات واضحة تساعدك تبدأ المقارنة وتوصل لاختيارك أسرع.</p>
+      </div>
+      <a class="btn btn-light featured-cta" href="{{ url_for('site.cars') }}">
+        <span>عرض كل السيارات</span><b aria-hidden="true">←</b>
+      </a>
     </div>
     {% if featured_cars %}
       <div class="car-grid">{% for car in featured_cars %}{{ car_card(car) }}{% endfor %}</div>
