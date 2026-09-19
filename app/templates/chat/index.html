@@ -125,12 +125,17 @@
             <div id="selected-car-container">
               {% if chat_state.selected_car %}
                 <div class="selected-car-summary">
-                  <strong><bdi dir="auto">{{ chat_state.selected_car.brand }} {{ chat_state.selected_car.model }}</bdi></strong>
-                  <div class="selected-car-meta">
-                    {% if chat_state.selected_car.year %}<span>{{ chat_state.selected_car.year }}</span>{% endif %}
-                    <span>{{ chat_state.selected_car.condition|condition_ar }}</span>
+                  {% if chat_state.selected_car.image_url %}
+                    <img class="selected-car-thumb" src="{{ chat_state.selected_car.image_url }}" alt="{{ chat_state.selected_car.brand }} {{ chat_state.selected_car.model }}" loading="lazy" decoding="async">
+                  {% endif %}
+                  <div class="selected-car-summary-copy">
+                    <strong><bdi dir="auto">{{ chat_state.selected_car.brand }} {{ chat_state.selected_car.model }}</bdi></strong>
+                    <div class="selected-car-meta">
+                      {% if chat_state.selected_car.year %}<span>{{ chat_state.selected_car.year }}</span>{% endif %}
+                      <span>{{ chat_state.selected_car.condition|condition_ar }}</span>
+                    </div>
+                    {% if chat_state.selected_car.price_egp %}<b>{{ chat_state.selected_car.price_egp|egp }}</b>{% endif %}
                   </div>
-                  {% if chat_state.selected_car.price_egp %}<b>{{ chat_state.selected_car.price_egp|egp }}</b>{% endif %}
                 </div>
               {% else %}
                 <div class="context-empty" id="selected-car-empty">اختار عربية من النتائج علشان تثبت هنا.</div>
@@ -209,7 +214,11 @@
                 <article class="rec-card {% if chat_state.selected_car and chat_state.selected_car.id == car.id %}selected{% endif %}">
                   <div class="rec-visual">
                     <span class="rec-position">#{{ item.position }}</span>
-                    <span class="rec-car-icon" aria-hidden="true"></span>
+                    {% if car.image_url %}
+                      <img class="rec-car-photo" src="{{ car.image_url }}" alt="{{ car.brand }} {{ car.model }} {{ car.year }}" loading="lazy" decoding="async">
+                    {% else %}
+                      <span class="rec-car-icon" aria-hidden="true"></span>
+                    {% endif %}
                   </div>
                   <div class="rec-content">
                     <h3>{{ car.brand }} {{ car.model }}</h3>
