@@ -291,6 +291,62 @@ def test_semantic_unique_transmission_reference_resolves_without_phrase_rule() -
     assert update["car_reference"] == 1
 
 
+def test_visible_car_description_resolves_from_structured_turn_facts() -> None:
+    orchestrator = object.__new__(ConversationalSalesOrchestrator)
+    orchestrator.llm = _SemanticLLM(
+        RequestUnderstanding(
+            intent="car_selection",
+            preference_updates=PreferenceUpdates(model="Sportage", condition="used"),
+        )
+    )
+
+    update = orchestrator._understand_request(
+        _visible_state("حلوة المستعملة دي وعايز أشتريها")
+    )
+
+    assert update["car_reference"] == 1
+    assert update["turn_semantics"]["resolved_visible_reference"] == 1
+    assert update["extracted_preferences"] == {}
+
+
+def test_visible_car_description_does_not_guess_when_multiple_cars_match() -> None:
+    orchestrator = object.__new__(ConversationalSalesOrchestrator)
+    orchestrator.llm = _SemanticLLM(
+        RequestUnderstanding(
+            intent="car_selection",
+            preference_updates=PreferenceUpdates(condition="used"),
+        )
+    )
+
+    update = orchestrator._understand_request(_visible_state("المستعملة عجبتني"))
+
+    assert update.get("car_reference") is None
+
+
+def test_sales_lead_composition_cannot_claim_vehicle_reservation() -> None:
+    orchestrator = object.__new__(ConversationalSalesOrchestrator)
+    state = {
+        "route": "business_gate",
+        "normalized_message": "عايز أشتريها",
+        "action_status": {
+            "status": "missing_fields",
+            "intent": "sales_lead",
+            "missing_fields": ["phone"],
+        },
+    }
+
+    assert not orchestrator._composition_is_grounded(
+        "عشان أكمل حجز العربية محتاج رقم الموبايل.",
+        state,
+        {},
+    )
+    assert orchestrator._composition_is_grounded(
+        "عشان فريق المبيعات يتواصل معاك محتاج رقم الموبايل.",
+        state,
+        {},
+    )
+
+
 def test_semantic_visible_selector_never_breaks_ties_by_guessing() -> None:
     orchestrator = object.__new__(ConversationalSalesOrchestrator)
     state = _visible_state("الأرخص")

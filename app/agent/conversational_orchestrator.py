@@ -243,11 +243,14 @@ class ConversationalSalesOrchestrator(SalesOrchestrator):
                 "budget_change": llm_budget_change,
             }
 
-            control_only_turn = llm_action in {
-                "social",
-                "continue",
-                "discuss_budget",
-            }
+            control_only_turn = (
+                update.get("intent") == "general"
+                and llm_action in {
+                    "social",
+                    "continue",
+                    "discuss_budget",
+                }
+            )
             if control_only_turn:
                 extracted = {}
 
@@ -352,8 +355,23 @@ class ConversationalSalesOrchestrator(SalesOrchestrator):
                 "test_drive",
                 "sales_lead",
             }:
-                extracted.pop("brand", None)
-                extracted.pop("model", None)
+                # These values described the already-visible referenced car. They are
+                # not a new search refinement and must not invalidate the snapshot
+                # before its position is selected or used by a business action.
+                for field in (
+                    "brand",
+                    "model",
+                    "condition",
+                    "body_type",
+                    "transmission",
+                    "fuel_type",
+                    "min_year",
+                    "max_year",
+                    "min_price",
+                    "max_price",
+                    "max_mileage",
+                ):
+                    extracted.pop(field, None)
 
         current_goal = str((state.get("dialogue_state") or {}).get("catalog_goal") or "")
         resolved_intent = str(update.get("intent") or "general")
@@ -788,12 +806,33 @@ class ConversationalSalesOrchestrator(SalesOrchestrator):
             return True
 
         action = state.get("action_status") or {}
+        intent = action.get("intent")
+        if intent == "sales_lead":
+            # A sales lead is only a request for follow-up. Flexible wording is welcome,
+            # but it must never silently upgrade that action into a vehicle reservation
+            # or a completed purchase.
+            response_folded = response.casefold()
+            unsupported_commitment_claims = (
+                "حجز العربية",
+                "حجز السيارة",
+                "حجزت العربية",
+                "حجزت السيارة",
+                "اتحجزت العربية",
+                "اتحجزت السيارة",
+                "تم حجز",
+                "تم شراء",
+                "اكتمل الشراء",
+                "purchase completed",
+                "car reserved",
+            )
+            if any(claim in response_folded for claim in unsupported_commitment_claims):
+                return False
+
         status = action.get("status")
         if status != "success":
             success_claims = ("تم تسجيل", "اتسجل بنجاح", "تم إلغاء", "اتلغى بنجاح")
             return not any(claim in response for claim in success_claims)
 
-        intent = action.get("intent")
         required_id = action.get("lead_id") if intent == "sales_lead" else action.get("request_id")
         if not isinstance(required_id, int):
             return False
@@ -923,6 +962,37 @@ class ConversationalSalesOrchestrator(SalesOrchestrator):
             if len(matches) == 1:
                 return int(matches[0]["position"])
 
+        # Resolve a natural description against the exact cars the customer can see.
+        # This intentionally consumes structured semantic attributes extracted for this
+        # turn instead of maintaining a growing dictionary of customer phrases. It also
+        # refuses to guess when zero or multiple visible cars satisfy the description.
+        constraint_matches = [
+            item
+            for item in items
+            if self._visible_car_matches_turn_constraints(
+                item.get("car") or {},
+                extracted,
+            )
+        ]
+        has_reference_constraints = any(
+            extracted.get(field) is not None
+            for field in (
+                "brand",
+                "model",
+                "condition",
+                "body_type",
+                "transmission",
+                "fuel_type",
+                "min_year",
+                "max_year",
+                "min_price",
+                "max_price",
+                "max_mileage",
+            )
+        )
+        if has_reference_constraints and len(constraint_matches) == 1:
+            return int(constraint_matches[0]["position"])
+
         direct_matches: list[dict[str, Any]] = []
         for item in items:
             car = item.get("car") or {}
@@ -947,6 +1017,39 @@ class ConversationalSalesOrchestrator(SalesOrchestrator):
             if match is not None:
                 return int(match["position"])
         return None
+
+    @classmethod
+    def _visible_car_matches_turn_constraints(
+        cls,
+        car: dict[str, Any],
+        constraints: dict[str, Any],
+    ) -> bool:
+        """Match structured turn meaning to visible facts without phrase matching."""
+        text_fields = ("brand", "model", "condition", "body_type", "transmission", "fuel_type")
+        for field in text_fields:
+            requested = constraints.get(field)
+            if requested is None:
+                continue
+            if not cls._entity_matches(str(car.get(field) or ""), str(requested)):
+                return False
+
+        numeric_rules = (
+            ("min_year", "year", lambda actual, expected: actual >= expected),
+            ("max_year", "year", lambda actual, expected: actual <= expected),
+            ("min_price", "price_egp", lambda actual, expected: actual >= expected),
+            ("max_price", "price_egp", lambda actual, expected: actual <= expected),
+            ("max_mileage", "mileage_km", lambda actual, expected: actual <= expected),
+        )
+        for constraint_field, car_field, predicate in numeric_rules:
+            requested = constraints.get(constraint_field)
+            if requested is None:
+                continue
+            try:
+                if not predicate(float(car.get(car_field)), float(requested)):
+                    return False
+            except (TypeError, ValueError):
+                return False
+        return True
 
     def _resolve_catalog_model(self, brand: str | None, requested: str | None) -> str | None:
         if not requested:

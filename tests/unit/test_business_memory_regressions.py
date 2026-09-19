@@ -137,3 +137,43 @@ def test_bare_pending_hour_then_daypart_completes_same_test_drive(db_session) ->
     third = workflow.prepare_action(conversation.id, "general", "العصر")
     assert third["status"] == "ready"
     assert third["fields"]["preferred_time"] == "16:00"
+
+
+def test_conversational_daypart_correction_completes_pending_time(db_session) -> None:
+    car = _car(db_session, "pending-conversational-daypart")
+    conversation = ConversationSession(id=uuid.uuid4(), selected_car_id=car.id)
+    db_session.add(conversation)
+    db_session.commit()
+    workflow = _workflow(db_session)
+
+    first = workflow.prepare_action(
+        conversation.id,
+        "test_drive",
+        "اسمي مؤمن محمد ورقمي 01229847585 بكره الساعة 5",
+    )
+    assert first["ambiguous_time_hour"] == 5
+
+    corrected = workflow.prepare_action(conversation.id, "general", "لا، قصدي العصر")
+
+    assert corrected["status"] == "ready"
+    assert corrected["fields"]["preferred_time"] == "17:00"
+
+
+def test_negated_daypart_is_not_silently_accepted(db_session) -> None:
+    car = _car(db_session, "pending-negated-daypart")
+    conversation = ConversationSession(id=uuid.uuid4(), selected_car_id=car.id)
+    db_session.add(conversation)
+    db_session.commit()
+    workflow = _workflow(db_session)
+
+    first = workflow.prepare_action(
+        conversation.id,
+        "test_drive",
+        "اسمي مؤمن محمد ورقمي 01229847585 بكره الساعة 5",
+    )
+    assert first["ambiguous_time_hour"] == 5
+
+    unresolved = workflow.prepare_action(conversation.id, "general", "مش العصر")
+
+    assert unresolved["status"] == "missing_fields"
+    assert unresolved["missing_fields"] == ["preferred_time"]

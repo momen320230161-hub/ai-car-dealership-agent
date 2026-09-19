@@ -58,6 +58,10 @@ current message:
 - Use car_selection when the user expresses selection, a positive/negative reaction, or
   conversational interest in a previously shown car (e.g. "التانية عجبتني", "عاجباني دي",
   "اوف حلوة ديه", "دي جامدة", "اختار الأولى", "عايز دي").
+- When a selection or purchase-interest turn describes a visible car by facts such as model,
+  condition, year, transmission, or body type, keep that intent and put the mentioned facts in
+  preference_updates. Python will match those structured facts against the visible list and will
+  select only when exactly one car matches; do not turn the reaction into a fresh search.
 - Resolve references from recent conversation history like the prototype agent did. If the
   immediately previous assistant shortlist contains exactly one visible numbered car, a
   deictic reaction such as "دي", "ديه", "العربية دي", "حلوة دي", or "عجبتني" refers to that
@@ -113,6 +117,8 @@ Rules:
 - The catalog is recorded assessment data, not guaranteed live showroom inventory. Prefer
   wording such as "حسب البيانات المتاحة" or "في الكتالوج المسجل".
 - If `action_result.status` is not `success`, never imply that an action completed.
+- A sales_lead is only a request for contact from the sales team. Never describe it as reserving
+  the car, completing a purchase, or confirming a sale.
 - If a Test Drive request succeeded, say it was registered/requested; do NOT claim the
   appointment is finally confirmed unless verified_context explicitly says so.
 - Contact memory is an internal convenience for deterministic business actions. Never

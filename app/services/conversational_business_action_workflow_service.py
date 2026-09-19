@@ -33,9 +33,9 @@ _DAYPART_MARKERS = (
     "a.m",
     "p.m",
 )
-_DAYPART_ONLY_RE = re.compile(
-    r"^\s*(?:الصباح|الصبح|صباح(?:ا|اً)?|المساء|مساء(?:ا|ً)?|"
-    r"العصر|عصر(?:ا|اً)?|الظهر|ظهر(?:ا|اً)?|am|pm)\s*$",
+_DAYPART_TOKEN_RE = re.compile(
+    r"(?<!\w)(?:الصباح|الصبح|صباح(?:ا|اً)?|المساء|مساء(?:ا|ً)?|"
+    r"العصر|عصر(?:ا|اً)?|الظهر|ظهر(?:ا|اً)?|am|pm)(?!\w)",
     re.IGNORECASE,
 )
 _BARE_CLOCK_RE = re.compile(
@@ -262,6 +262,16 @@ class ConversationalBusinessActionWorkflowService(BusinessActionWorkflowService)
         if not 1 <= hour <= 12:
             return message
         text = str(message or "").translate(_ARABIC_DIGITS).casefold().strip()
-        if not _DAYPART_ONLY_RE.fullmatch(text):
+        # Extract the semantic value from a conversational correction such as
+        # "لا، العصر" or "قصدي مساء". We do not enumerate full utterances: exactly
+        # one daypart, no competing clock value, and no direct negation is required.
+        if any(char.isdigit() for char in text):
             return message
-        return f"الساعة {hour} {message.strip()}"
+        matches = list(_DAYPART_TOKEN_RE.finditer(text))
+        if len(matches) != 1:
+            return message
+        match = matches[0]
+        prefix = text[: match.start()].strip()
+        if re.search(r"(?:مش|ليس|not)\s*$", prefix, flags=re.IGNORECASE):
+            return message
+        return f"الساعة {hour} {match.group(0)}"
