@@ -8,7 +8,11 @@ from collections.abc import Mapping, Sequence
 from typing import Any, Protocol
 
 from app.agent.composition_policy import build_response_plan, composition_policy_allows
-from app.agent.prompts import GENERAL_COMPOSITION_SYSTEM_PROMPT, UNDERSTANDING_SYSTEM_PROMPT
+from app.agent.prompts import (
+    GENERAL_COMPOSITION_SYSTEM_PROMPT,
+    KNOWLEDGE_COMPOSITION_SYSTEM_PROMPT,
+    UNDERSTANDING_SYSTEM_PROMPT,
+)
 from app.agent.schemas import RequestUnderstanding, explicit_visible_references
 
 
@@ -28,6 +32,15 @@ class AgentLLM(Protocol):
     ) -> RequestUnderstanding: ...
 
     def compose_general(self, message: str, *, verified_context: Mapping[str, Any]) -> str: ...
+
+    def compose_knowledge(
+        self,
+        message: str,
+        *,
+        grounded_context: Sequence[Mapping[str, Any]],
+        fallback: str,
+        recent_messages: Sequence[Mapping[str, Any]] = (),
+    ) -> str: ...
 
 
 def gemini_understanding_schema() -> dict[str, Any]:
@@ -212,6 +225,61 @@ class GeminiAgentLLM:
             raise AgentLLMError("Gemini response composition failed") from exc
 
 
+    def compose_knowledge(
+        self,
+        message: str,
+        *,
+        grounded_context: Sequence[Mapping[str, Any]],
+        fallback: str,
+        recent_messages: Sequence[Mapping[str, Any]] = (),
+    ) -> str:
+        """Compose a concise customer answer strictly from verified RAG evidence."""
+        try:
+            from google.genai import types
+
+            safe_context = [
+                {
+                    "title": str(item.get("title") or ""),
+                    "category": str(item.get("category") or ""),
+                    "content": str(item.get("content") or ""),
+                }
+                for item in grounded_context
+                if str(item.get("content") or "").strip()
+            ]
+            if not safe_context:
+                return fallback
+
+            response_plan = build_response_plan(
+                {"route": "rag", "recent_messages": list(recent_messages)}
+            )
+            payload = {
+                "customer_message": message,
+                "grounded_context": safe_context,
+                "deterministic_fallback": fallback,
+                "response_plan": response_plan,
+            }
+            client = self._client()
+            response = client.models.generate_content(
+                model=self.model_name,
+                contents=json.dumps(payload, ensure_ascii=False, default=str),
+                config=types.GenerateContentConfig(
+                    system_instruction=KNOWLEDGE_COMPOSITION_SYSTEM_PROMPT,
+                    max_output_tokens=240,
+                    **gemini_sampling_kwargs(self.model_name, self.temperature),
+                ),
+            )
+            text = (response.text or "").strip()
+            if not text:
+                raise AgentLLMError("Gemini returned no knowledge response text")
+            if not composition_policy_allows(text, response_plan):
+                raise AgentLLMError("Gemini knowledge response rejected by composition policy")
+            return text
+        except AgentLLMError:
+            raise
+        except Exception as exc:
+            raise AgentLLMError("Gemini knowledge composition failed") from exc
+
+
 class DeterministicAgentLLM:
     """Offline language fixture for CI; it is never a production fallback."""
 
@@ -364,6 +432,18 @@ class DeterministicAgentLLM:
         if any(word in lower for word in ("اهلا", "أهلا", "مرحبا", "hello", "hi")):
             return "أهلاً بيك في AutoDrive Egypt. أقدر أساعدك تدور على عربية مناسبة."
         return "ممكن توضح لي أكتر إيه اللي محتاجه بخصوص العربية؟"
+
+
+    def compose_knowledge(
+        self,
+        message: str,
+        *,
+        grounded_context: Sequence[Mapping[str, Any]],
+        fallback: str,
+        recent_messages: Sequence[Mapping[str, Any]] = (),
+    ) -> str:
+        del message, grounded_context, recent_messages
+        return fallback
 
 
 def build_agent_llm(config: Mapping[str, Any]) -> AgentLLM:

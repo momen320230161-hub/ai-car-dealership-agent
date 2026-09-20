@@ -1,6 +1,6 @@
 """Focused regression tests for customer-facing deterministic agent rendering."""
 
-from app.agent.rendering import render_catalog
+from app.agent.rendering import render_catalog, render_knowledge
 
 
 def test_recommendations_show_condition_and_mileage() -> None:
@@ -203,3 +203,25 @@ def test_comparison_does_not_invent_missing_specs() -> None:
     assert "الفئة:" not in response
     assert "#2 Example B 2024 أرخص بـ 100,000 جنيه." in response
     assert "None" not in response
+
+
+
+def test_knowledge_rendering_extracts_relevant_paragraph_instead_of_dumping_chunk() -> None:
+    result = {
+        "content": (
+            "مقدمة عامة عن التمويل.\n\n"
+            "3. البيانات الأساسية في عقد التمويل\n\n"
+            "يتضمن عقد التمويل مبلغ التمويل ومدة السداد وعدد الأقساط وقيمة كل قسط.\n\n"
+            "قسم آخر غير متعلق بالسؤال."
+        )
+    }
+
+    response = render_knowledge(
+        True,
+        result,
+        question="إيه البيانات الأساسية اللي المفروض تكون في عقد التمويل؟",
+    )
+
+    assert "عقد التمويل" in response
+    assert "عدد الأقساط" in response
+    assert "قسم آخر" not in response

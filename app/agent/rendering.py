@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import re
+
 from typing import Any
 
 
@@ -130,10 +132,82 @@ def _render_requested_car_fields(car: dict[str, Any], fields: list[str]) -> str:
     return f"{requested} غير مسجل حاليًا لـ {name} في الكتالوج."
 
 
-def render_knowledge(supported: bool, result: dict[str, Any] | None) -> str:
+def render_knowledge(
+    supported: bool,
+    result: dict[str, Any] | None,
+    *,
+    question: str | None = None,
+) -> str:
     if not supported or not result:
         return "المعلومة دي مش متوفرة حاليًا ضمن المعلومات المعتمدة في قاعدة المعرفة."
-    return str(result["content"]).strip()
+    content = str(result.get("content") or "").strip()
+    if not content:
+        return "المعلومة دي مش متوفرة حاليًا ضمن المعلومات المعتمدة في قاعدة المعرفة."
+    if not question:
+        return content
+    return _knowledge_excerpt(question, content)
+
+
+_KNOWLEDGE_STOPWORDS = {
+    "عندكم",
+    "ممكن",
+    "عايز",
+    "عاوز",
+    "ايه",
+    "هذه",
+    "هذا",
+    "هل",
+    "قال",
+    "المفروض",
+    "كلمه",
+    "كلمة",
+    "العربيه",
+    "عربيه",
+    "السياره",
+    "سياره",
+    "انهي",
+    "على",
+    "علي",
+    "الى",
+    "إلى",
+    "من",
+    "في",
+}
+
+
+def _knowledge_excerpt(question: str, content: str, *, max_chars: int = 700) -> str:
+    """Return the most relevant verified paragraphs instead of dumping a whole chunk."""
+    paragraphs = [part.strip() for part in re.split(r"\n\s*\n", content) if part.strip()]
+    if not paragraphs:
+        return content[:max_chars].strip()
+
+    query_tokens = {
+        token
+        for token in _normalize_knowledge_text(question).split()
+        if len(token) >= 4 and token not in _KNOWLEDGE_STOPWORDS
+    }
+    scored: list[tuple[int, int, str]] = []
+    for index, paragraph in enumerate(paragraphs):
+        tokens = set(_normalize_knowledge_text(paragraph).split())
+        score = len(query_tokens.intersection(tokens))
+        if score:
+            scored.append((score, index, paragraph))
+
+    if not scored:
+        return paragraphs[0][:max_chars].strip()
+
+    top = sorted(scored, key=lambda item: (-item[0], item[1]))[:2]
+    selected = [paragraph for _, _, paragraph in sorted(top, key=lambda item: item[1])]
+    excerpt = "\n\n".join(selected).strip()
+    if len(excerpt) <= max_chars:
+        return excerpt
+    shortened = excerpt[:max_chars].rsplit(" ", 1)[0].strip()
+    return f"{shortened}…" if shortened else excerpt[:max_chars].strip()
+
+
+def _normalize_knowledge_text(text: str) -> str:
+    normalized = text.casefold().translate(str.maketrans("أإآةى", "اااهي"))
+    return re.sub(r"[^\w\u0600-\u06ff]+", " ", normalized).strip()
 
 
 def render_error(code: str | None) -> str:
