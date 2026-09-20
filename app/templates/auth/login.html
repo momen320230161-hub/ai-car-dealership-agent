@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <meta name="theme-color" content="#f7f9fc">
+  <meta name="theme-color" content="#0b1220">
   <title>تسجيل الدخول — AutoDrive Egypt</title>
   <meta name="description" content="تسجيل الدخول إلى AutoDrive Egypt عبر Google">
   <link rel="icon" type="image/png" href="{{ static_asset('img/autodrive-mark-clean.png') }}">
@@ -12,56 +12,74 @@
 </head>
 <body class="auth-shell">
   <main class="auth-layout">
-    <section class="auth-hero" aria-label="AutoDrive Egypt">
-      <div class="auth-hero-copy">
-        <span class="auth-kicker">سيارات أذكى. قرارات أوضح.</span>
+    <section class="auth-visual" aria-label="AutoDrive Egypt">
+      <div class="auth-visual-grid" aria-hidden="true"></div>
 
-        <h1>العربية المناسبة <span>تبدأ من هنا.</span></h1>
+      <a class="auth-logo" href="{{ url_for('site.home') }}" aria-label="العودة إلى AutoDrive Egypt">
+        <span class="auth-logo-mark">
+          <img src="{{ static_asset('img/autodrive-mark-clean.png') }}" alt="">
+        </span>
+        <span class="auth-logo-copy">
+          <strong>AutoDrive Egypt</strong>
+          <small>AI Car Dealership</small>
+        </span>
+      </a>
 
+      <div class="auth-visual-content">
+        <span class="auth-kicker"><i></i> AI SALES EXPERIENCE</span>
+        <h1>اختار عربيتك.<br><em>وقرّب من قرارك.</em></h1>
         <p>
-          اكتشف العربيات، قارن الاختيارات، واسأل المساعد الذكي عن المعلومات والسياسات
-          قبل ما تاخد قرارك.
+          سجّل دخولك علشان محادثاتك، اختياراتك، وطلباتك تفضل مرتبطة بحسابك
+          وتقدر تكمّل من نفس المكان كل مرة.
         </p>
 
-        <div class="auth-stats" aria-label="مزايا AutoDrive">
-          <div>
-            <strong>100</strong>
-            <span>سيارة في الكتالوج التجريبي</span>
+        <div class="auth-product-scene" aria-label="مزايا تجربة AutoDrive">
+          <div class="auth-car-stage" aria-hidden="true">
+            <div class="auth-car-glow"></div>
+            <div class="auth-car">
+              <span class="car-roof"></span>
+              <span class="car-body"></span>
+              <span class="car-wheel car-wheel-one"></span>
+              <span class="car-wheel car-wheel-two"></span>
+            </div>
           </div>
-          <div>
-            <strong>RAG</strong>
-            <span>إجابات من المعرفة المُدارة</span>
-          </div>
-          <div>
-            <strong>Real Actions</strong>
-            <span>Test Drive و Sales Leads فعلية</span>
+
+          <div class="auth-capabilities">
+            <div>
+              <span>01</span>
+              <strong>Catalog Grounded</strong>
+              <small>الاختيارات من البيانات المسجلة</small>
+            </div>
+            <div>
+              <span>02</span>
+              <strong>AI Assisted</strong>
+              <small>محادثة طبيعية وفهم للسياق</small>
+            </div>
+            <div>
+              <span>03</span>
+              <strong>Real Actions</strong>
+              <small>طلبات مرتبطة فعليًا بالنظام</small>
+            </div>
           </div>
         </div>
       </div>
 
-      {% if hero_car_image_url %}
-        <div class="auth-hero-media" aria-hidden="true">
-          <img src="{{ hero_car_image_url }}" alt="">
-        </div>
-      {% endif %}
-
-      <div class="auth-hero-footer">
-        <span>حسب البيانات المتاحة في الكتالوج المسجل.</span>
-        <strong>AUTO DRIVE EGYPT</strong>
+      <div class="auth-visual-footer">
+        <span class="secure-indicator"><i></i> Secure account access</span>
+        <p>حسب البيانات المتاحة في الكتالوج المسجل، وليست تأكيدًا لمخزون حي أو سعر سوق لحظي.</p>
       </div>
     </section>
 
     <section class="auth-panel">
-      <div class="auth-card">
-        <a class="auth-brand" href="{{ url_for('site.home') }}" aria-label="العودة إلى AutoDrive Egypt">
-          <span class="auth-brand-mark">
-            <img src="{{ static_asset('img/autodrive-mark-clean.png') }}" alt="">
-          </span>
-          <span class="auth-brand-copy">
-            <strong>AutoDrive Egypt</strong>
-            <small>AI Car Dealership</small>
-          </span>
-        </a>
+      <div class="auth-panel-inner">
+        <div class="auth-mobile-brand">
+          <a class="auth-mobile-logo" href="{{ url_for('site.home') }}" aria-label="العودة إلى AutoDrive Egypt">
+            <span class="auth-logo-mark small" aria-hidden="true">
+              <img src="{{ static_asset('img/autodrive-mark-clean.png') }}" alt="">
+            </span>
+            <span>AutoDrive Egypt</span>
+          </a>
+        </div>
 
         <a class="auth-back-link" href="{{ url_for('site.home') }}">
           <span aria-hidden="true">→</span>
@@ -70,7 +88,7 @@
 
         <div class="auth-card-heading">
           <span class="auth-eyebrow">مرحبًا بيك</span>
-          <h2>ادخل وكمل من مكانك</h2>
+          <h2>ادخل وكمل من مكانك.</h2>
           <p>استخدم حساب Google للوصول لمحادثاتك واختياراتك وطلباتك على AutoDrive.</p>
         </div>
 
@@ -86,8 +104,7 @@
 
         {% if auth_configured is defined and not auth_configured %}
           <div class="auth-config-warning" role="alert">
-            إعدادات Supabase Auth غير مكتملة محليًا. راجع
-            <code>SUPABASE_URL</code> و<code>SUPABASE_PUBLISHABLE_KEY</code> ثم أعد تشغيل التطبيق.
+            إعدادات Supabase Auth غير مكتملة محليًا. راجع <code>SUPABASE_URL</code> و<code>SUPABASE_PUBLISHABLE_KEY</code> ثم أعد تشغيل التطبيق.
           </div>
         {% endif %}
 
@@ -111,9 +128,13 @@
             <span class="button-arrow" aria-hidden="true">←</span>
           </a>
 
-          <p class="auth-signup-copy">
-            أول مرة على AutoDrive؟ حسابك هيتجهز تلقائيًا أول ما تكمل تسجيل الدخول بحساب Google.
-          </p>
+          <div class="first-time-note">
+            <span class="first-time-icon" aria-hidden="true">✦</span>
+            <div>
+              <strong>أول مرة على AutoDrive؟</strong>
+              <p>كمّل بحساب Google، وحسابك عندنا هيتجهز تلقائيًا من غير Signup منفصل أو باسورد جديد.</p>
+            </div>
+          </div>
         </div>
 
         <div class="auth-security-note">
