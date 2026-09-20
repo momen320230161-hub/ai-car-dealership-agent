@@ -33,6 +33,13 @@ Thumbs.db
 # Node
 node_modules/
 
-
 # Generated local asset staging
 .artifacts/
+
+# One-off verification outputs
+verify_results.*
+scripts/verify_scenarios.py
+
+# Local AI / IDE tooling
+.agents/
+skills-lock.json
