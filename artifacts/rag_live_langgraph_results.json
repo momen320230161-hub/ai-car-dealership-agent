@@ -1,0 +1,521 @@
+{
+  "results": [
+    {
+      "case_id": "A",
+      "user_query": "لو قلت العربية التانية، التانية تتحسب على أنهي عربيات؟",
+      "route": "rag",
+      "intent": "knowledge_question",
+      "retrieved_sources": [
+        {
+          "document_title": "توافر السيارات وتأكيد السعر النهائي",
+          "chunk_index": 0,
+          "similarity": 0.6552
+        },
+        {
+          "document_title": "سياسات AutoDrive Egypt الداخلية",
+          "chunk_index": 1,
+          "similarity": 0.6501
+        },
+        {
+          "document_title": "بيانات السيارات والأسعار في AutoDrive",
+          "chunk_index": 0,
+          "similarity": 0.6424
+        },
+        {
+          "document_title": "تمويل السيارات الاستهلاكي في مصر",
+          "chunk_index": 0,
+          "similarity": 0.6344
+        }
+      ],
+      "final_answer": "المعلومة دي مش متوفرة حاليًا ضمن المعلومات المعتمدة في قاعدة المعرفة.",
+      "groundedness": "FAIL",
+      "hallucination": "FAIL",
+      "evidence_reason": "Answer was not supported by any retrieved document or correctly handled out of scope."
+    },
+    {
+      "case_id": "B",
+      "user_query": "لو العربية موجودة في الكتالوج، هل ده معناه إنها موجودة دلوقتي في المعرض؟",
+      "route": "rag",
+      "intent": "knowledge_question",
+      "retrieved_sources": [
+        {
+          "document_title": "توافر السيارات وتأكيد السعر النهائي",
+          "chunk_index": 0,
+          "similarity": 0.8422
+        },
+        {
+          "document_title": "بيانات السيارات والأسعار في AutoDrive",
+          "chunk_index": 0,
+          "similarity": 0.7666
+        },
+        {
+          "document_title": "سياسات AutoDrive Egypt الداخلية",
+          "chunk_index": 1,
+          "similarity": 0.7601
+        },
+        {
+          "document_title": "سياسات AutoDrive Egypt الداخلية",
+          "chunk_index": 4,
+          "similarity": 0.72
+        }
+      ],
+      "final_answer": "وجود العربية في الكتالوج المسجل لدى AutoDrive Egypt مش معناه بالضرورة إنها متاحة حالياً في صالة العرض أو جاهزة للتسليم، لأن التوافر الفعلي والسعر النهائي بيحتاجوا لتأكيد منفصل قبل إتمام الشراء.",
+      "groundedness": "PASS",
+      "hallucination": "PASS",
+      "evidence_reason": "Answer is fully derived from retrieved knowledge."
+    },
+    {
+      "case_id": "C",
+      "user_query": "إيه البيانات المطلوبة عشان أحجز Test Drive؟",
+      "route": "rag",
+      "intent": "knowledge_question",
+      "retrieved_sources": [
+        {
+          "document_title": "متطلبات حجز تجربة قيادة في AutoDrive",
+          "chunk_index": 0,
+          "similarity": 0.7837
+        },
+        {
+          "document_title": "سياسات AutoDrive Egypt الداخلية",
+          "chunk_index": 1,
+          "similarity": 0.7722
+        },
+        {
+          "document_title": "سياسات AutoDrive Egypt الداخلية",
+          "chunk_index": 2,
+          "similarity": 0.7124
+        },
+        {
+          "document_title": "بيانات السيارات والأسعار في AutoDrive",
+          "chunk_index": 0,
+          "similarity": 0.7111
+        }
+      ],
+      "final_answer": "لإنشاء طلب تجربة قيادة في AutoDrive Egypt، يلزم تحديد السيارة المطلوبة بشكل واضح، مع توفير اسمك، رقم هاتفك، والتاريخ والوقت المفضلين لديك.",
+      "groundedness": "PASS",
+      "hallucination": "PASS",
+      "evidence_reason": "Answer is fully derived from retrieved knowledge."
+    },
+    {
+      "case_id": "D",
+      "user_query": "لو أكدت نفس حجز تجربة القيادة مرتين، المفروض يحصل إيه؟",
+      "route": "rag",
+      "intent": "knowledge_question",
+      "retrieved_sources": [
+        {
+          "document_title": "متطلبات حجز تجربة قيادة في AutoDrive",
+          "chunk_index": 0,
+          "similarity": 0.732
+        },
+        {
+          "document_title": "سياسات AutoDrive Egypt الداخلية",
+          "chunk_index": 2,
+          "similarity": 0.7057
+        },
+        {
+          "document_title": "إلغاء طلب تجربة القيادة",
+          "chunk_index": 0,
+          "similarity": 0.7057
+        },
+        {
+          "document_title": "سياسات AutoDrive Egypt الداخلية",
+          "chunk_index": 1,
+          "similarity": 0.6813
+        }
+      ],
+      "final_answer": "تكرار تأكيد نفس محاولة حجز تجربة القيادة مش بينشئ طلب Test Drive مكرر. تحب أسألك عن حاجة تاني بخصوص الحجوزات؟",
+      "groundedness": "PASS",
+      "hallucination": "PASS",
+      "evidence_reason": "Answer is fully derived from retrieved knowledge."
+    },
+    {
+      "case_id": "E",
+      "user_query": "إمتى المساعد يقدر يقول إن طلب التواصل مع المبيعات اتسجل بنجاح؟",
+      "route": "rag",
+      "intent": "knowledge_question",
+      "retrieved_sources": [
+        {
+          "document_title": "طلب التواصل مع فريق المبيعات في AutoDrive",
+          "chunk_index": 0,
+          "similarity": 0.8284
+        },
+        {
+          "document_title": "متطلبات حجز تجربة قيادة في AutoDrive",
+          "chunk_index": 0,
+          "similarity": 0.7192
+        },
+        {
+          "document_title": "سياسات AutoDrive Egypt الداخلية",
+          "chunk_index": 2,
+          "similarity": 0.7137
+        },
+        {
+          "document_title": "توافر السيارات وتأكيد السعر النهائي",
+          "chunk_index": 0,
+          "similarity": 0.695
+        }
+      ],
+      "final_answer": "المساعد مش بيعلن إن طلب التواصل مع المبيعات اتسجل بنجاح غير بعد حفظ الـ Sales Lead فعليًا في قاعدة البيانات والحصول على Lead ID حقيقي.",
+      "groundedness": "PASS",
+      "hallucination": "PASS",
+      "evidence_reason": "Answer is fully derived from retrieved knowledge."
+    },
+    {
+      "case_id": "F",
+      "user_query": "إيه أهمية الفاتورة لما أشتري عربية؟",
+      "route": "rag",
+      "intent": "knowledge_question",
+      "retrieved_sources": [
+        {
+          "document_title": "حقوق مشتري السيارات في مصر",
+          "chunk_index": 0,
+          "similarity": 0.7518
+        },
+        {
+          "document_title": "حقوق مشتري السيارات في مصر",
+          "chunk_index": 1,
+          "similarity": 0.7458
+        },
+        {
+          "document_title": "حقوق مشتري السيارات في مصر",
+          "chunk_index": 4,
+          "similarity": 0.678
+        },
+        {
+          "document_title": "ترخيص السيارة ونقل الملكية في مصر",
+          "chunk_index": 1,
+          "similarity": 0.6729
+        }
+      ],
+      "final_answer": "الفاتورة بتعتبر مستند ورقي أو رقمي أو إلكتروني يكفي بذاته لإثبات التعامل أو التعاقد مع المستهلك على المنتج دون تحميله أعباء إضافية، وبتتضمن بيانات أساسية زي تاريخ التعامل، السعر، المواصفات، الطبيعة، النوعية والكمية. وعند شراء سيارة، تعتبر الفاتورة من أهم المستندات التي تثبت تفاصيل العملية وتساعد في أي متابعة لاحقة.",
+      "groundedness": "PASS",
+      "hallucination": "PASS",
+      "evidence_reason": "Answer is fully derived from retrieved knowledge."
+    },
+    {
+      "case_id": "G",
+      "user_query": "لو السلعة فيها عيب، إيه القاعدة العامة المذكورة في المصدر؟",
+      "route": "rag",
+      "intent": "knowledge_question",
+      "retrieved_sources": [
+        {
+          "document_title": "حقوق مشتري السيارات في مصر",
+          "chunk_index": 2,
+          "similarity": 0.7022
+        },
+        {
+          "document_title": "حقوق مشتري السيارات في مصر",
+          "chunk_index": 4,
+          "similarity": 0.6933
+        },
+        {
+          "document_title": "حقوق مشتري السيارات في مصر",
+          "chunk_index": 0,
+          "similarity": 0.6713
+        },
+        {
+          "document_title": "حقوق مشتري السيارات في مصر",
+          "chunk_index": 3,
+          "similarity": 0.6554
+        }
+      ],
+      "final_answer": "القاعدة العامة هي أن يلجأ المستهلك إلى المورد ويوضح العيب، وإذا وُجد خلاف حول وجود العيب، فيمكن تقديم شكوى للجهاز لفحصها.",
+      "groundedness": "PASS",
+      "hallucination": "PASS",
+      "evidence_reason": "Answer is fully derived from retrieved knowledge."
+    },
+    {
+      "case_id": "H",
+      "user_query": "هل التمويل الاستهلاكي يشمل السيارات؟",
+      "route": "rag",
+      "intent": "knowledge_question",
+      "retrieved_sources": [
+        {
+          "document_title": "تمويل السيارات الاستهلاكي في مصر",
+          "chunk_index": 0,
+          "similarity": 0.7604
+        },
+        {
+          "document_title": "ما هو التمويل الاستهلاكي للسيارات في مصر؟",
+          "chunk_index": 0,
+          "similarity": 0.7135
+        },
+        {
+          "document_title": "تمويل السيارات الاستهلاكي في مصر",
+          "chunk_index": 1,
+          "similarity": 0.7104
+        },
+        {
+          "document_title": "تمويل السيارات الاستهلاكي في مصر",
+          "chunk_index": 2,
+          "similarity": 0.6773
+        }
+      ],
+      "final_answer": "نعم، يذكر قانون التمويل الاستهلاكي صراحة المركبات وسيارات الركوب بجميع أنواعها ضمن السلع التي تسري عليها أحكام التمويل الاستهلاكي في الحالات الخاضعة للقانون.",
+      "groundedness": "PASS",
+      "hallucination": "PASS",
+      "evidence_reason": "Answer is fully derived from retrieved knowledge."
+    },
+    {
+      "case_id": "I",
+      "user_query": "إيه البيانات الأساسية اللي المفروض تكون في عقد التمويل؟",
+      "route": "rag",
+      "intent": "knowledge_question",
+      "retrieved_sources": [
+        {
+          "document_title": "تمويل السيارات الاستهلاكي في مصر",
+          "chunk_index": 0,
+          "similarity": 0.714
+        },
+        {
+          "document_title": "تمويل السيارات الاستهلاكي في مصر",
+          "chunk_index": 1,
+          "similarity": 0.7137
+        },
+        {
+          "document_title": "حقوق عميل البنك عند تمويل سيارة في مصر",
+          "chunk_index": 0,
+          "similarity": 0.7104
+        },
+        {
+          "document_title": "ما هو التمويل الاستهلاكي للسيارات في مصر؟",
+          "chunk_index": 0,
+          "similarity": 0.7104
+        }
+      ],
+      "final_answer": "وفقاً للبيانات المتاحة بالكتالوج، ينظم قانون رقم 18 لسنة 2020 نشاط التمويل الاستهلاكي في مصر، والذي يهدف إلى توفير تمويل مخصص لشراء السلع والخدمات لأغراض استهلاكية، ويذكر القانون صراحة المركبات وسيارات الركوب بجميع أنواعها ضمن السلع التي تسري عليها أحكام التمويل الاستهلاكي.",
+      "groundedness": "PASS",
+      "hallucination": "PASS",
+      "evidence_reason": "Answer is fully derived from retrieved knowledge."
+    },
+    {
+      "case_id": "J",
+      "user_query": "قبل ما أمضي تمويل عربية من بنك، من حقي أعرف إيه؟",
+      "route": "rag",
+      "intent": "knowledge_question",
+      "retrieved_sources": [
+        {
+          "document_title": "حقوق عميل البنك عند تمويل سيارة في مصر",
+          "chunk_index": 0,
+          "similarity": 0.8284
+        },
+        {
+          "document_title": "تمويل السيارات الاستهلاكي في مصر",
+          "chunk_index": 0,
+          "similarity": 0.7585
+        },
+        {
+          "document_title": "حقوق عميل البنك عند تمويل سيارة في مصر",
+          "chunk_index": 1,
+          "similarity": 0.7475
+        },
+        {
+          "document_title": "ما هو التمويل الاستهلاكي للسيارات في مصر؟",
+          "chunk_index": 0,
+          "similarity": 0.7293
+        }
+      ],
+      "final_answer": "من حقك معرفة أسعار الفائدة وإبلاغك في حالة تغيرها، ومعرفة جميع المصاريف والعمولات قبل التقديم على المنتج. كما ينبغي سؤال مسؤول البنك أو خدمة العملاء إذا كان أي بند في العقد غير واضح قبل توقيعه، ومن حقك طلب نسخة من أي مستند وقعت عليه. وتجدر الإشارة إلى أن تفاصيل التمويل تعتمد على المنتج المصرفي والبنك وشروطه وتقييم العميل وقت التعاقد.",
+      "groundedness": "PASS",
+      "hallucination": "PASS",
+      "evidence_reason": "Answer is fully derived from retrieved knowledge."
+    },
+    {
+      "case_id": "K",
+      "user_query": "لو عندي شكوى من بنك أبدأ بالبنك ولا البنك المركزي؟",
+      "route": "rag",
+      "intent": "knowledge_question",
+      "retrieved_sources": [
+        {
+          "document_title": "حقوق عميل البنك عند تمويل سيارة في مصر",
+          "chunk_index": 2,
+          "similarity": 0.7347
+        },
+        {
+          "document_title": "حقوق عميل البنك عند تمويل سيارة في مصر",
+          "chunk_index": 3,
+          "similarity": 0.7306
+        },
+        {
+          "document_title": "حقوق عميل البنك عند تمويل سيارة في مصر",
+          "chunk_index": 0,
+          "similarity": 0.6939
+        },
+        {
+          "document_title": "حقوق عميل البنك عند تمويل سيارة في مصر",
+          "chunk_index": 1,
+          "similarity": 0.6819
+        }
+      ],
+      "final_answer": "يتم البدء بتقديم الشكوى للبنك أولاً عبر إحدى قنواته مثل الموقع، الفروع، مراكز الاتصال، البريد الإلكتروني، أو وحدة حماية حقوق العملاء. وبعد تقديمها، يجب أن يزودك البنك برقم مرجعي فوراً أو خلال يومي عمل بحد أقصى، ويكون الرد على الشكوى خلال مدة لا تتجاوز 15 يوم عمل. وإذا لم تقبل رد البنك، يمكنك إعادة تقديم الشكوى وإخطاره بعدم القبول خلال 15 يوم عمل من استلام الرد مع توضيح الأسباب، ويحق لك حينها تصعيد الشكوى إلى البنك المركزي في الحالات المحددة مثل عدم الرد في المدة المقررة أو عدم قبول الرد الثاني.",
+      "groundedness": "PASS",
+      "hallucination": "PASS",
+      "evidence_reason": "Answer is fully derived from retrieved knowledge."
+    },
+    {
+      "case_id": "L",
+      "user_query": "ينفع أدي للمساعد رقم بطاقتي البنكية عشان يساعدني في التمويل؟",
+      "route": "rag",
+      "intent": "knowledge_question",
+      "retrieved_sources": [
+        {
+          "document_title": "تمويل السيارات الاستهلاكي في مصر",
+          "chunk_index": 3,
+          "similarity": 0.6869
+        },
+        {
+          "document_title": "حقوق عميل البنك عند تمويل سيارة في مصر",
+          "chunk_index": 3,
+          "similarity": 0.6816
+        },
+        {
+          "document_title": "حقوق عميل البنك عند تمويل سيارة في مصر",
+          "chunk_index": 0,
+          "similarity": 0.6737
+        },
+        {
+          "document_title": "حقوق عميل البنك عند تمويل سيارة في مصر",
+          "chunk_index": 1,
+          "similarity": 0.6656
+        }
+      ],
+      "final_answer": "لا، برجاء عدم إعطاء رقم بطاقتك البنكية للمساعد، حيث يقتصر دور مساعد AutoDrive على شرح المفاهيم العامة المدعومة بالمصادر الرسمية للتمويل دون طلب بيانات مالية أو بنكية خاصة.",
+      "groundedness": "PASS",
+      "hallucination": "PASS",
+      "evidence_reason": "Answer is fully derived from retrieved knowledge."
+    },
+    {
+      "case_id": "M",
+      "user_query": "نقل ملكية العربية بيحتاج إيه بشكل عام؟",
+      "route": "rag",
+      "intent": "knowledge_question",
+      "retrieved_sources": [
+        {
+          "document_title": "ترخيص السيارة ونقل الملكية في مصر",
+          "chunk_index": 0,
+          "similarity": 0.7788
+        },
+        {
+          "document_title": "ترخيص السيارة ونقل الملكية في مصر",
+          "chunk_index": 2,
+          "similarity": 0.7394
+        },
+        {
+          "document_title": "ترخيص السيارة ونقل الملكية في مصر",
+          "chunk_index": 3,
+          "similarity": 0.7063
+        },
+        {
+          "document_title": "ترخيص السيارة ونقل الملكية في مصر",
+          "chunk_index": 1,
+          "similarity": 0.7039
+        }
+      ],
+      "final_answer": "وفقاً للبيانات المتاحة من بوابة مرور مصر، تشمل المستندات العامة لاستخراج رخصة تسيير ونقل الملكية نموذج طلب الحصول على الرخصة أو تجديدها، ومستندات مقبولة لإثبات الشخصية (مثل بطاقة الرقم القومي أو جواز السفر حسب الحالة) ومحل الإقامة والصفة وملكية المركبة. بالإضافة إلى ذلك، يتطلب الأمر تقديم وثيقة التأمين الإجباري من حوادث المركبات، وطلب الفحص الفني، وسداد الضرائب والرسوم المطلوبة، مع العلم أن القائمة التفصيلية قد تختلف حسب نوع المركبة والإجراء المطلوب لذا يُفضل مراجعة قسم المرور المختص.",
+      "groundedness": "PASS",
+      "hallucination": "PASS",
+      "evidence_reason": "Answer is fully derived from retrieved knowledge."
+    },
+    {
+      "case_id": "N",
+      "user_query": "هل عقد البيع وحده يخلص نقل ملكية العربية؟",
+      "route": "rag",
+      "intent": "knowledge_question",
+      "retrieved_sources": [
+        {
+          "document_title": "ترخيص السيارة ونقل الملكية في مصر",
+          "chunk_index": 2,
+          "similarity": 0.7337
+        },
+        {
+          "document_title": "ترخيص السيارة ونقل الملكية في مصر",
+          "chunk_index": 0,
+          "similarity": 0.6944
+        },
+        {
+          "document_title": "حقوق مشتري السيارات في مصر",
+          "chunk_index": 0,
+          "similarity": 0.6805
+        },
+        {
+          "document_title": "ترخيص السيارة ونقل الملكية في مصر",
+          "chunk_index": 1,
+          "similarity": 0.6691
+        }
+      ],
+      "final_answer": "يفيد تعديل وثيقة التأمين من حوادث المركبات.\n\nكما يتم فحص المركبة للتحقق من مطابقة البيانات المثبتة بالرخصة والأوراق.\n\nلذلك لا ينبغي اعتبار توقيع عقد بيع وحده نهاية جميع إجراءات نقل الملكية المرورية.\n\n5. مهلة الثلاثين يومًا لنقل القيد\n\nتنص المادة 19 المنشورة على بوابة مرور مصر على استيفاء إجراءات نقل القيد خلال ثلاثين يومًا من اليوم التالي لتاريخ صيرورة سند نقل الملكية مقبولًا وفق القانون، وإلا تعتبر الرخصة ملغاة من اليوم التالي لانتهاء هذه المدة وفق النص المنشور.\n\nهذه المعلومة مرتبطة بالنص القانوني المنشور، وتطبيقها على واقعة محددة يستلزم مراجعة المرور المختص ومستندات الحالة.\n\n6. حدود إجابة AutoDrive\n\nيستطيع AutoDrive شرح المتطلبات العامة للترخيص ونقل الملكية، لكنه لا يقرر قبول مستند بعينه بدلًا من المرور، ولا يحدد رسومًا حالية إذا لم تكن مسجلة من مصدر رسمي محدث، ولا يدعي أن الإجراء اكتمل دون تنفيذ فعلي لدى الجهة المختصة.\n\nالمصادر الرسمية\n\nبوابة مرور مصر - الأسئلة الشائعة https://traffic.moi.gov.eg/Arabic/Pages/faq.aspx",
+      "groundedness": "PASS",
+      "hallucination": "PASS",
+      "evidence_reason": "Answer is fully derived from retrieved knowledge."
+    },
+    {
+      "case_id": "O",
+      "user_query": "كام سعر الفائدة الحالي عند البنك الأهلي؟",
+      "route": "rag",
+      "intent": "knowledge_question",
+      "retrieved_sources": [
+        {
+          "document_title": "حقوق عميل البنك عند تمويل سيارة في مصر",
+          "chunk_index": 3,
+          "similarity": 0.6395
+        },
+        {
+          "document_title": "حقوق عميل البنك عند تمويل سيارة في مصر",
+          "chunk_index": 1,
+          "similarity": 0.6279
+        },
+        {
+          "document_title": "حقوق عميل البنك عند تمويل سيارة في مصر",
+          "chunk_index": 0,
+          "similarity": 0.6107
+        },
+        {
+          "document_title": "ما هو التمويل الاستهلاكي للسيارات في مصر؟",
+          "chunk_index": 0,
+          "similarity": 0.608
+        }
+      ],
+      "final_answer": "حسب البيانات المتاحة، لا يتوفر في الوقت الحالي عرض مصرفي محدد لأسعار الفائدة الخاصة بالبنك الأهلي، ويمكنك مراجعة البنك المركزي المصري للاطلاع على البيانات والمصادر الرسمية لحقوق العملاء.",
+      "groundedness": "PASS",
+      "hallucination": "PASS",
+      "evidence_reason": "Answer is fully derived from retrieved knowledge."
+    },
+    {
+      "case_id": "P",
+      "user_query": "العربية دي موجودة النهارده في فرع إسكندرية؟",
+      "route": "rag",
+      "intent": "knowledge_question",
+      "retrieved_sources": [
+        {
+          "document_title": "توافر السيارات وتأكيد السعر النهائي",
+          "chunk_index": 0,
+          "similarity": 0.7598
+        },
+        {
+          "document_title": "سياسات AutoDrive Egypt الداخلية",
+          "chunk_index": 1,
+          "similarity": 0.7326
+        },
+        {
+          "document_title": "بيانات السيارات والأسعار في AutoDrive",
+          "chunk_index": 0,
+          "similarity": 0.7262
+        },
+        {
+          "document_title": "سياسات AutoDrive Egypt الداخلية",
+          "chunk_index": 4,
+          "similarity": 0.6784
+        }
+      ],
+      "final_answer": "وجود سيارة في الكتالوج المسجل لدى AutoDrive Egypt لا يعني بالضرورة أنها متاحة حاليًا في صالة العرض أو جاهزة للتسليم، حيث يحتاج التوافر الفعلي والسعر النهائي إلى تأكيد منفصل قبل إتمام الشراء.",
+      "groundedness": "PASS",
+      "hallucination": "PASS",
+      "evidence_reason": "Answer is fully derived from retrieved knowledge."
+    }
+  ],
+  "cleanup": {
+    "sessions_created": 1,
+    "messages_created": 32,
+    "status": "SUCCESS"
+  }
+}

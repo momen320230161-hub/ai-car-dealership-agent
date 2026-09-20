@@ -1,0 +1,102 @@
+[
+  {
+    "query": "هل التمويل الاستهلاكي يشمل السيارات؟",
+    "expected_source_titles": [
+      "نظام التمويل الاستهلاكي"
+    ],
+    "top_5": [
+      {
+        "rank": 1,
+        "document_id": "4dd02d32-632a-4d8b-a45c-e14d9c76c45f",
+        "document_title": "تمويل السيارات الاستهلاكي في مصر",
+        "chunk_index": 0,
+        "similarity_score": 0.7604,
+        "short_chunk_excerpt": "تمويل السيارات الاستهلاكي في مصر\n\nملخص من قانون تنظيم نشاط التمويل الاستهلاكي وإرشادات الهيئة العامة..."
+      },
+      {
+        "rank": 2,
+        "document_id": "53591d30-47da-568a-ac4d-f7a87f0c65a1",
+        "document_title": "ما هو التمويل الاستهلاكي للسيارات في مصر؟",
+        "chunk_index": 0,
+        "similarity_score": 0.7135,
+        "short_chunk_excerpt": "ينظم قانون رقم 18 لسنة 2020 نشاط التمويل الاستهلاكي في مصر، ويشمل هذا النشاط تمويل شراء السلع والخدم..."
+      },
+      {
+        "rank": 3,
+        "document_id": "4dd02d32-632a-4d8b-a45c-e14d9c76c45f",
+        "document_title": "تمويل السيارات الاستهلاكي في مصر",
+        "chunk_index": 1,
+        "similarity_score": 0.7104,
+        "short_chunk_excerpt": "بجميع أنواعها ضمن السلع التي تسري عليها أحكام التمويل الاستهلاكي في الحالات الخاضعة للقانون.\n\n2. الر..."
+      },
+      {
+        "rank": 4,
+        "document_id": "4dd02d32-632a-4d8b-a45c-e14d9c76c45f",
+        "document_title": "تمويل السيارات الاستهلاكي في مصر",
+        "chunk_index": 2,
+        "similarity_score": 0.6773,
+        "short_chunk_excerpt": "والضمانات التي حصلت عليها شركة التمويل، ورقم ترخيص الشركة وما يفيد خضوعها لرقابة الهيئة وإشرافها.\n\n4..."
+      },
+      {
+        "rank": 5,
+        "document_id": "4dd02d32-632a-4d8b-a45c-e14d9c76c45f",
+        "document_title": "تمويل السيارات الاستهلاكي في مصر",
+        "chunk_index": 3,
+        "similarity_score": 0.6772,
+        "short_chunk_excerpt": "المالية بوابة لشكاوى المتعاملين ضد الجهات الخاضعة لرقابتها، وتشمل الأنشطة المذكورة في البوابة التموي..."
+      }
+    ],
+    "expected_fact_present": false,
+    "classification": "CONSISTENT_OVERLAP"
+  },
+  {
+    "query": "إلغاء تجربة القيادة بيتم إزاي؟",
+    "expected_source_titles": [
+      "دليل تجربة القيادة"
+    ],
+    "top_5": [
+      {
+        "rank": 1,
+        "document_id": "ccb641d1-610a-5dc2-bc1d-0436eae6554e",
+        "document_title": "إلغاء طلب تجربة القيادة",
+        "chunk_index": 0,
+        "similarity_score": 0.7943,
+        "short_chunk_excerpt": "يمكن للعميل طلب إلغاء تجربة قيادة مسجلة في AutoDrive Egypt.\n\nيجب أن يتم الإلغاء على طلب Test Drive ا..."
+      },
+      {
+        "rank": 2,
+        "document_id": "b02941ea-bc09-4e20-a389-23186f29a2cd",
+        "document_title": "سياسات AutoDrive Egypt الداخلية",
+        "chunk_index": 2,
+        "similarity_score": 0.7143,
+        "short_chunk_excerpt": "المسجل.\n\nولا يستخدم عبارات مثل: متوفرة الآن في المعرض، إلا إذا كانت هناك بيانات موثقة تدعم ذلك.\n\n4. ..."
+      },
+      {
+        "rank": 3,
+        "document_id": "1239bf4e-1fb3-5bf9-bee9-59adbf28bfdc",
+        "document_title": "متطلبات حجز تجربة قيادة في AutoDrive",
+        "chunk_index": 0,
+        "similarity_score": 0.7021,
+        "short_chunk_excerpt": "لإنشاء طلب تجربة قيادة في AutoDrive Egypt يجب تحديد السيارة المطلوبة بشكل واضح، وتوفير اسم العميل ور..."
+      },
+      {
+        "rank": 4,
+        "document_id": "b02941ea-bc09-4e20-a389-23186f29a2cd",
+        "document_title": "سياسات AutoDrive Egypt الداخلية",
+        "chunk_index": 1,
+        "similarity_score": 0.7014,
+        "short_chunk_excerpt": "سياسة بيانات السيارات والأسعار\n\nالمعلومات المعروضة عن السيارة تمثل البيانات المسجلة في كتالوج AutoDr..."
+      },
+      {
+        "rank": 5,
+        "document_id": "b02941ea-bc09-4e20-a389-23186f29a2cd",
+        "document_title": "سياسات AutoDrive Egypt الداخلية",
+        "chunk_index": 3,
+        "similarity_score": 0.68,
+        "short_chunk_excerpt": "إلغاء طلب عشوائي.\n\nلا توجد رسوم إلغاء أو مهلة إلزامية موحدة في سياسة AutoDrive الحالية، لذلك لا يتم ..."
+      }
+    ],
+    "expected_fact_present": false,
+    "classification": "CONSISTENT_OVERLAP"
+  }
+]
