@@ -628,7 +628,11 @@ class SalesOrchestrator:
     def _rag_node(self, state: AgentState) -> AgentState:
         update = self._trace(state, "rag_node")
         try:
-            results = self.rag.retrieve(state["normalized_message"])
+            category_hint = state.get("knowledge_category_hint")
+            results = self.rag.retrieve(
+                state["normalized_message"],
+                category=category_hint or None,
+            )
             serialized = [
                 {
                     "document_id": str(result.document_id),
@@ -642,6 +646,33 @@ class SalesOrchestrator:
                 for result in results
             ]
             grounded = choose_grounded_result(state["normalized_message"], serialized)
+
+            # Soft hint fallback: if category hint yielded no grounded result,
+            # retry unfiltered retrieval
+            if grounded is None and category_hint:
+                unfiltered_results = self.rag.retrieve(
+                    state["normalized_message"],
+                    category=None,
+                )
+                unfiltered_serialized = [
+                    {
+                        "document_id": str(result.document_id),
+                        "title": result.title,
+                        "category": result.category,
+                        "chunk_id": result.chunk_id,
+                        "chunk_index": result.chunk_index,
+                        "content": result.content,
+                        "similarity": result.similarity,
+                    }
+                    for result in unfiltered_results
+                ]
+                unfiltered_grounded = choose_grounded_result(
+                    state["normalized_message"], unfiltered_serialized
+                )
+                if unfiltered_grounded is not None:
+                    serialized = unfiltered_serialized
+                    grounded = unfiltered_grounded
+
             update.update(
                 {
                     "retrieved_knowledge": serialized,

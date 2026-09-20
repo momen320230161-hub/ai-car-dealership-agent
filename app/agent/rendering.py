@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import re
 from typing import Any
 
 
@@ -130,10 +131,94 @@ def _render_requested_car_fields(car: dict[str, Any], fields: list[str]) -> str:
     return f"{requested} غير مسجل حاليًا لـ {name} في الكتالوج."
 
 
-def render_knowledge(supported: bool, result: dict[str, Any] | None) -> str:
+def _concise_knowledge_excerpt(
+    content: str,
+    user_message: str | None = None,
+    *,
+    max_chars: int = 350,
+) -> str:
+    if not content:
+        return ""
+    paragraphs = [p.strip() for p in re.split(r"\n\s*\n", content) if p.strip()]
+    cleaned: list[str] = []
+    for p in paragraphs:
+        lines = [
+            line.strip()
+            for line in p.splitlines()
+            if line.strip()
+            and not any(
+                line.strip().startswith(prefix)
+                for prefix in (
+                    "#",
+                    "===",
+                    "---",
+                    "المجال:",
+                    "الجهة:",
+                    "آخر تحقق:",
+                    "ملاحظة استخدام:",
+                    "المصادر الرسمية",
+                    "المصدر:",
+                )
+            )
+            and not line.strip().startswith("http")
+        ]
+        if lines:
+            cleaned.append(" ".join(lines))
+
+    if not cleaned:
+        words = " ".join(content.split())
+        return words[:max_chars].strip()
+
+    best_idx = 0
+    if user_message:
+        stop_words = {"عندكم", "ممكن", "عايز", "ايه", "هذه", "اللي", "تكون", "المفروض"}
+        query_tokens = {
+            t
+            for t in re.sub(r"[^\w\u0600-\u06ff]+", " ", user_message.casefold()).split()
+            if len(t) >= 3 and t not in stop_words
+        }
+        max_m = 0
+        for idx, p in enumerate(cleaned):
+            p_norm = re.sub(r"[^\w\u0600-\u06ff]+", " ", p.casefold())
+            m = sum(1 for t in query_tokens if t in p_norm)
+            if m > max_m:
+                max_m = m
+                best_idx = idx
+
+    excerpt = cleaned[best_idx]
+    if len(excerpt) < 80 and best_idx + 1 < len(cleaned):
+        excerpt = f"{excerpt}: {cleaned[best_idx + 1]}"
+
+    if len(excerpt) > max_chars:
+        clauses = [c.strip() for c in re.split(r"[.\n؟!\u06d4]+", excerpt) if c.strip()]
+        selected: list[str] = []
+        cur = 0
+        for c in clauses:
+            if cur + len(c) > max_chars and selected:
+                break
+            selected.append(c)
+            cur += len(c)
+        excerpt = ". ".join(selected).strip()
+        if excerpt and not excerpt.endswith("."):
+            excerpt += "."
+
+    return excerpt
+
+
+def render_knowledge(
+    supported: bool,
+    result: dict[str, Any] | None,
+    user_message: str | None = None,
+) -> str:
+    fallback = "المعلومة دي مش متوفرة حاليًا ضمن المعلومات المعتمدة في قاعدة المعرفة."
     if not supported or not result:
-        return "المعلومة دي مش متوفرة حاليًا ضمن المعلومات المعتمدة في قاعدة المعرفة."
-    return str(result["content"]).strip()
+        return fallback
+    content = str(result.get("content", "")).strip()
+    if not content:
+        return fallback
+    excerpt = _concise_knowledge_excerpt(content, user_message=user_message)
+    return excerpt if excerpt else fallback
+
 
 
 def render_error(code: str | None) -> str:

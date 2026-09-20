@@ -12,6 +12,7 @@ from sqlalchemy.exc import SQLAlchemyError
 from app.agent.business_rendering import render_business_action
 from app.agent.catalog_qualification import qualify_catalog_search
 from app.agent.graph import SalesOrchestrator
+from app.agent.grounding import normalize_arabic
 from app.agent.llm import AgentLLMError, DeterministicAgentLLM
 from app.agent.rendering import render_catalog, render_error, render_knowledge
 from app.agent.schemas import explicit_visible_references
@@ -358,12 +359,16 @@ class ConversationalSalesOrchestrator(SalesOrchestrator):
         if resolved_reference is not None:
             current_intent = str(update.get("intent") or "general")
             if current_intent in {"general", "catalog_search"}:
-                update["intent"] = (
-                    "car_details" if self._looks_like_detail_reference(message) else "car_selection"
-                )
-            update["car_reference"] = resolved_reference
-            semantics_data["resolved_visible_reference"] = resolved_reference
-            semantics_data["mode"] = "reference"
+                if not self._is_ordinal_meta_question(message):
+                    update["intent"] = (
+                        "car_details"
+                        if self._looks_like_detail_reference(message)
+                        else "car_selection"
+                    )
+            if not self._is_ordinal_meta_question(message):
+                update["car_reference"] = resolved_reference
+                semantics_data["resolved_visible_reference"] = resolved_reference
+                semantics_data["mode"] = "reference"
             if update.get("intent") in {
                 "car_selection",
                 "car_details",
@@ -742,10 +747,17 @@ class ConversationalSalesOrchestrator(SalesOrchestrator):
 
         verified_context = self._verified_response_context(state, fallback)
         try:
-            response = self.llm.compose_general(
-                state.get("normalized_message", ""),
-                verified_context=verified_context,
-            ).strip()
+            if state.get("route") == "rag":
+                compose_fn = getattr(self.llm, "compose_knowledge", self.llm.compose_general)
+                response = compose_fn(
+                    state.get("normalized_message", ""),
+                    verified_context=verified_context,
+                ).strip()
+            else:
+                response = self.llm.compose_general(
+                    state.get("normalized_message", ""),
+                    verified_context=verified_context,
+                ).strip()
         except AgentLLMError:
             update["response"] = fallback
             update["errors"] = self._errors(state, "composition_failed")
@@ -767,6 +779,7 @@ class ConversationalSalesOrchestrator(SalesOrchestrator):
             return render_knowledge(
                 state.get("knowledge_supported", False),
                 state.get("grounded_knowledge"),
+                user_message=state.get("normalized_message"),
             )
         if route == "business_gate":
             return render_business_action(
@@ -798,6 +811,27 @@ class ConversationalSalesOrchestrator(SalesOrchestrator):
             "candidate_request_ids",
         }
 
+        # Expose a safe summary of the visible list so the LLM can answer ordinal/navigation
+        # meta-questions (e.g. "التانية بتتحسب على أنهي عربيات?") using verified visible facts.
+        snapshot = state.get("active_snapshot") or {}
+        visible_cars = [
+            {
+                "position": item.get("position"),
+                "brand": (item.get("car") or {}).get("brand"),
+                "model": (item.get("car") or {}).get("model"),
+                "condition": (item.get("car") or {}).get("condition"),
+                "year": (item.get("car") or {}).get("year"),
+            }
+            for item in list(snapshot.get("items") or [])
+        ]
+        ordinal_rule = (
+            "الكلمات الترتيبية (زي 'الأولى'، 'التانية'، 'التالتة') بتتحسب دائمًا على قائمة العربيات "
+            "المعروضة فعليًا للعميل في آخر رد (قائمة التوصيات النشطة الظاهرة). "
+            "رقم 1 هو العربية الأولى في القائمة المعروضة، رقم 2 هي التانية، وهكذا، "
+            "ولا يتم حسابها على نتائج مخفية أو سيارات عامة خارج القائمة المعروضة. "
+            "إذا لم تكن هناك قائمة معروضة حاليًا، يوضح المساعد للعميل أن الترتيب يعتمد على قائمة "
+            "العربيات التي سيتم عرضها، ويطلب منه تحديد تفضيلاته لعرض القائمة أولاً."
+        )
         return {
             "authoritative_fallback": fallback,
             "route": state.get("route"),
@@ -807,6 +841,8 @@ class ConversationalSalesOrchestrator(SalesOrchestrator):
             "vehicle_preferences": state.get("preferences", {}),
             "dialogue_state": state.get("dialogue_state", {}),
             "selected_car_id": state.get("selected_car_id"),
+            "visible_recommendations": visible_cars if visible_cars else None,
+            "ordinal_resolution_rule": ordinal_rule,
             "pending_action": {
                 "type": pending.get("type"),
                 "collected_fields": sorted(pending_fields),
@@ -815,6 +851,7 @@ class ConversationalSalesOrchestrator(SalesOrchestrator):
             "grounded_knowledge": state.get("grounded_knowledge"),
             "action_result": {key: action.get(key) for key in safe_action_keys if key in action},
         }
+
 
     def _composition_is_grounded(
         self,
@@ -1314,6 +1351,29 @@ class ConversationalSalesOrchestrator(SalesOrchestrator):
             if any(term in text for term in terms):
                 return position
         return None
+
+    @staticmethod
+    def _is_ordinal_meta_question(message: str) -> bool:
+        norm = normalize_arabic(message)
+        meta_inquiry_terms = (
+            "تتحسب",
+            "انهي عربيات",
+            "انهي عربيه",
+            "اي عربيات",
+            "اي عربيه",
+            "قصده",
+            "يعني ايه",
+            "ازاي",
+            "علي ايه",
+            "على ايه",
+            "بيحدد",
+            "بتحدد",
+            "لو العميل",
+            "لو قلت",
+            "لو حد قال",
+            "تقصد ايه",
+        )
+        return any(term in norm for term in meta_inquiry_terms)
 
     @staticmethod
     def _looks_like_reference_turn(message: str) -> bool:

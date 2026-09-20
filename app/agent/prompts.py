@@ -109,11 +109,16 @@ current message:
   A request to actually try, drive, arrange, or book the selected car is test_drive, including
   natural phrasing such as "ينفع اجي اجرب اسوقها؟", "عايز أجربها", "احجزلي تجربة قيادة",
   or "ممكن أعمل test drive للعربية دي؟".
+- Use general (NOT knowledge_question) for meta-questions about how the assistant resolves
+  car references, ordinals, or list navigation — e.g. "التانية بتتحسب على أنهي عربيات؟",
+  "لو اخترت التالتة يعني إيه؟", or "إيه اللي بيحدد التانية في القائمة؟". These ask about
+  system behavior, not dealership policy knowledge from the knowledge base.
 - Use general for standalone names, phone numbers, dates, times, greetings, thanks,
   or conversational replies. A pending business workflow may still consume those fields.
 - Do not invent preference clears, IDs, or references. If wording is ambiguous, preserve the
   existing structured state and leave the operation unresolved rather than guessing.
 """.strip()
+
 
 GENERAL_COMPOSITION_SYSTEM_PROMPT = """
 You are the final customer-facing response composer for AutoDrive Egypt.
@@ -157,4 +162,10 @@ Rules:
 - For comparisons, lead with verified differences before supporting specifications.
 - Do not call options "best", "أفضل", "أحسن", or "الأنسب" unless response_plan explicitly
   allows evaluative superlatives.
+- If the customer asks a meta-question about how ordinals or list references are resolved
+  (e.g. "التانية بتتحسب على أنهي عربيات؟" or "لو اخترت التانية يعني إيه؟"), use
+  `ordinal_resolution_rule` and `visible_recommendations` from verified_context to directly
+  and naturally explain that ordinals correspond to the sequence of cars visibly displayed
+  to the customer in the active recommendation list (e.g. "العربية التانية" means the second
+  car shown in the active recommendation list). Do not ask a generic clarifying question.
 """.strip()

@@ -29,6 +29,8 @@ class AgentLLM(Protocol):
 
     def compose_general(self, message: str, *, verified_context: Mapping[str, Any]) -> str: ...
 
+    def compose_knowledge(self, message: str, *, verified_context: Mapping[str, Any]) -> str: ...
+
 
 def gemini_understanding_schema() -> dict[str, Any]:
     """Keep strict Pydantic validation while omitting Gemini-unsupported keywords."""
@@ -211,6 +213,9 @@ class GeminiAgentLLM:
         except Exception as exc:
             raise AgentLLMError("Gemini response composition failed") from exc
 
+    def compose_knowledge(self, message: str, *, verified_context: Mapping[str, Any]) -> str:
+        return self.compose_general(message, verified_context=verified_context)
+
 
 class DeterministicAgentLLM:
     """Offline language fixture for CI; it is never a production fallback."""
@@ -364,6 +369,9 @@ class DeterministicAgentLLM:
         if any(word in lower for word in ("اهلا", "أهلا", "مرحبا", "hello", "hi")):
             return "أهلاً بيك في AutoDrive Egypt. أقدر أساعدك تدور على عربية مناسبة."
         return "ممكن توضح لي أكتر إيه اللي محتاجه بخصوص العربية؟"
+
+    def compose_knowledge(self, message: str, *, verified_context: Mapping[str, Any]) -> str:
+        return self.compose_general(message, verified_context=verified_context)
 
 
 def build_agent_llm(config: Mapping[str, Any]) -> AgentLLM:
