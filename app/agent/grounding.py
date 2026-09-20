@@ -3,9 +3,6 @@
 from __future__ import annotations
 
 import re
-from typing import Any
-
-
 _GENERIC_QUERY_TOKENS = {
     "عندكم",
     "ممكن",
@@ -75,12 +72,12 @@ def detect_topic(message: str) -> str:
 
 
 def choose_grounded_result(
-    message: str, results: list[dict[str, Any]]
-) -> dict[str, Any] | None:
+    message: str, results: list[dict[str, object]]
+) -> dict[str, object] | None:
     """Choose the strongest supporting result, not merely the nearest vector."""
     topic = detect_topic(message)
     query_tokens = _query_tokens(message)
-    candidates: list[dict[str, Any]] = []
+    candidates: list[dict[str, object]] = []
 
     for result in results:
         title = normalize_arabic(str(result.get("title", "")))
@@ -150,7 +147,7 @@ def _token_overlap(query_tokens: set[str], haystack: str) -> int:
     return len(query_tokens.intersection(tokens))
 
 
-def _support_score(query_tokens: set[str], result: dict[str, Any]) -> float:
+def _support_score(query_tokens: set[str], result: dict[str, object]) -> float:
     haystack = f"{result.get('title', '')} {result.get('content', '')}"
     overlap = _token_overlap(query_tokens, haystack)
     try:
