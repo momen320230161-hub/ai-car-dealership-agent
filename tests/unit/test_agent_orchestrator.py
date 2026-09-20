@@ -11,6 +11,7 @@ import pytest
 from sqlalchemy import func, select
 
 from app.agent.graph import GRAPH_NODES, SalesOrchestrator
+from app.agent.grounding import choose_grounded_result, detect_topic
 from app.agent.llm import (
     AgentLLMError,
     DeterministicAgentLLM,
@@ -58,6 +59,54 @@ class QueueLLM(DeterministicAgentLLM):
     def understand(self, message, *, recent_messages, preferences):
         del message, recent_messages, preferences
         return self.understandings.popleft()
+
+
+class CapturingKnowledgeLLM(DeterministicAgentLLM):
+    def __init__(self):
+        self.knowledge_context = []
+
+    def compose_knowledge(
+        self,
+        message,
+        *,
+        grounded_context,
+        fallback,
+        recent_messages=(),
+    ):
+        del message, fallback, recent_messages
+        self.knowledge_context = list(grounded_context)
+        return "إجابة مختصرة مبنية على المعرفة."
+
+
+class ExpandingOrdinalRAG:
+    default_top_k = 4
+    max_top_k = 20
+
+    def __init__(self):
+        self.calls = []
+
+    def retrieve(self, query, **kwargs):
+        self.calls.append((query, kwargs.get("top_k")))
+        irrelevant = [
+            _result(
+                "توافر السيارات وتأكيد السعر النهائي",
+                "faq",
+                "وجود العربية في الكتالوج لا يعني أنها متاحة في المعرض.",
+                similarity=0.75,
+            )
+        ]
+        if kwargs.get("top_k"):
+            return [
+                *irrelevant,
+                _result(
+                    "سياسات AutoDrive Egypt الداخلية",
+                    "dealership policy",
+                    "الأرقام الترتيبية مثل الأول والثاني تُحل على قائمة السيارات التي ظهرت "
+                    "فعليًا للعميل، وليس على نتائج مخفية.",
+                    similarity=0.61,
+                ),
+            ]
+        return irrelevant
 
 
 class UnderstandingFailureLLM(DeterministicAgentLLM):
@@ -496,3 +545,91 @@ def test_context_database_failure_is_controlled(db_session):
     assert "context_failed" in result.errors
     assert "تحميل المحادثة" in result.response
     assert "Traceback" not in result.response
+
+
+
+def test_visible_ordinal_policy_topic_requires_actual_visible_list_evidence() -> None:
+    message = "لو العميل قال العربية التانية، كلمة التانية تتحسب على أنهي عربيات؟"
+    assert detect_topic(message) == "visible_ordinal"
+
+    results = [
+        {
+            "title": "توافر السيارات",
+            "category": "faq",
+            "content": "وجود العربية في الكتالوج لا يعني أنها متاحة في المعرض.",
+            "similarity": 0.9,
+        },
+        {
+            "title": "سياسات AutoDrive Egypt الداخلية",
+            "category": "dealership policy",
+            "content": (
+                "الأرقام الترتيبية مثل الأول والثاني تُحل على قائمة السيارات التي ظهرت "
+                "فعليًا للعميل، وليس على نتائج مخفية."
+            ),
+            "similarity": 0.6,
+        },
+    ]
+
+    grounded = choose_grounded_result(message, results)
+
+    assert grounded is results[1]
+
+
+def test_financing_grounding_prefers_chunk_that_answers_contract_question() -> None:
+    message = "إيه البيانات الأساسية اللي المفروض تكون في عقد التمويل؟"
+    results = [
+        {
+            "title": "تمويل السيارات الاستهلاكي في مصر",
+            "category": "financing",
+            "content": "ينظم قانون رقم 18 لسنة 2020 نشاط التمويل الاستهلاكي في مصر.",
+            "similarity": 0.8,
+        },
+        {
+            "title": "تمويل السيارات الاستهلاكي في مصر",
+            "category": "financing",
+            "content": (
+                "البيانات الأساسية في عقد التمويل تشمل مبلغ التمويل ومدة السداد "
+                "وعدد الأقساط وقيمة كل قسط."
+            ),
+            "similarity": 0.7,
+        },
+    ]
+
+    grounded = choose_grounded_result(message, results)
+
+    assert grounded is results[1]
+
+
+def test_rag_response_uses_knowledge_composer_instead_of_raw_chunk(db_session) -> None:
+    llm = CapturingKnowledgeLLM()
+    rag = FakeRAG(
+        [
+            _result(
+                "معلومات الضمان",
+                "warranty",
+                "لا توجد مدة ضمان موحدة لكل السيارات. تفاصيل أخرى طويلة وغير مطلوبة.",
+            )
+        ]
+    )
+
+    result = _orchestrator(db_session, llm=llm, rag=rag).handle_message(
+        None, "الضمان مدته كام؟"
+    )
+
+    assert result.response == "إجابة مختصرة مبنية على المعرفة."
+    assert llm.knowledge_context[0]["title"] == "معلومات الضمان"
+
+
+def test_ordinal_policy_retrieval_expands_when_default_top_k_lacks_support(db_session) -> None:
+    rag = ExpandingOrdinalRAG()
+    llm = QueueLLM(RequestUnderstanding(intent="knowledge_question"))
+
+    result = _orchestrator(db_session, llm=llm, rag=rag).handle_message(
+        None,
+        "لو العميل قال العربية التانية، كلمة التانية تتحسب على أنهي عربيات؟",
+    )
+
+    assert result.route == "rag"
+    assert "الأرقام الترتيبية" in result.response
+    assert rag.calls[0][1] is None
+    assert rag.calls[1][1] == 8

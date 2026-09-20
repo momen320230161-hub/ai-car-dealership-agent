@@ -131,11 +131,46 @@ def _render_requested_car_fields(car: dict[str, Any], fields: list[str]) -> str:
     return f"{requested} غير مسجل حاليًا لـ {name} في الكتالوج."
 
 
+def _normalize_knowledge_text(text: str) -> str:
+    normalized = text.casefold().translate(str.maketrans("أإآةى", "اااهي"))
+    return re.sub(r"[^\w\u0600-\u06ff]+", " ", normalized).strip()
+
+
+_KNOWLEDGE_STOPWORDS = {
+    "عندكم",
+    "ممكن",
+    "عايز",
+    "عاوز",
+    "ايه",
+    "إيه",
+    "هذه",
+    "هذا",
+    "هل",
+    "قال",
+    "المفروض",
+    "كلمه",
+    "كلمة",
+    "العربيه",
+    "عربيه",
+    "السياره",
+    "سياره",
+    "انهي",
+    "على",
+    "علي",
+    "الى",
+    "إلى",
+    "من",
+    "في",
+    "اللي",
+    "تكون",
+}
+
+
 def _concise_knowledge_excerpt(
     content: str,
-    user_message: str | None = None,
+    query: str | None = None,
     *,
-    max_chars: int = 350,
+    max_chars: int = 400,
 ) -> str:
     if not content:
         return ""
@@ -170,17 +205,17 @@ def _concise_knowledge_excerpt(
         return words[:max_chars].strip()
 
     best_idx = 0
-    if user_message:
-        stop_words = {"عندكم", "ممكن", "عايز", "ايه", "هذه", "اللي", "تكون", "المفروض"}
+    if query:
         query_tokens = {
             t
-            for t in re.sub(r"[^\w\u0600-\u06ff]+", " ", user_message.casefold()).split()
-            if len(t) >= 3 and t not in stop_words
+            for t in _normalize_knowledge_text(query).split()
+            if len(t) >= 3 and t not in _KNOWLEDGE_STOPWORDS
         }
         max_m = 0
         for idx, p in enumerate(cleaned):
-            p_norm = re.sub(r"[^\w\u0600-\u06ff]+", " ", p.casefold())
-            m = sum(1 for t in query_tokens if t in p_norm)
+            p_norm = _normalize_knowledge_text(p)
+            tokens = set(p_norm.split())
+            m = len(query_tokens.intersection(tokens))
             if m > max_m:
                 max_m = m
                 best_idx = idx
@@ -209,16 +244,19 @@ def render_knowledge(
     supported: bool,
     result: dict[str, Any] | None,
     user_message: str | None = None,
+    *,
+    question: str | None = None,
 ) -> str:
     fallback = "المعلومة دي مش متوفرة حاليًا ضمن المعلومات المعتمدة في قاعدة المعرفة."
     if not supported or not result:
         return fallback
-    content = str(result.get("content", "")).strip()
+    content = str(result.get("content") or "").strip()
     if not content:
         return fallback
-    excerpt = _concise_knowledge_excerpt(content, user_message=user_message)
-    return excerpt if excerpt else fallback
-
+    query = question or user_message
+    if not query:
+        return _concise_knowledge_excerpt(content, max_chars=400)
+    return _concise_knowledge_excerpt(content, query=query, max_chars=400)
 
 
 def render_error(code: str | None) -> str:

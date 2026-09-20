@@ -8,7 +8,11 @@ from collections.abc import Mapping, Sequence
 from typing import Any, Protocol
 
 from app.agent.composition_policy import build_response_plan, composition_policy_allows
-from app.agent.prompts import GENERAL_COMPOSITION_SYSTEM_PROMPT, UNDERSTANDING_SYSTEM_PROMPT
+from app.agent.prompts import (
+    GENERAL_COMPOSITION_SYSTEM_PROMPT,
+    KNOWLEDGE_COMPOSITION_SYSTEM_PROMPT,
+    UNDERSTANDING_SYSTEM_PROMPT,
+)
 from app.agent.schemas import RequestUnderstanding, explicit_visible_references
 
 
@@ -29,7 +33,15 @@ class AgentLLM(Protocol):
 
     def compose_general(self, message: str, *, verified_context: Mapping[str, Any]) -> str: ...
 
-    def compose_knowledge(self, message: str, *, verified_context: Mapping[str, Any]) -> str: ...
+    def compose_knowledge(
+        self,
+        message: str,
+        *,
+        grounded_context: Sequence[Mapping[str, Any]] = (),
+        fallback: str = "",
+        recent_messages: Sequence[Mapping[str, Any]] = (),
+        verified_context: Mapping[str, Any] | None = None,
+    ) -> str: ...
 
 
 def gemini_understanding_schema() -> dict[str, Any]:
@@ -213,8 +225,72 @@ class GeminiAgentLLM:
         except Exception as exc:
             raise AgentLLMError("Gemini response composition failed") from exc
 
-    def compose_knowledge(self, message: str, *, verified_context: Mapping[str, Any]) -> str:
-        return self.compose_general(message, verified_context=verified_context)
+    def compose_knowledge(
+        self,
+        message: str,
+        *,
+        grounded_context: Sequence[Mapping[str, Any]] = (),
+        fallback: str = "",
+        recent_messages: Sequence[Mapping[str, Any]] = (),
+        verified_context: Mapping[str, Any] | None = None,
+    ) -> str:
+        """Compose a concise customer answer strictly from verified RAG evidence."""
+        if verified_context is not None:
+            if not fallback:
+                fallback = str(verified_context.get("authoritative_fallback") or "")
+            if not grounded_context:
+                gk = verified_context.get("grounded_knowledge")
+                if isinstance(gk, list):
+                    grounded_context = gk
+                elif isinstance(gk, dict):
+                    grounded_context = [gk]
+            if not recent_messages:
+                recent_messages = list(verified_context.get("recent_messages") or [])
+
+        try:
+            from google.genai import types
+
+            safe_context = [
+                {
+                    "title": str(item.get("title") or ""),
+                    "category": str(item.get("category") or ""),
+                    "content": str(item.get("content") or ""),
+                }
+                for item in grounded_context
+                if str(item.get("content") or "").strip()
+            ]
+            if not safe_context:
+                return fallback
+
+            response_plan = build_response_plan(
+                {"route": "rag", "recent_messages": list(recent_messages)}
+            )
+            payload = {
+                "customer_message": message,
+                "grounded_context": safe_context,
+                "deterministic_fallback": fallback,
+                "response_plan": response_plan,
+            }
+            client = self._client()
+            response = client.models.generate_content(
+                model=self.model_name,
+                contents=json.dumps(payload, ensure_ascii=False, default=str),
+                config=types.GenerateContentConfig(
+                    system_instruction=KNOWLEDGE_COMPOSITION_SYSTEM_PROMPT,
+                    max_output_tokens=320,
+                    **gemini_sampling_kwargs(self.model_name, self.temperature),
+                ),
+            )
+            text = (response.text or "").strip()
+            if not text:
+                raise AgentLLMError("Gemini returned no knowledge response text")
+            if not composition_policy_allows(text, response_plan):
+                raise AgentLLMError("Gemini knowledge response rejected by composition policy")
+            return text
+        except AgentLLMError:
+            raise
+        except Exception as exc:
+            raise AgentLLMError("Gemini knowledge composition failed") from exc
 
 
 class DeterministicAgentLLM:
@@ -370,8 +446,20 @@ class DeterministicAgentLLM:
             return "أهلاً بيك في AutoDrive Egypt. أقدر أساعدك تدور على عربية مناسبة."
         return "ممكن توضح لي أكتر إيه اللي محتاجه بخصوص العربية؟"
 
-    def compose_knowledge(self, message: str, *, verified_context: Mapping[str, Any]) -> str:
-        return self.compose_general(message, verified_context=verified_context)
+    def compose_knowledge(
+        self,
+        message: str,
+        *,
+        grounded_context: Sequence[Mapping[str, Any]] = (),
+        fallback: str = "",
+        recent_messages: Sequence[Mapping[str, Any]] = (),
+        verified_context: Mapping[str, Any] | None = None,
+    ) -> str:
+        if fallback:
+            return fallback
+        if verified_context:
+            return self.compose_general(message, verified_context=verified_context)
+        return "المعلومة المعتمدة غير متوفرة."
 
 
 def build_agent_llm(config: Mapping[str, Any]) -> AgentLLM:

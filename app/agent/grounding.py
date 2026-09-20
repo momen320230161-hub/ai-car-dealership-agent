@@ -6,6 +6,35 @@ import re
 from collections.abc import Sequence
 from typing import Any
 
+_GENERIC_QUERY_TOKENS = {
+    "عندكم",
+    "ممكن",
+    "عايز",
+    "عاوز",
+    "ايه",
+    "إيه",
+    "هذه",
+    "هذا",
+    "هل",
+    "قال",
+    "المفروض",
+    "كلمه",
+    "كلمة",
+    "العربيه",
+    "عربيه",
+    "السياره",
+    "سياره",
+    "انهي",
+    "على",
+    "علي",
+    "الى",
+    "إلى",
+    "من",
+    "في",
+    "اللي",
+    "تكون",
+}
+
 
 def normalize_arabic(text: str) -> str:
     normalized = text.casefold()
@@ -14,120 +43,132 @@ def normalize_arabic(text: str) -> str:
     return re.sub(r"[^\w\u0600-\u06ff]+", " ", normalized).strip()
 
 
-# Topic detection strings are pre-normalized so morphological Arabic variants
-# ("تجربة القيادة" vs "تجربه قياده", "فائدة" vs "فايده") all match correctly.
-_TOPIC_KEYWORDS: dict[str, tuple[str, ...]] = {
-    "insurance": ("تامين", "حوادث", "insurance"),
-    "warranty": ("ضمان", "warranty"),
-    "financing": ("تمويل", "تقسيط", "فايده", "فائده", "finance"),
-    # Normalized variants of "تجربة القيادة", "تست درايف", etc.
-    "test_drive": ("تجربه القياده", "تجربه قياده", "تست درايف", "test drive", "الغاء", "إلغاء"),
-    "availability_price": ("السعر النهائي", "متاح", "المعرض", "availability"),
-}
-
-# Category values stored in the knowledge DB for each topic.
-_TOPIC_CATEGORIES: dict[str, set[str]] = {
-    "insurance": {"insurance"},
-    "warranty": {"warranty"},
-    "financing": {"financing"},
-    "test_drive": {"test drive policy", "test_drive_policy"},
-    "availability_price": {"faq"},
-}
-
-# Content terms that confirm a chunk is actually about the topic (normalized).
-_TOPIC_CONTENT_TERMS: dict[str, tuple[str, ...]] = {
-    "insurance": ("تامين", "insurance"),
-    "warranty": ("ضمان",),
-    "financing": ("تمويل", "تقسيط"),
-    "test_drive": ("تجربه", "قياده", "الغاء", "cancel"),
-    "availability_price": ("توافر", "السعر النهائي", "بيانات السيارات"),
-}
-
-
 def detect_topic(message: str) -> str:
     text = normalize_arabic(message)
-    for topic, keywords in _TOPIC_KEYWORDS.items():
-        if any(kw in text for kw in keywords):
-            return topic
+    ordinal_terms = (
+        "الاول",
+        "الاولى",
+        "الثاني",
+        "الثانيه",
+        "التاني",
+        "التانيه",
+        "الثالث",
+        "الثالثه",
+        "التالت",
+        "التالته",
+        "ترتيب",
+        "ترتيبيه",
+        "ordinal",
+    )
+    vehicle_context = ("عربي", "سيار", "قائمه", "اختيار", "نتيج")
+    if any(term in text for term in ordinal_terms) and any(
+        term in text for term in vehicle_context
+    ):
+        return "visible_ordinal"
+    if any(term in text for term in ("تامين", "حوادث", "insurance")):
+        return "insurance"
+    if any(term in text for term in ("ضمان", "warranty")):
+        return "warranty"
+    if any(term in text for term in ("تمويل", "تقسيط", "فايده", "فائده", "finance")):
+        return "financing"
+    if any(term in text for term in ("تجربه قياده", "تست درايف", "test drive")):
+        return "test_drive"
+    if any(term in text for term in ("السعر النهائي", "متاح", "المعرض", "availability")):
+        return "availability_price"
     return "other"
-
-
-def _chunk_supports_topic(result: dict[str, Any], topic: str) -> bool:
-    """Return True when a retrieved chunk is thematically about the detected topic."""
-    title = normalize_arabic(str(result.get("title", "")))
-    content = normalize_arabic(str(result.get("content", "")))
-    category = str(result.get("category", "")).casefold().strip()
-    haystack = f"{title} {content}"
-
-    # Category match is a strong signal (the knowledge-seed/PDF was tagged for this topic).
-    if category in _TOPIC_CATEGORIES.get(topic, set()):
-        return True
-
-    # Content/title term match is the fallback.
-    return any(term in haystack for term in _TOPIC_CONTENT_TERMS.get(topic, ()))
 
 
 def choose_grounded_result(
     message: str, results: Sequence[dict[str, Any]]
 ) -> dict[str, Any] | None:
-    """Return the most relevant result that supports the detected topic.
-
-    The pgvector backend already ranks by embedding similarity, so we use that
-    ordering as the primary sort and apply topic-support as a filter.  For
-    ``topic == "other"`` (no recognised domain) we fall back to the
-    highest-similarity chunk that shares at least one meaningful token with the
-    query, rather than the first arbitrary result.
-    """
+    """Choose the strongest supporting result, not merely the nearest vector."""
     if not results:
         return None
-
     topic = detect_topic(message)
+    query_tokens = _query_tokens(message)
+    candidates: list[dict[str, Any]] = []
 
-    if topic != "other":
-        candidates = [r for r in results if _chunk_supports_topic(r, topic)]
-        if not candidates:
-            return None
+    for result in results:
+        title = normalize_arabic(str(result.get("title", "")))
+        content = normalize_arabic(str(result.get("content", "")))
+        category = str(result.get("category", "")).casefold().strip()
+        haystack = f"{title} {content} {category}"
 
-        # When a specific query has meaningful keywords (e.g. "عقد", "البيانات الأساسية"),
-        # prefer the candidate chunk with the strongest query token overlap rather than
-        # blindly returning the first chunk that merely shares the topic category.
-        stop_words = {"عندكم", "ممكن", "عايز", "ايه", "هذه", "اللي", "تكون", "المفروض"}
-        query_tokens = {
-            token
-            for token in normalize_arabic(message).split()
-            if len(token) >= 3 and token not in stop_words
-        }
-        if query_tokens:
-            best = candidates[0]
-            max_matches = 0
-            for r in candidates:
-                haystack = normalize_arabic(f"{r.get('title', '')} {r.get('content', '')}")
-                matches = sum(1 for token in query_tokens if token in haystack)
-                if matches > max_matches:
-                    max_matches = matches
-                    best = r
-            if max_matches > 1:
-                return best
-        return candidates[0]
+        if topic == "visible_ordinal":
+            if any(
+                marker in haystack
+                for marker in (
+                    "الارقام الترتيبيه",
+                    "الاول والثاني",
+                    "قائمه السيارات",
+                    "ظهرت فعليا",
+                    "نتائج مخفيه",
+                )
+            ):
+                candidates.append(result)
+            continue
+        if topic == "insurance":
+            if "تامين" in haystack or "insurance" in haystack:
+                candidates.append(result)
+            continue
+        if topic == "warranty":
+            if "ضمان" in haystack or category == "warranty":
+                candidates.append(result)
+            continue
+        if topic == "financing":
+            if any(term in haystack for term in ("تمويل", "تقسيط")) or category == "financing":
+                candidates.append(result)
+            continue
+        if topic == "test_drive":
+            has_test_drive_terms = any(
+                term in haystack
+                for term in ("تجربه قياده", "تست درايف", "قياده", "الغاء")
+            )
+            if has_test_drive_terms or category in (
+                "test drive policy",
+                "test_drive_policy",
+            ):
+                candidates.append(result)
+            continue
+        if topic == "availability_price":
+            has_avail_terms = any(
+                term in haystack
+                for term in ("توافر", "السعر النهائي", "بيانات السيارات", "المعرض")
+            )
+            if has_avail_terms and category == "faq":
+                candidates.append(result)
+            continue
 
-    # Generic topic: pick the highest-similarity chunk with meaningful token overlap.
-    query_tokens = {
-        token
-        for token in normalize_arabic(message).split()
-        if len(token) >= 4 and token not in {"عندكم", "ممكن", "عايز", "ايه", "هذه", "اللي"}
-    }
-    if not query_tokens:
+        overlap = _token_overlap(query_tokens, haystack)
+        if overlap > 0:
+            candidates.append(result)
+
+    if not candidates:
         return None
 
-    best: dict[str, Any] | None = None
-    best_score: float = -1.0
-    for result in results:
-        haystack = normalize_arabic(f"{result.get('title', '')} {result.get('content', '')}")
-        if not any(token in haystack for token in query_tokens):
-            continue
-        score = float(result.get("similarity") or 0.0)
-        if score > best_score:
-            best_score = score
-            best = result
+    return max(candidates, key=lambda item: _support_score(query_tokens, item))
 
-    return best
+
+def _query_tokens(message: str) -> set[str]:
+    return {
+        token
+        for token in normalize_arabic(message).split()
+        if len(token) >= 3 and token not in _GENERIC_QUERY_TOKENS
+    }
+
+
+def _token_overlap(query_tokens: set[str], haystack: str) -> int:
+    if not query_tokens:
+        return 0
+    tokens = set(normalize_arabic(haystack).split())
+    return len(query_tokens.intersection(tokens))
+
+
+def _support_score(query_tokens: set[str], result: dict[str, Any]) -> float:
+    haystack = f"{result.get('title', '')} {result.get('content', '')}"
+    overlap = _token_overlap(query_tokens, haystack)
+    try:
+        similarity = float(result.get("similarity") or 0.0)
+    except (TypeError, ValueError):
+        similarity = 0.0
+    return (overlap * 10.0) + similarity

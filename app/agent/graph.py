@@ -13,7 +13,7 @@ from sqlalchemy.orm import Session
 
 from app.agent.business_rendering import render_business_action
 from app.agent.catalog_qualification import qualify_catalog_search
-from app.agent.grounding import choose_grounded_result
+from app.agent.grounding import choose_grounded_result, detect_topic
 from app.agent.llm import AgentLLM, AgentLLMError, DeterministicAgentLLM
 from app.agent.rendering import (
     render_catalog,
@@ -628,50 +628,33 @@ class SalesOrchestrator:
     def _rag_node(self, state: AgentState) -> AgentState:
         update = self._trace(state, "rag_node")
         try:
+            message = state["normalized_message"]
             category_hint = state.get("knowledge_category_hint")
-            results = self.rag.retrieve(
-                state["normalized_message"],
-                category=category_hint or None,
-            )
-            serialized = [
-                {
-                    "document_id": str(result.document_id),
-                    "title": result.title,
-                    "category": result.category,
-                    "chunk_id": result.chunk_id,
-                    "chunk_index": result.chunk_index,
-                    "content": result.content,
-                    "similarity": result.similarity,
-                }
-                for result in results
-            ]
-            grounded = choose_grounded_result(state["normalized_message"], serialized)
+            results = self.rag.retrieve(message, category=category_hint or None)
+            serialized = self._serialize_knowledge(results)
+            grounded = choose_grounded_result(message, serialized)
 
             # Soft hint fallback: if category hint yielded no grounded result,
             # retry unfiltered retrieval
             if grounded is None and category_hint:
-                unfiltered_results = self.rag.retrieve(
-                    state["normalized_message"],
-                    category=None,
-                )
-                unfiltered_serialized = [
-                    {
-                        "document_id": str(result.document_id),
-                        "title": result.title,
-                        "category": result.category,
-                        "chunk_id": result.chunk_id,
-                        "chunk_index": result.chunk_index,
-                        "content": result.content,
-                        "similarity": result.similarity,
-                    }
-                    for result in unfiltered_results
-                ]
-                unfiltered_grounded = choose_grounded_result(
-                    state["normalized_message"], unfiltered_serialized
-                )
+                unfiltered_results = self.rag.retrieve(message, category=None)
+                unfiltered_serialized = self._serialize_knowledge(unfiltered_results)
+                unfiltered_grounded = choose_grounded_result(message, unfiltered_serialized)
                 if unfiltered_grounded is not None:
                     serialized = unfiltered_serialized
                     grounded = unfiltered_grounded
+
+            # Visible-ordinal policy questions can be semantically distant from words like
+            # "العربية التانية". If the normal top-k has no supporting policy chunk, widen
+            # retrieval once and let deterministic grounding select the actual policy evidence.
+            if grounded is None and detect_topic(message) == "visible_ordinal":
+                default_top_k = int(getattr(self.rag, "default_top_k", len(serialized) or 4))
+                max_top_k = int(getattr(self.rag, "max_top_k", max(default_top_k, 8)))
+                expanded_top_k = min(max(default_top_k * 2, 8), max_top_k)
+                if expanded_top_k > default_top_k:
+                    results = self.rag.retrieve(message, top_k=expanded_top_k)
+                    serialized = self._serialize_knowledge(results)
+                    grounded = choose_grounded_result(message, serialized)
 
             update.update(
                 {
@@ -691,6 +674,21 @@ class SalesOrchestrator:
                 }
             )
         return update
+
+    @staticmethod
+    def _serialize_knowledge(results: Any) -> list[dict[str, Any]]:
+        return [
+            {
+                "document_id": str(result.document_id),
+                "title": result.title,
+                "category": result.category,
+                "chunk_id": result.chunk_id,
+                "chunk_index": result.chunk_index,
+                "content": result.content,
+                "similarity": result.similarity,
+            }
+            for result in results
+        ]
 
     def _business_gate(self, state: AgentState) -> AgentState:
         update = self._trace(state, "business_gate")
@@ -742,9 +740,49 @@ class SalesOrchestrator:
         elif state.get("route") == "catalog":
             response = render_catalog(state.get("catalog_result"))
         elif state.get("route") == "rag":
-            response = render_knowledge(
-                state.get("knowledge_supported", False), state.get("grounded_knowledge")
-            )
+            message = state.get("normalized_message", "")
+            supported = state.get("knowledge_supported", False)
+            grounded = state.get("grounded_knowledge")
+            fallback = render_knowledge(supported, grounded, question=message)
+            if supported and grounded:
+                grounded_key = (
+                    str(grounded.get("document_id") or ""),
+                    str(grounded.get("chunk_id") or ""),
+                )
+                ordered = [grounded]
+                ordered.extend(
+                    item
+                    for item in state.get("retrieved_knowledge", [])
+                    if (
+                        str(item.get("document_id") or ""),
+                        str(item.get("chunk_id") or ""),
+                    )
+                    != grounded_key
+                )
+                knowledge_context = [
+                    {
+                        "title": item.get("title"),
+                        "category": item.get("category"),
+                        "content": item.get("content"),
+                    }
+                    for item in ordered[:5]
+                ]
+                composer = getattr(self.llm, "compose_knowledge", None)
+                if callable(composer):
+                    try:
+                        response = composer(
+                            message,
+                            grounded_context=knowledge_context,
+                            fallback=fallback,
+                            recent_messages=state.get("recent_messages", []),
+                        )
+                    except AgentLLMError:
+                        response = fallback
+                        update["errors"] = self._errors(state, "composition_failed")
+                else:
+                    response = fallback
+            else:
+                response = fallback
         elif state.get("route") == "business_gate":
             response = render_business_action(
                 state.get("action_status"),
