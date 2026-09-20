@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <meta name="theme-color" content="#f6f8fc">
+  <meta name="theme-color" content="#f7f9fc">
   <title>تسجيل الدخول — AutoDrive Egypt</title>
   <meta name="description" content="تسجيل الدخول إلى AutoDrive Egypt عبر Google">
   <link rel="icon" type="image/png" href="{{ static_asset('img/autodrive-mark-clean.png') }}">
@@ -12,122 +12,47 @@
 </head>
 <body class="auth-shell">
   <main class="auth-layout">
-    <section class="auth-visual" aria-label="AutoDrive Egypt">
-      <div class="auth-visual-glow" aria-hidden="true"></div>
-      <div class="auth-watermark" aria-hidden="true">AUTODRIVE</div>
-
-      <div class="auth-visual-content">
+    <section class="auth-hero" aria-label="AutoDrive Egypt">
+      <div class="auth-hero-copy">
         <span class="auth-kicker">سيارات أذكى. قرارات أوضح.</span>
 
-        <h1>
-          العربية المناسبة
-          <span>تبدأ من هنا.</span>
-        </h1>
+        <h1>العربية المناسبة <span>تبدأ من هنا.</span></h1>
 
         <p>
-          اكتشف، قارن، واسأل المساعد الذكي عن العربيات والسياسات،
-          وبعدها نفّذ طلبات حقيقية من نفس التجربة.
+          اكتشف العربيات، قارن الاختيارات، واسأل المساعد الذكي عن المعلومات والسياسات
+          قبل ما تاخد قرارك.
         </p>
 
-        <div class="auth-proof-grid" aria-label="مزايا AutoDrive">
-          <div class="auth-proof">
-            <span class="auth-proof-icon" aria-hidden="true">
-              <svg viewBox="0 0 24 24">
-                <path d="M4 15.5 6.2 9h11.6l2.2 6.5M6 15.5h12M7.5 18.5h.01M16.5 18.5h.01M5 15.5v3h2M19 15.5v3h-2" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/>
-              </svg>
-            </span>
-            <div>
-              <strong>100 سيارة</strong>
-              <small>في الكتالوج التجريبي المسجل</small>
-            </div>
+        <div class="auth-stats" aria-label="مزايا AutoDrive">
+          <div>
+            <strong>100</strong>
+            <span>سيارة في الكتالوج التجريبي</span>
           </div>
-
-          <div class="auth-proof">
-            <span class="auth-proof-icon" aria-hidden="true">
-              <svg viewBox="0 0 24 24">
-                <path d="M12 3 5 6v5c0 4.6 2.9 8.7 7 10 4.1-1.3 7-5.4 7-10V6l-7-3Z" fill="none" stroke="currentColor" stroke-width="1.7"/>
-                <path d="m9.5 12 1.7 1.7 3.5-3.7" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/>
-              </svg>
-            </span>
-            <div>
-              <strong>RAG مُدار</strong>
-              <small>إجابات مرتبطة بالمعلومات المعتمدة</small>
-            </div>
+          <div>
+            <strong>RAG</strong>
+            <span>إجابات من المعرفة المُدارة</span>
           </div>
-
-          <div class="auth-proof">
-            <span class="auth-proof-icon" aria-hidden="true">
-              <svg viewBox="0 0 24 24">
-                <path d="M7 7h10v10H7zM9 4h6M9 20h6M4 9v6M20 9v6" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/>
-              </svg>
-            </span>
-            <div>
-              <strong>Real Actions</strong>
-              <small>Test Drive و Sales Leads فعلية</small>
-            </div>
+          <div>
+            <strong>Real Actions</strong>
+            <span>Test Drive و Sales Leads فعلية</span>
           </div>
         </div>
       </div>
 
-      <div class="auth-hero-car" aria-hidden="true">
-        <svg viewBox="0 0 760 690" role="presentation">
-          <defs>
-            <linearGradient id="carBody" x1="0" y1="0" x2="1" y2="1">
-              <stop offset="0" stop-color="#ffffff"/>
-              <stop offset=".42" stop-color="#eef2f7"/>
-              <stop offset=".72" stop-color="#cbd5e1"/>
-              <stop offset="1" stop-color="#94a3b8"/>
-            </linearGradient>
-            <linearGradient id="carGlass" x1="0" y1="0" x2="1" y2="1">
-              <stop offset="0" stop-color="#3b4a5f"/>
-              <stop offset="1" stop-color="#0f172a"/>
-            </linearGradient>
-            <linearGradient id="lamp" x1="0" y1="0" x2="1" y2="0">
-              <stop offset="0" stop-color="#ef4444"/>
-              <stop offset=".5" stop-color="#f87171"/>
-              <stop offset="1" stop-color="#7f1d1d"/>
-            </linearGradient>
-            <filter id="authCarDepth" x="-30%" y="-30%" width="160%" height="160%">
-              <feDropShadow dx="0" dy="26" stdDeviation="28" flood-color="#0f172a" flood-opacity=".18"/>
-            </filter>
-          </defs>
+      {% if hero_car_image_url %}
+        <div class="auth-hero-media" aria-hidden="true">
+          <img src="{{ hero_car_image_url }}" alt="">
+        </div>
+      {% endif %}
 
-          <ellipse cx="478" cy="611" rx="238" ry="34" fill="#cbd5e1" opacity=".55"/>
-
-          <g filter="url(#authCarDepth)">
-            <path d="M240 530c20-96 45-179 82-260 31-68 89-111 176-123 52-7 113-4 170 7l31 11 22 84 22 254-36 68H294l-54-41Z" fill="url(#carBody)"/>
-            <path d="M335 266c31-62 79-92 154-101 53-6 111-3 164 7l21 74-339 20Z" fill="url(#carGlass)"/>
-            <path d="M380 270c-13 88-18 173-16 258" fill="none" stroke="#b3bfce" stroke-width="5"/>
-            <path d="M536 256c14 80 20 168 17 272" fill="none" stroke="#b3bfce" stroke-width="4"/>
-            <path d="M274 398c127 18 263 16 430-3" fill="none" stroke="#a8b5c6" stroke-width="4" opacity=".72"/>
-            <path d="M249 471c130 33 310 35 485 7" fill="none" stroke="#d9e1ea" stroke-width="4"/>
-            <path d="M617 302c51 5 92 17 116 37l8 88c-45 8-95 8-143 2Z" fill="#e5eaf0"/>
-            <path d="M627 319c44 4 76 14 95 29l3 49c-36 6-72 7-107 3Z" fill="url(#lamp)"/>
-            <path d="M636 330c32 3 54 8 70 17" fill="none" stroke="#fecaca" stroke-width="6" stroke-linecap="round"/>
-            <path d="M287 520c109 18 292 20 432-1l-18 54H313Z" fill="#d6dee8"/>
-            <path d="M316 569h118l-10 31H326Z" fill="#334155" opacity=".88"/>
-            <path d="M563 568h125l-15 33H575Z" fill="#334155" opacity=".88"/>
-            <circle cx="355" cy="573" r="73" fill="#111827"/>
-            <circle cx="355" cy="573" r="47" fill="#475569"/>
-            <circle cx="355" cy="573" r="26" fill="#d8dee8"/>
-            <circle cx="355" cy="573" r="10" fill="#64748b"/>
-            <circle cx="659" cy="573" r="73" fill="#111827"/>
-            <circle cx="659" cy="573" r="47" fill="#475569"/>
-            <circle cx="659" cy="573" r="26" fill="#d8dee8"/>
-            <circle cx="659" cy="573" r="10" fill="#64748b"/>
-            <path d="M303 413c-24 5-44 25-46 50l-3 34 34-15 18-56Z" fill="#94a3b8"/>
-          </g>
-        </svg>
-      </div>
-
-      <div class="auth-visual-footer">
+      <div class="auth-hero-footer">
         <span>حسب البيانات المتاحة في الكتالوج المسجل.</span>
         <strong>AUTO DRIVE EGYPT</strong>
       </div>
     </section>
 
     <section class="auth-panel">
-      <div class="auth-panel-inner">
+      <div class="auth-card">
         <a class="auth-brand" href="{{ url_for('site.home') }}" aria-label="العودة إلى AutoDrive Egypt">
           <span class="auth-brand-mark">
             <img src="{{ static_asset('img/autodrive-mark-clean.png') }}" alt="">
@@ -161,7 +86,8 @@
 
         {% if auth_configured is defined and not auth_configured %}
           <div class="auth-config-warning" role="alert">
-            إعدادات Supabase Auth غير مكتملة محليًا. راجع <code>SUPABASE_URL</code> و<code>SUPABASE_PUBLISHABLE_KEY</code> ثم أعد تشغيل التطبيق.
+            إعدادات Supabase Auth غير مكتملة محليًا. راجع
+            <code>SUPABASE_URL</code> و<code>SUPABASE_PUBLISHABLE_KEY</code> ثم أعد تشغيل التطبيق.
           </div>
         {% endif %}
 
@@ -175,7 +101,7 @@
                 <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/>
                 <path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/>
                 <path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.06H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.94l2.85-2.22.81-.63z"/>
-                <path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 0 3.99 3.47 2.18 7.06l3.66 2.84c.87-2.6 3.3-4.52 6.16-4.52z"/>
+                <path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.06l3.66 2.84c.87-2.6 3.3-4.52 6.16-4.52z"/>
               </svg>
             </span>
             <span class="google-button-copy">

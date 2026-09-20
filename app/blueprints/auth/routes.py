@@ -12,11 +12,13 @@ from app.blueprints.auth import bp
 from app.common.security import require_browser_csrf
 from app.extensions import db
 from app.services.auth_service import AuthError, AuthService, AuthUserInactiveError
+from app.services.car_image_service import image_url_for_source_id
 from app.services.customer_web_service import CustomerWebService
 
 _CODE_VERIFIER_SESSION_KEY = "oauth_code_verifier"
 _AUTH_NEXT_SESSION_KEY = "oauth_next"
 _CONVERSATION_SESSION_KEY = "autodrive_conversation_id"
+_AUTH_HERO_SOURCE_ID = "noortariq20-egypt-market:fe3b37c3f0960bdd9f223cb9"
 
 
 def _auth_service() -> AuthService:
@@ -58,7 +60,15 @@ def login_page():
     if next_page:
         session[_AUTH_NEXT_SESSION_KEY] = next_page
 
-    return render_template("auth/login.html", auth_configured=_auth_is_configured())
+    hero_car_image_url = image_url_for_source_id(
+        _AUTH_HERO_SOURCE_ID,
+        supabase_url=current_app.config.get("SUPABASE_URL"),
+    )
+    return render_template(
+        "auth/login.html",
+        auth_configured=_auth_is_configured(),
+        hero_car_image_url=hero_car_image_url,
+    )
 
 
 @bp.get("/auth/google")
