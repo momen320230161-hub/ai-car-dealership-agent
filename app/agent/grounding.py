@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import re
-from collections.abc import Sequence
 from typing import Any
 
 
@@ -76,7 +75,7 @@ def detect_topic(message: str) -> str:
 
 
 def choose_grounded_result(
-    message: str, results: Sequence[dict[str, Any]]
+    message: str, results: list[dict[str, Any]]
 ) -> dict[str, Any] | None:
     """Choose the strongest supporting result, not merely the nearest vector."""
     topic = detect_topic(message)
