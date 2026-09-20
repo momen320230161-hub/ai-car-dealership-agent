@@ -63,7 +63,7 @@ class Config:
     )
     CAR_IMAGE_BUCKET = os.getenv("CAR_IMAGE_BUCKET", "car-images")
     MAX_CAR_IMAGE_BYTES = int(os.getenv("MAX_CAR_IMAGE_BYTES", str(5 * 1024 * 1024)))
-    MAX_CONTENT_LENGTH = int(os.getenv("MAX_CONTENT_LENGTH", str(8 * 1024 * 1024)))
+    MAX_CONTENT_LENGTH = int(os.getenv("MAX_CONTENT_LENGTH", str(16 * 1024 * 1024)))
 
     EMBEDDING_PROVIDER = os.getenv("EMBEDDING_PROVIDER", "gemini")
     EMBEDDING_MODEL = os.getenv(
@@ -83,3 +83,8 @@ class Config:
     AGENT_RECENT_MESSAGE_LIMIT = int(os.getenv("AGENT_RECENT_MESSAGE_LIMIT", "12"))
     AGENT_RECOMMENDATION_LIMIT = int(os.getenv("AGENT_RECOMMENDATION_LIMIT", "3"))
     CHAT_SLOW_REQUEST_MS = int(os.getenv("CHAT_SLOW_REQUEST_MS", "5000"))
+
+    # PDF Knowledge Ingestion (optional/bonus feature)
+    MAX_KNOWLEDGE_PDF_BYTES = int(os.getenv("MAX_KNOWLEDGE_PDF_BYTES", str(10 * 1024 * 1024)))
+    MAX_KNOWLEDGE_PDF_PAGES = int(os.getenv("MAX_KNOWLEDGE_PDF_PAGES", "50"))
+    MAX_KNOWLEDGE_EXTRACTED_CHARS = int(os.getenv("MAX_KNOWLEDGE_EXTRACTED_CHARS", "100000"))

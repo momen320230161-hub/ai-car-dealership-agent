@@ -171,6 +171,22 @@ A document is retrievable only when its indexed version matches the current cont
 
 Automated coverage includes embedding-provider failure, wrong dimensions, partial embeddings, chunk-persistence failure, stale indexed versions and full create/update/delete/reindex lifecycle.
 
+### PDF Ingestion (Optional / Bonus)
+
+AutoDrive Egypt supports importing knowledge directly from PDF documents.
+- **Text-based PDFs only** (no OCR support for scanned images).
+- **Flow:** Upload → Extract Text → Preview → KnowledgeService → Chunk → Embed → pgvector.
+- **Duplicate Protection:** Files are hashed (SHA-256) upon upload. The system prevents re-ingesting identical PDFs.
+- **Provenance Metadata:** The original filename, page count, file size, extraction method, SHA-256 hash, and ingestion timestamp are stored alongside the extracted text.
+- **No Binary Persistence:** Only the extracted text and provenance metadata are persisted in the database; the original PDF binary is discarded.
+
+**Demo Steps:**
+1. Navigate to the Admin Dashboard → Knowledge.
+2. Click **رفع PDF** and select a demo PDF from `demo knowledge pdfs/` (e.g., `05_egypt_vehicle_registration_traffic.pdf`).
+3. View the extracted text and provenance metadata in the Preview screen.
+4. Provide a Title and Category, then Confirm.
+5. Ask a related question in the chat (e.g., "نقل ملكية العربية في مصر بيحتاج إيه؟") to verify RAG retrieval.
+
 ## Real Business Actions
 
 ### Test Drive

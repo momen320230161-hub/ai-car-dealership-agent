@@ -48,6 +48,41 @@ class KnowledgeDocument(Base, TimestampMixin):
         server_default=text("true"),
         nullable=False,
     )
+
+    # ---------------------------------------------------------------------------
+    # PDF provenance — all fields are optional (NULL for manually-created docs).
+    # ---------------------------------------------------------------------------
+    source_type: Mapped[str | None] = mapped_column(
+        String(50), nullable=True
+    )
+    source_name: Mapped[str | None] = mapped_column(
+        String(255), nullable=True
+    )
+    source_url: Mapped[str | None] = mapped_column(
+        Text, nullable=True
+    )
+    source_filename: Mapped[str | None] = mapped_column(
+        String(512), nullable=True
+    )
+    source_sha256: Mapped[str | None] = mapped_column(
+        String(64), nullable=True
+    )
+    source_mime_type: Mapped[str | None] = mapped_column(
+        String(100), nullable=True
+    )
+    source_file_size: Mapped[int | None] = mapped_column(
+        Integer, nullable=True
+    )
+    source_page_count: Mapped[int | None] = mapped_column(
+        Integer, nullable=True
+    )
+    ingested_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
+    extraction_method: Mapped[str | None] = mapped_column(
+        String(50), nullable=True
+    )
+
     chunks: Mapped[list[KnowledgeChunk]] = relationship(
         "KnowledgeChunk",
         back_populates="document",
@@ -91,6 +126,8 @@ class KnowledgeDocument(Base, TimestampMixin):
             "indexed_version",
             "content_version",
         ),
+        Index("ix_knowledge_documents_source_type", "source_type"),
+        Index("ix_knowledge_documents_source_sha256", "source_sha256", unique=True),
     )
 
     def __repr__(self) -> str:

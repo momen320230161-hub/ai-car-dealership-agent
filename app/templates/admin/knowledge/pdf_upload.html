@@ -1,0 +1,71 @@
+{% extends "admin/base.html" %}
+
+{% block admin_title %}استيراد PDF{% endblock %}
+{% block admin_subtitle %}رفع ملف PDF لاستخراج نصه وإضافته إلى قاعدة المعرفة.{% endblock %}
+
+{% block admin_content %}
+<section class="admin-panel admin-form-panel">
+  <div class="pdf-import-info">
+    <p>
+      📄 <strong>ملاحظة:</strong> يدعم النظام ملفات PDF النصية فقط (بدون OCR).
+      الحد الأقصى للحجم: 10MB — الصفحات: 50 — الأحرف المستخرجة: 100,000.
+    </p>
+  </div>
+
+  <form method="post"
+        action="{{ url_for('site.admin.knowledge_import_pdf_preview') }}"
+        enctype="multipart/form-data"
+        class="admin-form"
+        id="pdf-upload-form">
+    <input type="hidden" name="csrf_token" value="{{ admin_csrf_token }}">
+
+    <label>
+      <span>ملف PDF <span class="required">*</span></span>
+      <input
+        id="pdf_file"
+        name="pdf_file"
+        type="file"
+        accept=".pdf,application/pdf"
+        required
+        class="file-input"
+      >
+      <small class="field-hint">يُقبل فقط ملفات .pdf — الحد 10MB</small>
+    </label>
+
+    <div class="admin-form-actions">
+      <button class="admin-button primary" type="submit" id="upload-btn">
+        📤 استخراج ومعاينة
+      </button>
+      <a class="admin-button" href="{{ url_for('site.admin.knowledge_list') }}">إلغاء</a>
+    </div>
+  </form>
+</section>
+
+<style>
+.pdf-import-info {
+  background: var(--color-surface-alt, #1e293b);
+  border-right: 4px solid var(--color-primary, #6366f1);
+  border-radius: 8px;
+  padding: 1rem 1.25rem;
+  margin-bottom: 1.5rem;
+  color: var(--color-text-muted, #94a3b8);
+  font-size: 0.9rem;
+  line-height: 1.6;
+}
+.file-input {
+  display: block;
+  padding: 0.5rem 0;
+  color: var(--color-text, #f1f5f9);
+  cursor: pointer;
+}
+.field-hint {
+  display: block;
+  color: var(--color-text-muted, #94a3b8);
+  font-size: 0.8rem;
+  margin-top: 0.25rem;
+}
+.required {
+  color: #ef4444;
+}
+</style>
+{% endblock %}

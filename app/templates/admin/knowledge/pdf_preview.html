@@ -1,0 +1,200 @@
+{% extends "admin/base.html" %}
+
+{% block admin_title %}معاينة PDF المستخرج{% endblock %}
+{% block admin_subtitle %}راجع البيانات المستخرجة وعدّل قبل الحفظ والفهرسة.{% endblock %}
+
+{% block admin_content %}
+<section class="admin-panel">
+  <!-- Provenance summary card -->
+  <div class="pdf-meta-card">
+    <h3>بيانات المصدر</h3>
+    <div class="pdf-meta-grid">
+      <div class="pdf-meta-item">
+        <span class="meta-label">اسم الملف</span>
+        <span class="meta-value filename-wrap">{{ result.filename }}</span>
+      </div>
+      <div class="pdf-meta-item">
+        <span class="meta-label">الحجم</span>
+        <span class="meta-value">{{ "%.1f"|format(result.file_size / 1024) }} KB</span>
+      </div>
+      <div class="pdf-meta-item">
+        <span class="meta-label">الصفحات</span>
+        <span class="meta-value">{{ result.page_count }}</span>
+      </div>
+      <div class="pdf-meta-item">
+        <span class="meta-label">الأحرف المستخرجة</span>
+        <span class="meta-value">{{ result.char_count | int }}</span>
+      </div>
+      <div class="pdf-meta-item">
+        <span class="meta-label">SHA-256</span>
+        <span class="meta-value sha256-display">{{ sha256_short }}</span>
+      </div>
+      <div class="pdf-meta-item">
+        <span class="meta-label">طريقة الاستخراج</span>
+        <span class="meta-value">{{ result.extraction_method }}</span>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section class="admin-panel admin-form-panel">
+  <form method="post"
+        action="{{ url_for('site.admin.knowledge_import_pdf_confirm') }}"
+        class="admin-form"
+        id="pdf-confirm-form">
+    <input type="hidden" name="csrf_token" value="{{ admin_csrf_token }}">
+    <input type="hidden" name="signed_token" value="{{ signed_token }}">
+
+    <label>
+      <span>العنوان <span class="required">*</span></span>
+      <input
+        id="pdf-title"
+        name="title"
+        type="text"
+        required
+        maxlength="255"
+        value="{{ suggested_title }}"
+        placeholder="عنوان مستند المعرفة"
+      >
+    </label>
+
+    <label>
+      <span>Category <span class="required">*</span></span>
+      <input
+        id="pdf-category"
+        name="category"
+        type="text"
+        required
+        maxlength="100"
+        placeholder="faq / financing / warranty / policy / legal / traffic"
+      >
+    </label>
+
+    <label>
+      <span>اسم المصدر (اختياري)</span>
+      <input
+        id="pdf-source-name"
+        name="source_name"
+        type="text"
+        maxlength="255"
+        placeholder="مثال: هيئة حماية المستهلك"
+      >
+    </label>
+
+    <label>
+      <span>رابط المصدر (اختياري)</span>
+      <input
+        id="pdf-source-url"
+        name="source_url"
+        type="url"
+        maxlength="2048"
+        placeholder="https://..."
+        class="url-input"
+      >
+    </label>
+
+    <label class="admin-checkbox">
+      <input id="pdf-active" name="active" type="checkbox" checked>
+      <span>Active for retrieval</span>
+    </label>
+
+    <label>
+      <span>النص المستخرج (يمكن تعديله) <span class="required">*</span></span>
+      <textarea
+        id="pdf-content"
+        name="content"
+        required
+        rows="20"
+        class="extracted-text-area"
+        dir="auto"
+      >{{ extracted_text }}</textarea>
+      <small class="field-hint">
+        يمكنك تعديل النص قبل الحفظ لإصلاح أي أخطاء في الاستخراج.
+        أي تعديل لاحق في صفحة التعديل سيؤدي إلى إعادة الفهرسة تلقائياً.
+      </small>
+    </label>
+
+    <div class="admin-form-actions">
+      <button class="admin-button primary" type="submit" id="confirm-btn">
+        ✅ اعتماد وحفظ وفهرسة
+      </button>
+      <a class="admin-button" href="{{ url_for('site.admin.knowledge_import_pdf') }}">
+        ← رجوع / إلغاء
+      </a>
+    </div>
+  </form>
+</section>
+
+<style>
+.pdf-meta-card {
+  background: var(--color-surface-alt, #1e293b);
+  border-radius: 10px;
+  padding: 1.25rem 1.5rem;
+  margin-bottom: 1.5rem;
+}
+.pdf-meta-card h3 {
+  color: var(--color-text, #f1f5f9);
+  font-size: 1rem;
+  font-weight: 600;
+  margin: 0 0 1rem 0;
+  padding-bottom: 0.5rem;
+  border-bottom: 1px solid var(--color-border, #334155);
+}
+.pdf-meta-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+  gap: 0.75rem;
+}
+.pdf-meta-item {
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
+}
+.meta-label {
+  color: var(--color-text-muted, #94a3b8);
+  font-size: 0.75rem;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+.meta-value {
+  color: var(--color-text, #f1f5f9);
+  font-size: 0.9rem;
+  font-weight: 500;
+  word-break: break-all;
+}
+.sha256-display {
+  font-family: monospace;
+  font-size: 0.8rem;
+  color: var(--color-primary, #6366f1);
+}
+.filename-wrap {
+  word-break: break-all;
+}
+.extracted-text-area {
+  font-family: 'Segoe UI', Tahoma, sans-serif;
+  font-size: 0.875rem;
+  line-height: 1.7;
+  resize: vertical;
+  min-height: 300px;
+}
+.url-input {
+  direction: ltr;
+  text-align: left;
+}
+.required {
+  color: #ef4444;
+}
+.field-hint {
+  display: block;
+  color: var(--color-text-muted, #94a3b8);
+  font-size: 0.8rem;
+  margin-top: 0.3rem;
+  line-height: 1.5;
+}
+@media (max-width: 640px) {
+  .pdf-meta-grid {
+    grid-template-columns: 1fr 1fr;
+  }
+}
+</style>
+{% endblock %}

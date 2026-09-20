@@ -3,8 +3,10 @@
 from __future__ import annotations
 
 import uuid
+from datetime import UTC, datetime
 
 from flask import abort, current_app, flash, redirect, render_template, request, url_for
+from itsdangerous import BadSignature, SignatureExpired, URLSafeTimedSerializer
 
 from app.blueprints.admin import bp
 from app.extensions import db
@@ -22,12 +24,20 @@ from app.services.car_image_upload_service import (
     ValidatedCarImage,
     validate_car_image,
 )
+from app.services.knowledge_pdf_ingestion_service import (
+    KnowledgePDFIngestionService,
+    PDFIngestionError,
+)
 from app.services.knowledge_service import (
+    KnowledgeDuplicateError,
     KnowledgeIndexingError,
     KnowledgeNotFoundError,
     KnowledgePersistenceError,
     KnowledgeService,
 )
+
+_PDF_TOKEN_SALT = "pdf-ingestion-preview-v1"
+_PDF_TOKEN_MAX_AGE = 3600  # 1 hour — preview token validity
 
 
 def _dashboard() -> AdminDashboardService:
@@ -89,6 +99,10 @@ def _car_filters() -> tuple[str, str | None, bool | None, str]:
         active = None
         active_raw = "all"
     return query, condition, active, active_raw
+
+
+def _pdf_serializer() -> URLSafeTimedSerializer:
+    return URLSafeTimedSerializer(current_app.config["SECRET_KEY"])
 
 
 @bp.get("/")
@@ -365,4 +379,147 @@ def knowledge_delete(document_id: uuid.UUID):
         return redirect(url_for("site.admin.knowledge_list"))
 
     flash("تم حذف مستند المعرفة وفهرسته المرتبطة.", "success")
+    return redirect(url_for("site.admin.knowledge_list"))
+
+
+# ---------------------------------------------------------------------------
+# PDF Knowledge Ingestion (Optional / Bonus Feature)
+# ---------------------------------------------------------------------------
+
+
+@bp.get("/knowledge/import/pdf")
+def knowledge_import_pdf():
+    """Step 1: Show the PDF upload form."""
+    return render_template("admin/knowledge/pdf_upload.html")
+
+
+@bp.post("/knowledge/import/pdf/preview")
+def knowledge_import_pdf_preview():
+    """Step 2: Validate, extract, and show preview with editable content."""
+    uploaded_file = request.files.get("pdf_file")
+    if not uploaded_file or not uploaded_file.filename:
+        flash("يرجى اختيار ملف PDF للرفع.", "error")
+        return redirect(url_for("site.admin.knowledge_import_pdf"))
+
+    svc = KnowledgePDFIngestionService(
+        max_bytes=int(current_app.config.get("MAX_KNOWLEDGE_PDF_BYTES", 10 * 1024 * 1024)),
+        max_pages=int(current_app.config.get("MAX_KNOWLEDGE_PDF_PAGES", 50)),
+        max_chars=int(current_app.config.get("MAX_KNOWLEDGE_EXTRACTED_CHARS", 100_000)),
+    )
+
+    try:
+        result = svc.extract_from_stream(uploaded_file.stream, filename=uploaded_file.filename)
+    except PDFIngestionError as exc:
+        current_app.logger.info("PDF ingestion validation failed: %s", exc)
+        flash(str(exc), "error")
+        return redirect(url_for("site.admin.knowledge_import_pdf"))
+
+    # Truncate extracted text to configured limit
+    max_chars = int(current_app.config.get("MAX_KNOWLEDGE_EXTRACTED_CHARS", 100_000))
+    extracted_text = result.extracted_text[:max_chars]
+
+    # Sign the immutable provenance metadata (not the large text)
+    serializer = _pdf_serializer()
+    signed_token = serializer.dumps(
+        {
+            "filename": result.filename,
+            "sha256": result.sha256_hex,
+            "mime_type": result.mime_type,
+            "file_size": result.file_size,
+            "page_count": result.page_count,
+            "extraction_method": result.extraction_method,
+        },
+        salt=_PDF_TOKEN_SALT,
+    )
+
+    return render_template(
+        "admin/knowledge/pdf_preview.html",
+        result=result,
+        extracted_text=extracted_text,
+        signed_token=signed_token,
+        sha256_short=result.sha256_hex[:16] + "…",
+        suggested_title=result.filename.removesuffix(".pdf").replace("_", " ").replace("-", " "),
+    )
+
+
+@bp.post("/knowledge/import/pdf/confirm")
+def knowledge_import_pdf_confirm():
+    """Step 3: Validate signed token and persist via KnowledgeService."""
+    # 1) Verify signed provenance token
+    signed_token = request.form.get("signed_token", "")
+    try:
+        serializer = _pdf_serializer()
+        provenance = serializer.loads(
+            signed_token, salt=_PDF_TOKEN_SALT, max_age=_PDF_TOKEN_MAX_AGE
+        )
+    except SignatureExpired:
+        flash("انتهت صلاحية جلسة المعاينة (ساعة). يرجى إعادة رفع الملف.", "error")
+        return redirect(url_for("site.admin.knowledge_import_pdf"))
+    except BadSignature:
+        current_app.logger.warning("PDF confirm received invalid signed token")
+        flash("بيانات جلسة المعاينة غير صالحة أو تالفة.", "error")
+        return redirect(url_for("site.admin.knowledge_import_pdf"))
+
+    # 2) Gather form fields
+    title = request.form.get("title", "").strip()
+    category = request.form.get("category", "").strip()
+    source_name = request.form.get("source_name", "").strip() or None
+    source_url = request.form.get("source_url", "").strip() or None
+    content = request.form.get("content", "").strip()
+    active = request.form.get("active") == "on"
+
+    if not title or not category or not content:
+        flash("العنوان والـcategory والمحتوى مطلوبة.", "error")
+        return redirect(url_for("site.admin.knowledge_import_pdf"))
+
+    # 3) Re-validate extracted text length (defense against manipulated form values)
+    max_chars = int(current_app.config.get("MAX_KNOWLEDGE_EXTRACTED_CHARS", 100_000))
+    if len(content) > max_chars:
+        flash(f"المحتوى يتجاوز الحد المسموح ({max_chars} حرف).", "error")
+        return redirect(url_for("site.admin.knowledge_import_pdf"))
+
+    # 4) Persist via KnowledgeService (uses existing chunker + embeddings)
+    try:
+        document = _knowledge().create_document(
+            title=title,
+            category=category,
+            content=content,
+            active=active,
+            source_type="pdf",
+            source_name=source_name,
+            source_url=source_url,
+            source_filename=provenance["filename"],
+            source_sha256=provenance["sha256"],
+            source_mime_type=provenance["mime_type"],
+            source_file_size=provenance["file_size"],
+            source_page_count=provenance["page_count"],
+            ingested_at=datetime.now(UTC),
+            extraction_method=provenance["extraction_method"],
+        )
+    except KnowledgeDuplicateError as exc:
+        current_app.logger.info("PDF duplicate detected: %s", exc)
+        existing_id = getattr(exc, "existing_id", None)
+        if existing_id:
+            existing_url = url_for("site.admin.knowledge_edit", document_id=existing_id)
+            flash(
+                f"ملف PDF بنفس المحتوى (SHA-256) موجود بالفعل. "
+                f'<a href="{existing_url}">عرض المستند الموجود</a>',
+                "error",
+            )
+        else:
+            flash("ملف PDF بنفس المحتوى موجود بالفعل.", "error")
+        return redirect(url_for("site.admin.knowledge_list"))
+    except ValueError as exc:
+        flash(f"بيانات غير صالحة: {exc}", "error")
+        return redirect(url_for("site.admin.knowledge_import_pdf"))
+    except KnowledgeIndexingError as exc:
+        current_app.logger.warning("PDF knowledge create indexing failed: %s", type(exc).__name__)
+        flash("تم حفظ المستند لكن الفهرسة فشلت. راجع حالته ثم استخدم Reindex.", "error")
+        return redirect(url_for("site.admin.knowledge_list"))
+    except (EmbeddingError, KnowledgePersistenceError) as exc:
+        current_app.logger.warning("PDF knowledge create failed: %s", type(exc).__name__)
+        flash("تعذر حفظ مستند المعرفة المستورد حاليًا.", "error")
+        return redirect(url_for("site.admin.knowledge_list"))
+
+    flash(f"تم استيراد PDF وفهرسته بنجاح: {document.title}", "success")
     return redirect(url_for("site.admin.knowledge_list"))

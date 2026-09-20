@@ -9,7 +9,10 @@
     <strong>{{ documents|length }} مستند معرفة</strong>
     <span>الحالة هنا تعكس الفهرسة الفعلية المستخدمة في retrieval.</span>
   </div>
-  <a class="admin-button primary" href="{{ url_for('site.admin.knowledge_new') }}">إضافة مستند</a>
+  <div class="toolbar-actions">
+    <a class="admin-button primary" href="{{ url_for('site.admin.knowledge_new') }}">إضافة مستند</a>
+    <a class="admin-button pdf-btn" href="{{ url_for('site.admin.knowledge_import_pdf') }}">📄 رفع PDF</a>
+  </div>
 </div>
 
 <section class="admin-panel">
@@ -19,7 +22,17 @@
       <tbody>
       {% for document in documents %}
         <tr>
-          <td><strong>{{ document.title }}</strong><small>{{ document.id }}</small>{% if document.index_error %}<small class="danger">{{ document.index_error }}</small>{% endif %}</td>
+          <td>
+            <strong>{{ document.title }}</strong>
+            <small>{{ document.id }}</small>
+            {% if document.source_type == 'pdf' %}
+              <span class="badge badge-pdf" title="مستورد من PDF: {{ document.source_filename or '' }}">PDF</span>
+            {% endif %}
+            {% if document.source_name %}
+              <small class="source-name">{{ document.source_name }}</small>
+            {% endif %}
+            {% if document.index_error %}<small class="danger">{{ document.index_error }}</small>{% endif %}
+          </td>
           <td>{{ document.category }}</td>
           <td>{{ document.content_version }}{% if document.indexed_version %} / indexed {{ document.indexed_version }}{% endif %}</td>
           <td><span class="status-pill {{ 'ok' if document.index_status == 'indexed' else ('danger' if document.index_status == 'failed' else 'muted') }}">{{ document.index_status }}</span></td>
@@ -46,4 +59,43 @@
     </table>
   </div>
 </section>
+
+<style>
+.toolbar-actions {
+  display: flex;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+  align-items: center;
+}
+.pdf-btn {
+  background: linear-gradient(135deg, #7c3aed, #6366f1);
+  color: #fff !important;
+  border: none;
+}
+.pdf-btn:hover {
+  background: linear-gradient(135deg, #6d28d9, #4f46e5);
+  color: #fff !important;
+}
+.badge {
+  display: inline-block;
+  border-radius: 4px;
+  padding: 1px 6px;
+  font-size: 0.7rem;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  vertical-align: middle;
+  margin-right: 4px;
+}
+.badge-pdf {
+  background: #7c3aed22;
+  color: #a78bfa;
+  border: 1px solid #7c3aed55;
+}
+.source-name {
+  display: block;
+  color: var(--color-text-muted, #94a3b8);
+  font-size: 0.75rem;
+  margin-top: 2px;
+}
+</style>
 {% endblock %}

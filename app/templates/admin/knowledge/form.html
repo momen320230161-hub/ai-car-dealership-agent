@@ -20,7 +20,7 @@
 
     <label>
       <span>المحتوى المعتمد</span>
-      <textarea name="content" required rows="16">{{ document.content if document else '' }}</textarea>
+      <textarea name="content" required rows="16" dir="auto">{{ document.content if document else '' }}</textarea>
     </label>
 
     <label class="admin-checkbox">
@@ -34,6 +34,59 @@
         <span>Index status: {{ document.index_status }}</span>
         <span>Indexed version: {{ document.indexed_version or '—' }}</span>
       </div>
+
+      {# PDF provenance — show read-only if this document was imported from a PDF #}
+      {% if document.source_type == 'pdf' %}
+      <div class="pdf-provenance-section">
+        <h4>📄 بيانات مصدر PDF</h4>
+        <div class="provenance-grid">
+          {% if document.source_filename %}
+          <div class="prov-item">
+            <span class="prov-label">اسم الملف الأصلي</span>
+            <span class="prov-value filename-wrap">{{ document.source_filename }}</span>
+          </div>
+          {% endif %}
+          {% if document.source_name %}
+          <div class="prov-item">
+            <span class="prov-label">المصدر</span>
+            <span class="prov-value">{{ document.source_name }}</span>
+          </div>
+          {% endif %}
+          {% if document.source_page_count %}
+          <div class="prov-item">
+            <span class="prov-label">عدد الصفحات</span>
+            <span class="prov-value">{{ document.source_page_count }}</span>
+          </div>
+          {% endif %}
+          {% if document.source_file_size %}
+          <div class="prov-item">
+            <span class="prov-label">حجم الملف</span>
+            <span class="prov-value">{{ "%.1f"|format(document.source_file_size / 1024) }} KB</span>
+          </div>
+          {% endif %}
+          {% if document.ingested_at %}
+          <div class="prov-item">
+            <span class="prov-label">تاريخ الاستيراد</span>
+            <span class="prov-value">{{ document.ingested_at.strftime('%Y-%m-%d %H:%M') }}</span>
+          </div>
+          {% endif %}
+          {% if document.source_sha256 %}
+          <div class="prov-item">
+            <span class="prov-label">SHA-256</span>
+            <span class="prov-value sha256-mono">{{ document.source_sha256[:16] }}…</span>
+          </div>
+          {% endif %}
+          {% if document.source_url %}
+          <div class="prov-item prov-item-full">
+            <span class="prov-label">رابط المصدر</span>
+            <a class="prov-value prov-link" href="{{ document.source_url }}" target="_blank" rel="noopener noreferrer">
+              {{ document.source_url }}
+            </a>
+          </div>
+          {% endif %}
+        </div>
+      </div>
+      {% endif %}
     {% endif %}
 
     <div class="admin-form-actions">
@@ -42,4 +95,56 @@
     </div>
   </form>
 </section>
+
+<style>
+.pdf-provenance-section {
+  background: var(--color-surface-alt, #1e293b);
+  border-radius: 8px;
+  padding: 1rem 1.25rem;
+  margin: 1rem 0;
+  border-right: 4px solid #7c3aed;
+}
+.pdf-provenance-section h4 {
+  color: #a78bfa;
+  font-size: 0.9rem;
+  font-weight: 600;
+  margin: 0 0 0.75rem 0;
+}
+.provenance-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+  gap: 0.6rem;
+}
+.prov-item {
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+}
+.prov-item-full {
+  grid-column: 1 / -1;
+}
+.prov-label {
+  color: var(--color-text-muted, #94a3b8);
+  font-size: 0.72rem;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+.prov-value {
+  color: var(--color-text, #f1f5f9);
+  font-size: 0.85rem;
+  word-break: break-all;
+}
+.sha256-mono {
+  font-family: monospace;
+  color: #a78bfa;
+}
+.prov-link {
+  color: #60a5fa;
+  text-decoration: underline;
+  word-break: break-all;
+}
+.filename-wrap {
+  word-break: break-all;
+}
+</style>
 {% endblock %}

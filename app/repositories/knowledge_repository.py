@@ -25,6 +25,12 @@ class KnowledgeRepository:
             select(KnowledgeDocument).where(KnowledgeDocument.id == document_id).with_for_update()
         )
 
+    def get_document_by_sha256(self, sha256_hex: str) -> KnowledgeDocument | None:
+        """Return an existing document with the given source_sha256, or None."""
+        return self.session.scalar(
+            select(KnowledgeDocument).where(KnowledgeDocument.source_sha256 == sha256_hex)
+        )
+
     def list_documents(
         self,
         *,

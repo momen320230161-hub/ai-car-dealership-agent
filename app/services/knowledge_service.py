@@ -35,6 +35,14 @@ class KnowledgePersistenceError(KnowledgeServiceError):
     pass
 
 
+class KnowledgeDuplicateError(KnowledgeServiceError):
+    """Raised when a PDF with the same SHA-256 hash already exists."""
+
+    def __init__(self, message: str, *, existing_id: uuid.UUID | None = None):
+        super().__init__(message)
+        self.existing_id = existing_id
+
+
 @dataclass(frozen=True, slots=True)
 class ReindexReport:
     requested: int
@@ -68,6 +76,17 @@ class KnowledgeService:
         content: str,
         active: bool = True,
         document_id: uuid.UUID | None = None,
+        # Optional PDF provenance — all default to None for manual documents
+        source_type: str | None = None,
+        source_name: str | None = None,
+        source_url: str | None = None,
+        source_filename: str | None = None,
+        source_sha256: str | None = None,
+        source_mime_type: str | None = None,
+        source_file_size: int | None = None,
+        source_page_count: int | None = None,
+        ingested_at: datetime | None = None,
+        extraction_method: str | None = None,
     ) -> KnowledgeDocument:
         title = self._required_text(title, "title")
         category = self._normalize_category(category)
@@ -75,6 +94,16 @@ class KnowledgeService:
         active = self._required_bool(active, "active")
         if document_id is not None and not isinstance(document_id, uuid.UUID):
             raise ValueError("document_id must be a UUID")
+
+        # Duplicate PDF protection: reject if sha256 already exists
+        if source_sha256:
+            existing = self.repository.get_document_by_sha256(source_sha256)
+            if existing is not None:
+                raise KnowledgeDuplicateError(
+                    f"ملف PDF بنفس الـ SHA-256 موجود بالفعل: {existing.title!r}",
+                    existing_id=existing.id,
+                )
+
         document = KnowledgeDocument(
             id=document_id or uuid.uuid4(),
             title=title,
@@ -83,6 +112,16 @@ class KnowledgeService:
             content_version=1,
             index_status="pending",
             active=active,
+            source_type=source_type,
+            source_name=source_name,
+            source_url=source_url,
+            source_filename=source_filename,
+            source_sha256=source_sha256,
+            source_mime_type=source_mime_type,
+            source_file_size=source_file_size,
+            source_page_count=source_page_count,
+            ingested_at=ingested_at,
+            extraction_method=extraction_method,
         )
         try:
             self.session.add(document)
