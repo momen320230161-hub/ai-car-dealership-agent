@@ -11,7 +11,7 @@
   </div>
   <div class="toolbar-actions">
     <a class="admin-button primary" href="{{ url_for('site.admin.knowledge_new') }}">إضافة مستند</a>
-    <a class="admin-button pdf-btn" href="{{ url_for('site.admin.knowledge_import_pdf') }}">📄 رفع PDF</a>
+    <a class="admin-button primary" href="{{ url_for('site.admin.knowledge_import_pdf') }}">رفع PDF</a>
   </div>
 </div>
 
@@ -66,15 +66,6 @@
   gap: 0.5rem;
   flex-wrap: wrap;
   align-items: center;
-}
-.pdf-btn {
-  background: linear-gradient(135deg, #7c3aed, #6366f1);
-  color: #fff !important;
-  border: none;
-}
-.pdf-btn:hover {
-  background: linear-gradient(135deg, #6d28d9, #4f46e5);
-  color: #fff !important;
 }
 .badge {
   display: inline-block;
